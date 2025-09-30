@@ -23,3 +23,16 @@ model Account {
 
   @@map("accounts")
 }
+
+
+model waste_items {
+  id               Int      @id @default(autoincrement())
+  recyclable       Int      @default(0)
+  biodegradable    Int      @default(0) 
+  nonBiodegradable Int      @default(0)
+  date             DateTime @unique @db.Date
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("waste_items")
+}

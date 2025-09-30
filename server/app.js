@@ -25,8 +25,16 @@ app.listen(PORT, () => {
   console.log(`\n\nLINK: `.cyan + `http://localhost:${PORT}/`.italic.underline.yellow);
 });
 
-// Routes
-app.get('/api/test', (req, res) => {
-  console.log("\n\n\n \t\t\t\t\t\t\t ----- Test endpoint hit -----\n\n".rainbow.italic.bgBlack);
-  res.json({ status: 'OK', timestamp: new Date() });
+// Frontend Root
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// API
+import APIRouter from './API/index.js';
+app.use('/api', APIRouter);
+
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found' });
+}); 
