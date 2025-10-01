@@ -1,6 +1,4 @@
-import { PrismaClient } from '../../generated/prisma/index.js';
-
-const prisma = new PrismaClient();
+import { prisma, retryOperation } from '../../utils/database.js';
 
 // POST /api/waste/add
 // Expected body: { recyclable: number, biodegradable: number, nonBiodegradable: number }
@@ -45,14 +43,16 @@ export const addWasteRecord = async (req, res) => {
     const todayDate = new Date(todayDateString);
 
     try {
-      // Try to create the record directly - let the unique constraint do the checking
-      const result = await prisma.waste_items.create({
-        data: {
-          recyclable,
-          biodegradable,
-          nonBiodegradable,
-          date: todayDate
-        }
+      // Try to create the record directly with retry logic
+      const result = await retryOperation(async () => {
+        return await prisma.waste_items.create({
+          data: {
+            recyclable,
+            biodegradable,
+            nonBiodegradable,
+            date: todayDate
+          }
+        });
       });
 
       return res.status(201).json({
@@ -74,8 +74,10 @@ export const addWasteRecord = async (req, res) => {
       // If we get unique constraint violation, fetch the existing record and return 409
       if (createError.code === 'P2002') {
         try {
-          const existingRecord = await prisma.waste_items.findUnique({
-            where: { date: todayDate }
+          const existingRecord = await retryOperation(async () => {
+            return await prisma.waste_items.findUnique({
+              where: { date: todayDate }
+            });
           });
 
           return res.status(409).json({
@@ -109,6 +111,15 @@ export const addWasteRecord = async (req, res) => {
   } catch (error) {
     console.error('Error adding waste record:', error);
     
+    // Handle specific Prisma errors
+    if (error.code === 'P1001') {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection failed. Please try again.',
+        error: 'Database unavailable'
+      });
+    }
+    
     // Handle Prisma unique constraint violation (fallback - shouldn't reach here now)
     if (error.code === 'P2002') {
       return res.status(409).json({
@@ -131,9 +142,8 @@ export const addWasteRecord = async (req, res) => {
       message: 'Internal server error while creating waste record',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Server error'
     });
-  } finally {
-    await prisma.$disconnect();
   }
+  // Note: Removed prisma.$disconnect() to maintain connection pool
 };
 
 // Export as default for easier importing

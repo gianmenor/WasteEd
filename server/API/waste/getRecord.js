@@ -1,6 +1,4 @@
-import { PrismaClient } from '../../generated/prisma/index.js';
-
-const prisma = new PrismaClient();
+import { prisma, retryOperation } from '../../utils/database.js';
 
 // GET /api/waste/records
 // Optimized for TanStack React Table with pagination, search, and filters
@@ -147,11 +145,13 @@ const getWasteRecords = async (req, res) => {
       queryOptions.orderBy = { [sortBy]: sortOrder };
     }
 
-    // Get records and total count
-    const [allRecords, totalCount] = await Promise.all([
-      prisma.waste_items.findMany(queryOptions),
-      prisma.waste_items.count({ where: whereClause })
-    ]);
+    // Get records and total count with retry logic
+    const [allRecords, totalCount] = await retryOperation(async () => {
+      return await Promise.all([
+        prisma.waste_items.findMany(queryOptions),
+        prisma.waste_items.count({ where: whereClause })
+      ]);
+    });
 
     // Apply search filter if provided (post-database filter for flexibility)
     let filteredRecords = allRecords;
@@ -265,14 +265,31 @@ const getWasteRecords = async (req, res) => {
 
   } catch (error) {
     console.error('Error retrieving waste records:', error);
+    
+    // Handle specific Prisma errors
+    if (error.code === 'P1001') {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection failed. Please try again.',
+        error: 'Database unavailable'
+      });
+    }
+    
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        success: false,
+        message: 'Database constraint violation',
+        error: 'Data conflict'
+      });
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Internal server error while retrieving waste records',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Server error'
     });
-  } finally {
-    await prisma.$disconnect();
   }
+  // Note: Removed prisma.$disconnect() to maintain connection pool
 };
 
 // GET /api/waste/records/:id
@@ -290,8 +307,10 @@ const getWasteRecordById = async (req, res) => {
       });
     }
 
-    const record = await prisma.waste_items.findUnique({
-      where: { id: recordId }
+    const record = await retryOperation(async () => {
+      return await prisma.waste_items.findUnique({
+        where: { id: recordId }
+      });
     });
 
     if (!record) {
@@ -321,14 +340,23 @@ const getWasteRecordById = async (req, res) => {
 
   } catch (error) {
     console.error('Error retrieving waste record:', error);
+    
+    // Handle specific Prisma errors
+    if (error.code === 'P1001') {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection failed. Please try again.',
+        error: 'Database unavailable'
+      });
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Internal server error while retrieving waste record',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Server error'
     });
-  } finally {
-    await prisma.$disconnect();
   }
+  // Note: Removed prisma.$disconnect() to maintain connection pool
 };
 
 // GET /api/waste/summary
@@ -368,13 +396,15 @@ const getWasteSummary = async (req, res) => {
       }
     }
 
-    const [records, totalRecords] = await Promise.all([
-      prisma.waste_items.findMany({
-        where: whereClause,
-        orderBy: { date: 'desc' }
-      }),
-      prisma.waste_items.count({ where: whereClause })
-    ]);
+    const [records, totalRecords] = await retryOperation(async () => {
+      return await Promise.all([
+        prisma.waste_items.findMany({
+          where: whereClause,
+          orderBy: { date: 'desc' }
+        }),
+        prisma.waste_items.count({ where: whereClause })
+      ]);
+    });
 
     const summary = records.reduce((acc, record) => {
       acc.totalRecyclable += record.recyclable;
@@ -409,14 +439,23 @@ const getWasteSummary = async (req, res) => {
 
   } catch (error) {
     console.error('Error retrieving waste summary:', error);
+    
+    // Handle specific Prisma errors
+    if (error.code === 'P1001') {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection failed. Please try again.',
+        error: 'Database unavailable'
+      });
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Internal server error while retrieving waste summary',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Server error'
     });
-  } finally {
-    await prisma.$disconnect();
   }
+  // Note: Removed prisma.$disconnect() to maintain connection pool
 };
 
 // Export functions

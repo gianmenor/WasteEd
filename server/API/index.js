@@ -8,11 +8,19 @@ router.get('/', (req, res) => {
   res.json({ status: 'API OK', timestamp: new Date() });
 });
 
+import healthRouter from './health.js';
+router.use('/health', healthRouter);
 
 import wasteRouter from './waste/index.js';
 router.use('/waste', wasteRouter);
 
 import authRouter from './accounts/auth.js';
 router.use('/accounts', authRouter);
+
+import manageRouter from './accounts/manage.js';
+router.use('/accounts/manage', manageRouter);
+
+import preferencesRouter from './accounts/preferences.js';
+router.use('/accounts/preferences', preferencesRouter);
 
 export default router;

@@ -1,17 +1,6 @@
 import { useState } from 'react';
-import {
-  Container,
-  Paper,
-  TextField,
-  Button,
-  Typography,
-  Box,
-  Alert,
-  IconButton,
-  InputAdornment
-} from '@mui/material';
-import { Visibility, VisibilityOff, Recycling } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import './Login.css';
 
 const Login = () => {
   const { login } = useAuth();
@@ -52,122 +41,134 @@ const Login = () => {
   };
 
   return (
-    <Container
-      maxWidth="sm"
-      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100 dark:from-gray-900 dark:to-gray-800"
-    >
-      <Paper
-        elevation={8}
-        className="p-8 w-full max-w-md rounded-xl bg-white dark:bg-gray-800"
-      >
-        <Box className="text-center mb-6">
-          <Box className="flex justify-center mb-4">
-            <Box className="p-3 rounded-full bg-green-100 dark:bg-green-900">
-              <Recycling className="text-4xl text-green-600 dark:text-green-400" />
-            </Box>
-          </Box>
-          <Typography
-            variant="h4"
-            component="h1"
-            className="font-bold text-gray-800 dark:text-white mb-2"
-          >
-            RecycList
-          </Typography>
-          <Typography
-            variant="body1"
-            color="textSecondary"
-            className="text-gray-600 dark:text-gray-300"
-          >
-            Smart Waste Management System
-          </Typography>
-        </Box>
+    <div className="login-page">
+      <div className="login-background">
+        <div className="background-shapes">
+          <div className="shape shape-1"></div>
+          <div className="shape shape-2"></div>
+          <div className="shape shape-3"></div>
+        </div>
+      </div>
+      
+      <div className="login-container">
+        <div className="login-card">
+          {/* Header */}
+          <div className="login-header">
+            <div className="logo-container">
+              <div className="logo">
+                <div className="logo-icon">♻️</div>
+                <div className="logo-text">
+                  <span className="brand-name">RecycList</span>
+                  <span className="brand-tagline">Smart Waste Management</span>
+                </div>
+              </div>
+            </div>
+            <p className="welcome-text">Welcome back! Sign in to continue managing waste efficiently.</p>
+          </div>
 
-        {error && (
-          <Alert severity="error" className="mb-4">
-            {error}
-          </Alert>
-        )}
+          {/* Error Alert */}
+          {error && (
+            <div className="error-alert">
+              <div className="error-icon">⚠️</div>
+              <div className="error-message">{error}</div>
+              <button 
+                className="error-close"
+                onClick={() => setError('')}
+                aria-label="Close error"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit}>
-          <TextField
-            fullWidth
-            label="Username"
-            name="username"
-            value={credentials.username}
-            onChange={handleChange}
-            margin="normal"
-            required
-            autoComplete="username"
-            autoFocus
-            className="mb-4"
-          />
+          {/* Login Form */}
+          <form onSubmit={handleSubmit} className="login-form">
+            <div className="form-group">
+              <label htmlFor="username" className="form-label">
+                <span className="label-icon">👤</span>
+                Username
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                value={credentials.username}
+                onChange={handleChange}
+                className="form-input"
+                placeholder="Enter your username"
+                required
+                autoComplete="username"
+                autoFocus
+              />
+            </div>
 
-          <TextField
-            fullWidth
-            label="Password"
-            name="password"
-            type={showPassword ? 'text' : 'password'}
-            value={credentials.password}
-            onChange={handleChange}
-            margin="normal"
-            required
-            autoComplete="current-password"
-            className="mb-6"
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
+            <div className="form-group">
+              <label htmlFor="password" className="form-label">
+                <span className="label-icon">🔒</span>
+                Password
+              </label>
+              <div className="password-input-container">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={credentials.password}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="Enter your password"
+                  required
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
+            </div>
 
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            size="large"
-            disabled={loading}
-            className="py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-200"
-            sx={{
-              backgroundColor: 'green.600',
-              '&:hover': {
-                backgroundColor: 'green.700',
-              },
-            }}
-          >
-            {loading ? 'Signing In...' : 'Sign In'}
-          </Button>
-        </form>
+            <button
+              type="submit"
+              className={`login-button ${loading ? 'loading' : ''}`}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <span className="loading-spinner"></span>
+                  Signing In...
+                </>
+              ) : (
+                <>
+                  <span className="button-icon">🚀</span>
+                  Sign In
+                </>
+              )}
+            </button>
+          </form>
 
-        <Box className="mt-6 text-center">
-          <Typography
-            variant="body2"
-            color="textSecondary"
-            className="text-gray-600 dark:text-gray-400 mb-4"
-          >
-            Connect your Arduino devices to start tracking waste data
-          </Typography>
-          
-          <Box className="p-3 bg-green-50 dark:bg-green-900 rounded-lg">
-            <Typography variant="caption" className="block text-green-700 dark:text-green-300 font-semibold mb-1">
-              Demo Credentials:
-            </Typography>
-            <Typography variant="caption" className="block text-green-600 dark:text-green-400">
-              Username: admin | Password: 123456
-            </Typography>
-            <Typography variant="caption" className="block text-green-600 dark:text-green-400">
-              Username: testuser | Password: password123
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
-    </Container>
+          {/* Features */}
+          <div className="features-section">
+            <div className="features-grid">
+              <div className="feature-item">
+                <span className="feature-icon">📊</span>
+                <span className="feature-text">Real-time Analytics</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">🔗</span>
+                <span className="feature-text">Arduino Integration</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">🌱</span>
+                <span className="feature-text">Environmental Impact</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

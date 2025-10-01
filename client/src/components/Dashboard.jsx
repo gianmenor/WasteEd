@@ -1,5 +1,6 @@
 ﻿import { useState, createContext, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { usePreferences } from '../contexts/PreferencesContext';
 import './Dashboard.css';
 
 // Theme Context
@@ -13,17 +14,10 @@ export const useSettings = () => useContext(SettingsContext);
 
 const Dashboard = ({ user, onLogout, children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [settings, setSettings] = useState({
-    darkMode: false,
-    fontSize: 'medium',
-    uiScale: 'normal',
-    notifications: true,
-    soundEffects: true,
-    compactMode: false,
-    showTooltips: true,
-    autoSave: true
-  });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  
+  // Use preferences context for theme and settings
+  const { preferences, updatePreference } = usePreferences();
   
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,7 +25,6 @@ const Dashboard = ({ user, onLogout, children }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard' },
     { id: 'waste', label: 'Waste Management', icon: '♻️', path: '/waste' },
-    { id: 'analytics', label: 'Analytics', icon: '📈', path: '/analytics' },
     { id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings' },
   ];
 
@@ -46,17 +39,33 @@ const Dashboard = ({ user, onLogout, children }) => {
     setMobileOpen(!mobileOpen);
   };
 
-  const updateSettings = (newSettings) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+  const handleDarkModeToggle = async () => {
+    const newTheme = preferences.theme === 'dark' ? 'light' : 'dark';
+    await updatePreference('theme', newTheme);
   };
 
-  const themeClasses = settings.darkMode ? 'dark-theme' : 'light-theme';
-  const fontSizeClass = `font-${settings.fontSize}`;
-  const scaleClass = `scale-${settings.uiScale}`;
+  const themeClasses = preferences.theme === 'dark' ? 'dark-theme' : 'light-theme';
+  const fontSizeClass = `font-${preferences.uiSize}`;
+  const scaleClass = `scale-normal`;
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings }}>
-      <ThemeContext.Provider value={{ darkMode: settings.darkMode, toggleDarkMode: () => updateSettings({ darkMode: !settings.darkMode }) }}>
+    <SettingsContext.Provider value={{ 
+      settings: {
+        darkMode: preferences.theme === 'dark',
+        fontSize: preferences.uiSize,
+        uiScale: 'normal',
+        notifications: preferences.notifications,
+        soundEffects: true,
+        compactMode: false,
+        showTooltips: true,
+        autoSave: preferences.autoRefresh
+      }, 
+      updateSettings: () => {} // deprecated, use preferences context instead
+    }}>
+      <ThemeContext.Provider value={{ 
+        darkMode: preferences.theme === 'dark', 
+        toggleDarkMode: handleDarkModeToggle 
+      }}>
         <div className={`dashboard ${themeClasses} ${fontSizeClass} ${scaleClass}`}>
           {/* Mobile Overlay */}
           {mobileOpen && (
@@ -95,12 +104,12 @@ const Dashboard = ({ user, onLogout, children }) => {
               <div className="quick-settings">
                 <button
                   className="setting-toggle"
-                  onClick={() => updateSettings({ darkMode: !settings.darkMode })}
+                  onClick={handleDarkModeToggle}
                   title="Toggle Dark Mode"
                 >
-                  <span className="setting-icon">{settings.darkMode ? '' : ''}</span>
+                  <span className="setting-icon">{preferences.theme === 'dark' ? '☀️' : '🌙'}</span>
                   <span className="setting-label">
-                    {settings.darkMode ? 'Light Mode' : 'Dark Mode'}
+                    {preferences.theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                   </span>
                 </button>
               </div>
@@ -121,7 +130,7 @@ const Dashboard = ({ user, onLogout, children }) => {
               </div>
 
               <div className="top-bar-right">
-                {settings.notifications && (
+                {preferences.notifications && (
                   <button className="notification-btn" title="Notifications">
                     <span className="notification-icon">🔔</span>
                     <span className="notification-badge">3</span>

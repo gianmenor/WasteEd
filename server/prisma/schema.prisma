@@ -18,10 +18,46 @@ model Account {
   id        Int      @id @default(autoincrement())
   username  String   @unique
   password  String
+  role      String   @default("user")
+  email     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relationship with user preferences
+  preferences UserPreferences?
+
   @@map("accounts")
+}
+
+model UserPreferences {
+  id               Int     @id @default(autoincrement())
+  accountId        Int     @unique
+  
+  // Theme and appearance
+  theme            String  @default("light") // light, dark
+  
+  // System settings
+  binFullAlert     Boolean @default(true)
+  recordsPerPage   Int     @default(10)
+  uiSize           String  @default("medium") // small, medium, large
+  
+  // Notification settings
+  notifications    Boolean @default(true)
+  autoRefresh      Boolean @default(true)
+  compactMode      Boolean @default(false)
+  
+  // Language and locale
+  language         String  @default("en")
+  timezone         String  @default("UTC")
+  dateFormat       String  @default("MM/DD/YYYY")
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relationship with account
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
 }
 
 
