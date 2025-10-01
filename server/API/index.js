@@ -12,5 +12,7 @@ router.get('/', (req, res) => {
 import wasteRouter from './waste/index.js';
 router.use('/waste', wasteRouter);
 
+import authRouter from './accounts/auth.js';
+router.use('/accounts', authRouter);
 
 export default router;

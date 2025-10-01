@@ -9,5 +9,7 @@ router.get('/records', getRecord);
 import addRecord from './addRecord.js';
 router.post('/add', addRecord); 
 
+import analytics from './analytics.js';
+router.get('/analytics', analytics);
 
 export default router;
