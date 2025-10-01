@@ -1,4 +1,4 @@
-import { PrismaClient } from '../generated/prisma/index.js';
+import { PrismaClient } from '@prisma/client';
 
 // Create a singleton Prisma client instance with optimal configuration
 class DatabaseClient {

@@ -1,4 +1,4 @@
-import { PrismaClient } from '../generated/prisma/index.js';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import fs from 'fs';
 import path from 'path';

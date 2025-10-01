@@ -5,6 +5,8 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
+    "start": "node app.js",
+    "build": "prisma generate && prisma migrate deploy",
     "dev": "nodemon app.js",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
