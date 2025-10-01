@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -15,59 +9,45 @@ datasource db {
 }
 
 model Account {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  password  String
-  role      String   @default("user")
-  email     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relationship with user preferences
+  id          Int              @id @default(autoincrement())
+  username    String           @unique
+  password    String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  email       String?
+  role        String           @default("user")
   preferences UserPreferences?
 
   @@map("accounts")
 }
 
 model UserPreferences {
-  id               Int     @id @default(autoincrement())
-  accountId        Int     @unique
-  
-  // Theme and appearance
-  theme            String  @default("light") // light, dark
-  
-  // System settings
-  binFullAlert     Boolean @default(true)
-  recordsPerPage   Int     @default(10)
-  uiSize           String  @default("medium") // small, medium, large
-  
-  // Notification settings
-  notifications    Boolean @default(true)
-  autoRefresh      Boolean @default(true)
-  compactMode      Boolean @default(false)
-  
-  // Language and locale
-  language         String  @default("en")
-  timezone         String  @default("UTC")
-  dateFormat       String  @default("MM/DD/YYYY")
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  // Relationship with account
-  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id             Int      @id @default(autoincrement())
+  accountId      Int      @unique
+  theme          String   @default("light")
+  binFullAlert   Boolean  @default(true)
+  recordsPerPage Int      @default(10)
+  uiSize         String   @default("medium")
+  notifications  Boolean  @default(true)
+  autoRefresh    Boolean  @default(true)
+  compactMode    Boolean  @default(false)
+  language       String   @default("en")
+  timezone       String   @default("UTC")
+  dateFormat     String   @default("MM/DD/YYYY")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  account        Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
 }
 
-
 model waste_items {
   id               Int      @id @default(autoincrement())
-  recyclable       Int      @default(0)
-  biodegradable    Int      @default(0) 
-  nonBiodegradable Int      @default(0)
-  date             DateTime @unique @db.Date
   createdAt        DateTime @default(now())
+  biodegradable    Int      @default(0)
+  date             DateTime @unique @db.Date
+  nonBiodegradable Int      @default(0)
+  recyclable       Int      @default(0)
   updatedAt        DateTime @updatedAt
 
   @@map("waste_items")

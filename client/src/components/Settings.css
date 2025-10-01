@@ -465,3 +465,54 @@
     margin-right: 0;
   }
 }
+
+/* UI Size Classes */
+.ui-size-small {
+  font-size: 0.875rem;
+}
+
+.ui-size-small .settings-title {
+  font-size: 1.25rem;
+}
+
+.ui-size-small .settings-section-title {
+  font-size: 1.125rem;
+}
+
+.ui-size-small .form-input,
+.ui-size-small .form-select {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.ui-size-small .btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.ui-size-medium {
+  font-size: 1rem;
+}
+
+.ui-size-large {
+  font-size: 1.125rem;
+}
+
+.ui-size-large .settings-title {
+  font-size: 1.75rem;
+}
+
+.ui-size-large .settings-section-title {
+  font-size: 1.5rem;
+}
+
+.ui-size-large .form-input,
+.ui-size-large .form-select {
+  padding: 0.75rem 1rem;
+  font-size: 1.125rem;
+}
+
+.ui-size-large .btn {
+  padding: 0.75rem 1rem;
+  font-size: 1.125rem;
+}

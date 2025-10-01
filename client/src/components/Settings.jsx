@@ -12,6 +12,8 @@ const Settings = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [roleLoading, setRoleLoading] = useState(true);
   
   const [profile, setProfile] = useState({
     username: user?.username || '',
@@ -27,6 +29,29 @@ const Settings = () => {
   });
 
   const API_BASE = 'http://localhost:3000/api';
+
+  // Check user role
+  const checkUserRole = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE}/accounts/role`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsAdmin(data.isAdmin || false);
+      }
+    } catch (error) {
+      console.error('Error checking user role:', error);
+      setIsAdmin(false);
+    } finally {
+      setRoleLoading(false);
+    }
+  };
 
   // Fetch accounts
   const fetchAccounts = async () => {
@@ -49,6 +74,7 @@ const Settings = () => {
   };
 
   useEffect(() => {
+    checkUserRole();
     if (activeTab === 'accounts') {
       fetchAccounts();
     }
@@ -192,11 +218,11 @@ const Settings = () => {
   const tabs = [
     { id: 'system', label: 'System', icon: '⚙️' },
     { id: 'profile', label: 'Profile', icon: '👤' },
-    { id: 'accounts', label: 'Account Management', icon: '👥' }
+    ...(isAdmin ? [{ id: 'accounts', label: 'Account Management', icon: '👥' }] : [])
   ];
 
   return (
-    <div className="settings-page">
+    <div className={`settings-page ui-size-${preferences?.uiSize || 'medium'}`}>
       <div className="settings-header">
         <h1 className="settings-title">Settings</h1>
       </div>

@@ -23,6 +23,9 @@ router.use('/accounts/manage', manageRouter);
 import preferencesRouter from './accounts/preferences.js';
 router.use('/accounts/preferences', preferencesRouter);
 
+import roleRouter from './accounts/role.js';
+router.use('/accounts/role', roleRouter);
+
 import binRouter from './bin/index.js';
 router.use('/bin', binRouter);
 

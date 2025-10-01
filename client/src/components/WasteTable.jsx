@@ -1,7 +1,9 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
+import { usePreferences } from '../contexts/PreferencesContext';
 import './WasteTable.css';
 
 const WasteTable = () => {
+  const { preferences } = usePreferences();
   const tableRef = useRef(null);
   const [wasteData, setWasteData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10,7 +12,8 @@ const WasteTable = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  
+  const itemsPerPage = preferences?.recordsPerPage || 10;
 
   // Fetch waste data from API
   const fetchWasteData = async () => {
@@ -188,7 +191,7 @@ const WasteTable = () => {
   }
 
   return (
-    <div className="waste-table-container">
+    <div className={`waste-table-container ui-size-${preferences?.uiSize || 'medium'}`}>
 
       {/* Filter Controls */}
       <div className="filter-controls">
@@ -341,8 +344,33 @@ const WasteTable = () => {
               <span className="section-icon" aria-hidden="true">📋</span>
               Waste Collection Records
             </h2>
-            <div className="table-summary">
-              Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} {viewMode === 'monthly' ? 'months' : 'records'}
+            <div className="table-actions">
+              <button
+                className="refresh-btn"
+                onClick={fetchWasteData}
+                disabled={loading}
+                aria-label="Refresh data"
+                title="Refresh data"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={loading ? 'spinning' : ''}
+                >
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="m20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+                </svg>
+              </button>
+              <div className="table-summary">
+                Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} {viewMode === 'monthly' ? 'months' : 'records'}
+              </div>
             </div>
           </div>
 

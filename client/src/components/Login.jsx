@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { usePreferences } from '../contexts/PreferencesContext';
 import './Login.css';
 
 const Login = () => {
   const { login } = useAuth();
+  const { preferences } = usePreferences();
   const [credentials, setCredentials] = useState({
     username: '',
     password: ''
   });
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,38 +44,30 @@ const Login = () => {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-background">
-        <div className="background-shapes">
-          <div className="shape shape-1"></div>
-          <div className="shape shape-2"></div>
-          <div className="shape shape-3"></div>
-        </div>
-      </div>
-      
+    <div className={`login-page ui-size-${preferences?.uiSize || 'medium'}`}>
       <div className="login-container">
         <div className="login-card">
           {/* Header */}
           <div className="login-header">
-            <div className="logo-container">
-              <div className="logo">
-                <div className="logo-icon">♻️</div>
-                <div className="logo-text">
-                  <span className="brand-name">RecycList</span>
-                  <span className="brand-tagline">Smart Waste Management</span>
-                </div>
+            <div className="brand-section">
+              <div className="brand-icon">♻️</div>
+              <div className="brand-info">
+                <h1 className="brand-name">
+                  Wast<span className="brand-accent">E</span>d
+                </h1>
+                <p className="brand-tagline">Smart Waste Management</p>
               </div>
             </div>
-            <p className="welcome-text">Welcome back! Sign in to continue managing waste efficiently.</p>
+            <p className="welcome-text">Sign in to your account</p>
           </div>
 
           {/* Error Alert */}
           {error && (
-            <div className="error-alert">
-              <div className="error-icon">⚠️</div>
-              <div className="error-message">{error}</div>
+            <div className="alert alert-error" role="alert">
+              <span className="alert-icon">⚠️</span>
+              <span className="alert-message">{error}</span>
               <button 
-                className="error-close"
+                className="alert-close"
                 onClick={() => setError('')}
                 aria-label="Close error"
               >
@@ -85,7 +80,6 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="login-form">
             <div className="form-group">
               <label htmlFor="username" className="form-label">
-                <span className="label-icon">👤</span>
                 Username
               </label>
               <input
@@ -104,10 +98,9 @@ const Login = () => {
 
             <div className="form-group">
               <label htmlFor="password" className="form-label">
-                <span className="label-icon">🔒</span>
                 Password
               </label>
-              <div className="password-input-container">
+              <div className="password-input-group">
                 <input
                   id="password"
                   name="password"
@@ -130,9 +123,22 @@ const Login = () => {
               </div>
             </div>
 
+            <div className="form-group remember-me-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="checkbox-input"
+                />
+                <span className="checkbox-custom"></span>
+                <span className="checkbox-text">Remember me for 30 days</span>
+              </label>
+            </div>
+
             <button
               type="submit"
-              className={`login-button ${loading ? 'loading' : ''}`}
+              className={`btn btn-primary login-btn ${loading ? 'loading' : ''}`}
               disabled={loading}
             >
               {loading ? (
@@ -141,31 +147,10 @@ const Login = () => {
                   Signing In...
                 </>
               ) : (
-                <>
-                  <span className="button-icon">🚀</span>
-                  Sign In
-                </>
+                'Sign In'
               )}
             </button>
           </form>
-
-          {/* Features */}
-          <div className="features-section">
-            <div className="features-grid">
-              <div className="feature-item">
-                <span className="feature-icon">📊</span>
-                <span className="feature-text">Real-time Analytics</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-icon">🔗</span>
-                <span className="feature-text">Arduino Integration</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-icon">🌱</span>
-                <span className="feature-text">Environmental Impact</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
