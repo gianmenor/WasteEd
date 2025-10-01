@@ -25,16 +25,22 @@ app.listen(PORT, () => {
   console.log(`\n\nLINK: `.cyan + `http://localhost:${PORT}/`.italic.underline.yellow);
 });
 
-// Frontend Root
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 // API
 import APIRouter from './API/index.js';
 app.use('/api', APIRouter);
 
-// 404 Handler
+// SPA Fallback - Serve React app for all non-API routes
+app.use((req, res) => {
+  // Don't serve index.html for API routes
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  
+  // Serve React app's index.html for all other routes
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// 404 Handler (this will only catch routes that somehow bypass the above)
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });
 }); 
