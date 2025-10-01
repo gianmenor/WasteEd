@@ -23,4 +23,7 @@ router.use('/accounts/manage', manageRouter);
 import preferencesRouter from './accounts/preferences.js';
 router.use('/accounts/preferences', preferencesRouter);
 
+import binRouter from './bin/index.js';
+router.use('/bin', binRouter);
+
 export default router;

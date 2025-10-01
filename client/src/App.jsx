@@ -4,12 +4,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PreferencesProvider } from './contexts/PreferencesContext';
+import { BinNotificationProvider } from './contexts/BinNotificationContext';
 import ThemeProvider from './contexts/ThemeProvider';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import WasteTable from './components/WasteTable';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Settings from './components/Settings';
+import NotificationTest from './components/NotificationTest';
 import './App.css';
 
 // Create query client
@@ -53,17 +55,18 @@ const AppContent = () => {
 
   return (
     <PreferencesProvider>
-      <ThemeProvider>
-        <Router>
-          <Routes>
-            <Route 
-              path="/login" 
-              element={
-                isAuthenticated ? 
-                <Navigate to="/" replace /> : 
-                <Login />
-              } 
-            />
+      <BinNotificationProvider>
+        <ThemeProvider>
+          <Router>
+            <Routes>
+              <Route 
+                path="/login" 
+                element={
+                  isAuthenticated ? 
+                  <Navigate to="/" replace /> : 
+                  <Login />
+                } 
+              />
             
             <Route 
               path="/" 
@@ -97,12 +100,24 @@ const AppContent = () => {
                 </ProtectedRoute>
               } 
             />
+
+            <Route 
+              path="/test-notifications" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard user={user} onLogout={logout}>
+                    <NotificationTest />
+                  </Dashboard>
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Router>
       </ThemeProvider>
+      </BinNotificationProvider>
     </PreferencesProvider>
   );
 };
