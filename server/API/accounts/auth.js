@@ -49,7 +49,7 @@ router.post('/login', async (req, res) => {
       userId: user.id,
       username: user.username,
       name: user.username, // Using username as name since no separate name field
-      role: 'user' // Default role since no role field in your schema
+      role: user.role || 'user' // Use actual role from database
     };
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
@@ -60,7 +60,7 @@ router.post('/login', async (req, res) => {
         id: user.id,
         username: user.username,
         name: user.username,
-        role: 'user'
+        role: user.role || 'user'
       }
     });
 
@@ -75,19 +75,26 @@ router.get('/validate', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     
+    console.log('Validate - Auth header:', authHeader ? 'Present' : 'Missing');
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('Validate - No bearer token provided');
       return res.status(401).json({ message: 'No token provided' });
     }
 
     const token = authHeader.substring(7);
+    console.log('Validate - Token extracted:', token ? 'Present' : 'Missing');
     
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
+      console.log('Validate - Token decoded:', decoded);
       
       // Optionally verify user still exists in database
       const user = await prisma.account.findUnique({
         where: { id: decoded.userId }
       });
+
+      console.log('Validate - User found:', user ? user.username : 'Not found');
 
       if (!user) {
         return res.status(401).json({ message: 'User not found' });
@@ -99,10 +106,11 @@ router.get('/validate', async (req, res) => {
           id: user.id,
           username: user.username,
           name: user.username,
-          role: decoded.role || 'user'
+          role: user.role || 'user'
         }
       });
     } catch (jwtError) {
+      console.log('Validate - JWT error:', jwtError.message);
       return res.status(401).json({ message: 'Invalid token' });
     }
   } catch (error) {

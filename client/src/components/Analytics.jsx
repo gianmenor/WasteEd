@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import './Analytics.css';
+import React, { useState, useEffect, useRef } from 'react';
+import { API_ENDPOINTS } from '../config/api';
+import AnalyticsCharts from './AnalyticsCharts';
+import './AnalyticsDashboard.css';
 
 const Analytics = () => {
   const [category, setCategory] = useState('waste');
@@ -8,9 +10,6 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true); // Start with loading true
   const [error, setError] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
-
-  // API Base URL
-  const API_BASE_URL = 'http://localhost:3000/api';
 
   // Error Messages for different scenarios
   const getErrorMessage = (error) => {
@@ -75,19 +74,19 @@ const Analytics = () => {
 
       switch (category) {
         case 'waste':
-          url = `${API_BASE_URL}/waste/analytics?range=${timeRange}&metric=${metric}`;
+          url = `${API_ENDPOINTS.WASTE_ANALYTICS}?range=${timeRange}&metric=${metric}`;
           break;
         case 'bins':
-          url = `${API_BASE_URL}/bin/analytics/summary`;
+          url = API_ENDPOINTS.BIN_ANALYTICS_SUMMARY;
           break;
         case 'accounts':
-          url = `${API_BASE_URL}/accounts/analytics?range=${timeRange}`;
+          url = `${API_ENDPOINTS.ACCOUNTS_ANALYTICS}?range=${timeRange}`;
           break;
         case 'notifications':
-          url = `${API_BASE_URL}/bin/analytics/notifications?range=${timeRange}`;
+          url = `${API_ENDPOINTS.BIN_ANALYTICS_NOTIFICATIONS}?range=${timeRange}`;
           break;
         default:
-          url = `${API_BASE_URL}/waste/analytics?range=${timeRange}&metric=${metric}`;
+          url = `${API_ENDPOINTS.WASTE_ANALYTICS}?range=${timeRange}&metric=${metric}`;
       }
 
       const response = await fetch(url, {
@@ -114,7 +113,7 @@ const Analytics = () => {
     } finally {
       setLoading(false);
     }
-  }, [category, timeRange, metric, API_BASE_URL]);
+  }, [category, timeRange, metric]);
 
   // Fetch data when dependencies change
   useEffect(() => {
@@ -315,7 +314,23 @@ const Analytics = () => {
       {/* Loading State */}
       {loading && (
         <div className="loading-container">
-          <div className="loading-spinner">🔄</div>
+          <div className="loading-spinner">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="spinning"
+            >
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="m20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+            </svg>
+          </div>
           <p>Loading analytics data...</p>
         </div>
       )}

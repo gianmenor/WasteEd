@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSettings } from './Dashboard';
+import { API_ENDPOINTS } from '../config/api';
 import './AnalyticsDashboard.css';
 
 const AnalyticsDashboard = () => {
@@ -24,7 +25,7 @@ const AnalyticsDashboard = () => {
 
       // Fetch all pages of data for comprehensive analytics
       while (hasMoreData) {
-        let url = 'http://localhost:3000/api/waste/records';
+        let url = API_ENDPOINTS.WASTE_RECORDS;
         const params = new URLSearchParams();
         
         params.append('pageSize', '100');
@@ -65,7 +66,7 @@ const AnalyticsDashboard = () => {
       let hasMore = true;
       while (hasMore) {
         const params = new URLSearchParams({ page: page.toString(), limit: '100', sortBy: 'fullAt', sortOrder: 'asc' });
-        const res = await fetch(`http://localhost:3000/api/bin/records?${params.toString()}`);
+        const res = await fetch(`${API_ENDPOINTS.BIN_RECORDS}?${params.toString()}`);
         if (!res.ok) throw new Error(`Failed to fetch bin records: ${res.status}`);
         const json = await res.json();
         if (!json.success) throw new Error('Invalid bin records response');
@@ -295,7 +296,23 @@ const AnalyticsDashboard = () => {
   if (loading) {
     return (
       <div className="analytics-loading">
-        <div className="loading-spinner"></div>
+        <div className="loading-spinner">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="spinning"
+          >
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="m20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+          </svg>
+        </div>
         <p>Loading analytics data...</p>
       </div>
     );

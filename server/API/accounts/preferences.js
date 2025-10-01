@@ -1,23 +1,37 @@
 import express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+
+// Configure
+dotenv.config();
 
 const router = express.Router();
 const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 
 // JWT middleware for authentication
 const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const authHeader = req.headers.authorization;
 
-  if (!token) {
+  console.log('Preferences - Auth header:', authHeader ? 'Present' : 'Missing');
+  console.log('Preferences - Full auth header:', authHeader);
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('Preferences - No bearer token provided');
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
+  const token = authHeader.substring(7);
+  console.log('Preferences - Token extracted:', token ? 'Present' : 'Missing');
+  console.log('Preferences - Token length:', token.length);
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
+      console.log('Preferences - Token verification failed:', err.message);
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
+    console.log('Preferences - Token verified, user:', user);
     req.user = user;
     next();
   });

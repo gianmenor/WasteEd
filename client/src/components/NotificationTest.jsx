@@ -1,4 +1,6 @@
-import { useBinNotifications } from '../contexts/BinNotificationContext';
+import React, { useState, useContext, useRef, useEffect } from 'react';
+import { BinNotificationContext } from '../contexts/BinNotificationContext';
+import { API_ENDPOINTS } from '../config/api';
 
 const NotificationTest = () => {
   const { 
@@ -79,7 +81,7 @@ const NotificationTest = () => {
         <button 
           onClick={async () => {
             try {
-              const response = await fetch('http://localhost:3000/api/bin/full', {
+              const response = await fetch(API_ENDPOINTS.BIN_FULL, {
                 method: 'POST'
               });
               const data = await response.json();

@@ -15,39 +15,8 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 const SALT_ROUNDS = 10;
 
-// Middleware to verify JWT token
-const verifyToken = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'Access denied. No token provided.' });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    // Verify user exists
-    const user = await prisma.account.findUnique({
-      where: { id: decoded.userId }
-    });
-
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid token. User not found.' });
-    }
-
-    req.user = {
-      id: user.id,
-      username: user.username
-    };
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: 'Invalid token.' });
-  }
-};
-
 // GET /api/accounts/manage/list - Get all accounts
-router.get('/list', verifyToken, async (req, res) => {
+router.get('/list', async (req, res) => {
   try {
     const accounts = await prisma.account.findMany({
       select: {
@@ -82,7 +51,7 @@ router.get('/list', verifyToken, async (req, res) => {
 });
 
 // POST /api/accounts/manage/create - Create new account
-router.post('/create', verifyToken, async (req, res) => {
+router.post('/create', async (req, res) => {
   try {
     const { username, password, role } = req.body;
 
@@ -159,10 +128,9 @@ router.post('/create', verifyToken, async (req, res) => {
 });
 
 // DELETE /api/accounts/manage/:id - Delete account
-router.delete('/:id', verifyToken, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const accountId = parseInt(req.params.id);
-    const currentUserId = req.user.id;
 
     // Validate account ID
     if (isNaN(accountId)) {
@@ -181,14 +149,6 @@ router.delete('/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ 
         success: false, 
         message: 'Account not found' 
-      });
-    }
-
-    // Prevent users from deleting their own account
-    if (accountId === currentUserId) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Cannot delete your own account' 
       });
     }
 
@@ -220,7 +180,7 @@ router.delete('/:id', verifyToken, async (req, res) => {
 });
 
 // PUT /api/accounts/manage/:id - Update account
-router.put('/:id', verifyToken, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const accountId = parseInt(req.params.id);
     const { username, password } = req.body;

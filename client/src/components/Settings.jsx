@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
+import { API_ENDPOINTS } from '../config/api';
 import './Settings.css';
 
 const Settings = () => {
@@ -12,8 +13,6 @@ const Settings = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [roleLoading, setRoleLoading] = useState(true);
   
   const [profile, setProfile] = useState({
     username: user?.username || '',
@@ -28,36 +27,11 @@ const Settings = () => {
     role: 'user'
   });
 
-  const API_BASE = 'http://localhost:3000/api';
-
-  // Check user role
-  const checkUserRole = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/accounts/role`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setIsAdmin(data.isAdmin || false);
-      }
-    } catch (error) {
-      console.error('Error checking user role:', error);
-      setIsAdmin(false);
-    } finally {
-      setRoleLoading(false);
-    }
-  };
-
   // Fetch accounts
   const fetchAccounts = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/accounts/manage/list`, {
+      const response = await fetch('/api/accounts/manage/list', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -74,7 +48,6 @@ const Settings = () => {
   };
 
   useEffect(() => {
-    checkUserRole();
     if (activeTab === 'accounts') {
       fetchAccounts();
     }
@@ -122,7 +95,7 @@ const Settings = () => {
         updateData.password = profile.password;
       }
 
-      const response = await fetch(`${API_BASE}/accounts/manage/${user.id}`, {
+      const response = await fetch(`/api/accounts/manage/${user.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -159,7 +132,7 @@ const Settings = () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/accounts/manage/create`, {
+      const response = await fetch('/api/accounts/manage/create', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -193,7 +166,7 @@ const Settings = () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/accounts/manage/${accountId}`, {
+      const response = await fetch(`/api/accounts/manage/${accountId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -218,7 +191,7 @@ const Settings = () => {
   const tabs = [
     { id: 'system', label: 'System', icon: '⚙️' },
     { id: 'profile', label: 'Profile', icon: '👤' },
-    ...(isAdmin ? [{ id: 'accounts', label: 'Account Management', icon: '👥' }] : [])
+    { id: 'accounts', label: 'Account Management', icon: '👥' }
   ];
 
   return (

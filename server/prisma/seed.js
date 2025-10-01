@@ -10,10 +10,11 @@ async function main() {
     console.log('🌱 Starting to seed the database...');
 
     // Clear existing data
+    await prisma.userPreferences.deleteMany();
     await prisma.waste_items.deleteMany();
     await prisma.bin.deleteMany();
     await prisma.account.deleteMany();
-    console.log('🗑️  Cleared existing accounts, waste items, and bin records');
+    console.log('🗑️  Cleared existing accounts, preferences, waste items, and bin records');
 
     // Read account data from JSON file
     const accountJsonPath = path.join(process.cwd(), 'prisma', 'Data', 'account.json');
@@ -34,24 +35,53 @@ async function main() {
     const hashedPassword2 = await bcrypt.hash('securepass', saltRounds);
 
     // Create sample accounts (including the one from JSON)
-    const accounts = await prisma.account.createMany({
+    const createdAccounts = await prisma.account.createMany({
       data: [
         {
           username: accountData.username,
           password: hashedPasswordFromJson,
+          role: 'admin', // Make the first account admin
         },
         {
           username: 'testuser',
           password: hashedPassword1,
+          role: 'user',
         },
         {
           username: 'johndoe',
           password: hashedPassword2,
+          role: 'user',
         },
       ],
     });
 
-    console.log(`✅ Created ${accounts.count} accounts`);
+    console.log(`✅ Created ${createdAccounts.count} accounts`);
+
+    // Get all created accounts to create preferences for them
+    const allCreatedAccounts = await prisma.account.findMany({
+      select: { id: true, username: true, role: true }
+    });
+
+    // Create default preferences for each account
+    const defaultPreferences = allCreatedAccounts.map((account, index) => ({
+      accountId: account.id,
+      theme: index === 0 ? 'dark' : 'light', // Admin gets dark theme
+      binFullAlert: true,
+      recordsPerPage: account.role === 'admin' ? 25 : 10, // Admin sees more records
+      uiSize: 'medium',
+      notifications: true,
+      autoRefresh: true,
+      compactMode: account.role === 'admin', // Admin gets compact mode
+      language: 'en',
+      timezone: 'UTC',
+      dateFormat: 'MM/DD/YYYY'
+    }));
+
+    const createdPreferences = await prisma.userPreferences.createMany({
+      data: defaultPreferences
+    });
+
+    console.log(`✅ Created ${createdPreferences.count} user preferences`);
 
     // Create waste items for the last year (365 days - one record per day)
     const wasteItems = [];
@@ -191,6 +221,7 @@ async function main() {
       select: {
         id: true,
         username: true,
+        role: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -198,7 +229,7 @@ async function main() {
 
     console.log('📋 Created accounts:');
     allAccounts.forEach(account => {
-      console.log(`  - ID: ${account.id}, Username: ${account.username}, Created: ${account.createdAt}`);
+      console.log(`  - ID: ${account.id}, Username: ${account.username}, Role: ${account.role}, Created: ${account.createdAt}`);
     });
 
     // Fetch and display created waste items

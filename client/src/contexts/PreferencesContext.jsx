@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_ENDPOINTS } from '../config/api';
 import { useAuth } from './AuthContext';
 
 const PreferencesContext = createContext();
@@ -28,8 +29,6 @@ export const PreferencesProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const API_BASE = 'http://localhost:3000/api';
-
   // Load preferences when user logs in
   const loadPreferences = async () => {
     if (!user) return;
@@ -38,8 +37,8 @@ export const PreferencesProvider = ({ children }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/accounts/preferences`, {
+      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.PREFERENCES, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -73,8 +72,8 @@ export const PreferencesProvider = ({ children }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/accounts/preferences`, {
+      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      const response = await fetch(API_ENDPOINTS.PREFERENCES, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -131,8 +130,8 @@ export const PreferencesProvider = ({ children }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/accounts/preferences/reset`, {
+      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      const response = await fetch(`${API_ENDPOINTS.PREFERENCES}/reset`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

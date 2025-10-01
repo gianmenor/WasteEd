@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { usePreferences } from './PreferencesContext';
+import { API_ENDPOINTS } from '../config/api';
 
 const BinNotificationContext = createContext();
 
@@ -29,8 +30,6 @@ export const BinNotificationProvider = ({ children }) => {
   useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { preferencesRef.current = preferences; }, [preferences]);
 
-  const API_BASE = 'http://localhost:3000/api';
-
   // Fetch bin records from API - using refs to avoid dependency issues
   const fetchBinNotifications = useCallback(async () => {
     const currentUser = userRef.current;
@@ -40,7 +39,7 @@ export const BinNotificationProvider = ({ children }) => {
 
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_BASE}/bin/records?limit=50&sortBy=fullAt&sortOrder=desc`);
+      const response = await fetch(`${API_ENDPOINTS.BIN_RECORDS}?limit=50&sortBy=fullAt&sortOrder=desc`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch bin notifications');
@@ -141,7 +140,7 @@ export const BinNotificationProvider = ({ children }) => {
   // Get latest bin full notification
   const getLatestBinFull = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/bin/records/latest`);
+      const response = await fetch(`${API_ENDPOINTS.BIN_RECORDS}/latest`);
       if (response.ok) {
         const data = await response.json();
         return data.success ? data.data : null;
@@ -150,7 +149,7 @@ export const BinNotificationProvider = ({ children }) => {
       console.error('Error fetching latest bin record:', error);
     }
     return null;
-  }, [API_BASE]);
+  }, []);
 
   // Store seen notifications in a ref to avoid dependency issues
   const seenNotifications = useRef(new Set());
@@ -179,7 +178,7 @@ export const BinNotificationProvider = ({ children }) => {
     console.log('Setting up SSE connection for real-time bin notifications...');
     
     // Create SSE connection
-    const eventSource = new EventSource('http://localhost:3000/api/bin/notifications/stream');
+    const eventSource = new EventSource(API_ENDPOINTS.BIN_NOTIFICATIONS_STREAM);
     
     eventSource.onmessage = (event) => {
       try {
