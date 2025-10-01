@@ -4,11 +4,13 @@ import './AnalyticsDashboard.css';
 
 const AnalyticsDashboard = () => {
   const { settings } = useSettings();
-  const [timeRange, setTimeRange] = useState('30d');
+  const [period, setPeriod] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [wasteData, setWasteData] = useState([]);
+  const [binData, setBinData] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null);
+  const [binAnalytics, setBinAnalytics] = useState(null); // derived analytics for bin events
 
   // Fetch waste data for analytics
   const fetchWasteData = useCallback(async () => {
@@ -46,7 +48,7 @@ const AnalyticsDashboard = () => {
       }
 
       setWasteData(allData);
-      generateAnalytics(allData);
+      generateWasteAnalytics(allData);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError(err.message);
@@ -55,15 +57,40 @@ const AnalyticsDashboard = () => {
     }
   }, []);
 
-  // Generate comprehensive analytics from raw data
-  const generateAnalytics = (data) => {
+  // Fetch bin records data (pagination loop)
+  const fetchBinData = useCallback(async () => {
+    try {
+      let allRecords = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const params = new URLSearchParams({ page: page.toString(), limit: '100', sortBy: 'fullAt', sortOrder: 'asc' });
+        const res = await fetch(`http://localhost:3000/api/bin/records?${params.toString()}`);
+        if (!res.ok) throw new Error(`Failed to fetch bin records: ${res.status}`);
+        const json = await res.json();
+        if (!json.success) throw new Error('Invalid bin records response');
+        const records = json.data?.records || [];
+        allRecords = [...allRecords, ...records];
+        const pagination = json.data?.pagination;
+        hasMore = pagination?.hasNext || pagination?.hasNextPage || false;
+        page++;
+      }
+      setBinData(allRecords);
+      generateBinAnalytics(allRecords);
+    } catch (e) {
+      console.error('Error fetching bin records:', e);
+    }
+  }, []);
+
+  // Generate comprehensive waste analytics from raw data
+  const generateWasteAnalytics = (data) => {
     if (!data.length) return;
 
     // Filter data by time range
     const now = new Date();
     const cutoffDate = new Date();
     
-    switch (timeRange) {
+    switch (period) {
       case '7d':
         cutoffDate.setDate(now.getDate() - 7);
         break;
@@ -75,6 +102,9 @@ const AnalyticsDashboard = () => {
         break;
       case '1y':
         cutoffDate.setFullYear(now.getFullYear() - 1);
+        break;
+      case 'all':
+        cutoffDate.setTime(0); // include everything
         break;
       default:
         cutoffDate.setDate(now.getDate() - 30);
@@ -122,23 +152,64 @@ const AnalyticsDashboard = () => {
     const trend = prevTotals.total > 0 ? 
       ((totals.total - prevTotals.total) / prevTotals.total * 100).toFixed(1) : 0;
 
-    // Environmental impact calculation (rough estimates)
-    const co2Saved = (totals.recyclable * 0.5 + totals.biodegradable * 0.3).toFixed(1);
-    const energySaved = (totals.recyclable * 1.2).toFixed(1);
-
+    const averageDaily = filteredData.length > 0 ? (totals.total / filteredData.length).toFixed(1) : 0;
+    const monthlyAverage = monthlyData.length > 0 ? (totals.total / monthlyData.length).toFixed(1) : 0;
     setAnalyticsData({
       totals,
       percentages,
       trend: parseFloat(trend),
       dailyTrends,
       monthlyData,
-      averageDaily: filteredData.length > 0 ? (totals.total / filteredData.length).toFixed(1) : 0,
+      averageDaily,
+      monthlyAverage,
       recordCount: filteredData.length,
-      co2Saved: parseFloat(co2Saved),
-      energySaved: parseFloat(energySaved),
-      peakDay: findPeakDay(filteredData),
-      efficiency: calculateEfficiency(filteredData)
+      peakDay: findPeakDay(filteredData)
     });
+  };
+
+  // Derive bin analytics (daily & monthly counts) respecting period
+  const generateBinAnalytics = (records) => {
+    if (!records.length) return;
+    const now = new Date();
+    const cutoff = new Date();
+    switch (period) {
+      case '7d': cutoff.setDate(now.getDate() - 7); break;
+      case '30d': cutoff.setDate(now.getDate() - 30); break;
+      case '90d': cutoff.setDate(now.getDate() - 90); break;
+      case '1y': cutoff.setFullYear(now.getFullYear() - 1); break;
+      case 'all': cutoff.setTime(0); break;
+      default: cutoff.setDate(now.getDate() - 30);
+    }
+    const filtered = records.filter(r => new Date(r.fullAt) >= cutoff);
+    // Build continuous day range for selected period (default cap 120 days for performance)
+    const dayRangeLimit = period === '1y' || period === 'all' ? 365 : 120;
+    const dayStart = new Date(Math.max(cutoff.getTime(), now.getTime() - dayRangeLimit * 86400000));
+    const dayMap = new Map();
+    for (let d = new Date(dayStart); d <= now; d.setDate(d.getDate() + 1)) {
+      const key = d.toISOString().split('T')[0];
+      dayMap.set(key, 0);
+    }
+    filtered.forEach(r => {
+      const key = new Date(r.fullAt).toISOString().split('T')[0];
+      if (dayMap.has(key)) dayMap.set(key, dayMap.get(key) + 1);
+    });
+    const dailyTrends = Array.from(dayMap.entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // monthly
+    const monthlyMap = new Map();
+    filtered.forEach(r => {
+      const d = new Date(r.fullAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyMap.set(key, (monthlyMap.get(key) || 0) + 1);
+    });
+    const monthlyData = Array.from(monthlyMap.entries())
+      .map(([month, count]) => ({ month, count }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+    const dailyAverage = dailyTrends.length > 0 ? (filtered.length / dailyTrends.length).toFixed(2) : 0;
+    const monthlyAverage = monthlyData.length > 0 ? (filtered.length / monthlyData.length).toFixed(2) : 0;
+    setBinAnalytics({ total: filtered.length, dailyTrends, monthlyData, dailyAverage, monthlyAverage });
   };
 
   const generateDailyTrends = (data) => {
@@ -196,19 +267,6 @@ const AnalyticsDashboard = () => {
     });
   };
 
-  const calculateEfficiency = (data) => {
-    if (!data.length) return 0;
-    
-    // Simple efficiency calculation based on recycling rate
-    const totals = data.reduce((acc, record) => {
-      acc.recyclable += record.recyclable || 0;
-      acc.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
-      return acc;
-    }, { recyclable: 0, total: 0 });
-    
-    return totals.total > 0 ? (totals.recyclable / totals.total * 100).toFixed(1) : 0;
-  };
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -226,13 +284,13 @@ const AnalyticsDashboard = () => {
 
   useEffect(() => {
     fetchWasteData();
-  }, [fetchWasteData]);
+    fetchBinData();
+  }, [fetchWasteData, fetchBinData]);
 
   useEffect(() => {
-    if (wasteData.length > 0) {
-      generateAnalytics(wasteData);
-    }
-  }, [timeRange, wasteData]);
+    if (wasteData.length > 0) generateWasteAnalytics(wasteData);
+    if (binData.length > 0) generateBinAnalytics(binData);
+  }, [period, wasteData, binData]);
 
   if (loading) {
     return (
@@ -260,37 +318,39 @@ const AnalyticsDashboard = () => {
 
   return (
     <div className={`analytics-dashboard ${themeClass}`}>
-      {/* Header */}
-      <div className="dashboard-header">
-        <div className="header-content">
-          <h1 className="dashboard-title">
+      {/* Filters Section */}
+      <div className="filters-section">
+        <div className="filters-header">
+          <h1 className="analytics-title">
             <span className="title-icon">📊</span>
             Analytics Dashboard
           </h1>
-          <p className="dashboard-subtitle">
-            Comprehensive waste management insights and trends
-          </p>
         </div>
         
-        <div className="header-controls">
-          <div className="time-range-selector">
-            <label htmlFor="timeRange">📅 Period:</label>
-            <select
-              id="timeRange"
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="time-select"
-            >
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="90d">Last 90 Days</option>
-              <option value="1y">Last Year</option>
-            </select>
+        <div className="filters-controls">
+          <div className="filters-left">
+            <div className="filter-group">
+              <label className="filter-label" htmlFor="timeRange">Time Period</label>
+              <select
+                id="timeRange"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+                className="filter-select"
+              >
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="90d">Last 90 Days</option>
+                <option value="1y">Last Year</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
           </div>
           
-          <button onClick={fetchWasteData} className="refresh-button">
-            🔄 Refresh
-          </button>
+          <div className="filters-right">
+            <button onClick={() => { fetchWasteData(); fetchBinData(); }} className="refresh-button">
+              🔄 Refresh Data
+            </button>
+          </div>
         </div>
       </div>
 
@@ -330,98 +390,177 @@ const AnalyticsDashboard = () => {
               <div className="metric-subtitle">Compostable waste</div>
             </div>
 
-            <div className="metric-card efficiency">
+            {/* Bin Records Metric */}
+            <div className="metric-card bin-records">
               <div className="metric-header">
-                <span className="metric-icon">🎯</span>
-                <span className="metric-status good">Good</span>
+                <span className="metric-icon">🗑️</span>
+                <span className="metric-status">Records</span>
               </div>
-              <div className="metric-value">{analyticsData.efficiency}%</div>
-              <div className="metric-label">Recycling Efficiency</div>
-              <div className="metric-subtitle">Target: 60%+</div>
-            </div>
-
-            <div className="metric-card environmental">
-              <div className="metric-header">
-                <span className="metric-icon">🌱</span>
-                <span className="metric-badge">Impact</span>
-              </div>
-              <div className="metric-value">{analyticsData.co2Saved}kg</div>
-              <div className="metric-label">CO₂ Saved</div>
-              <div className="metric-subtitle">Environmental benefit</div>
-            </div>
-
-            <div className="metric-card energy">
-              <div className="metric-header">
-                <span className="metric-icon">⚡</span>
-                <span className="metric-badge">Saved</span>
-              </div>
-              <div className="metric-value">{analyticsData.energySaved}kWh</div>
-              <div className="metric-label">Energy Saved</div>
-              <div className="metric-subtitle">Through recycling</div>
+              <div className="metric-value">{binAnalytics ? binAnalytics.total : binData.length}</div>
+              <div className="metric-label">Bin Full Events</div>
+              <div className="metric-subtitle">In selected period</div>
             </div>
           </div>
 
           {/* Charts Section */}
-          <div className="charts-section">
-            {/* Daily Trends Chart */}
-            <div className="chart-card">
-              <div className="chart-header">
-                <h3 className="chart-title">📈 Daily Collection Trends</h3>
-                <div className="chart-legend">
-                  <span className="legend-item recyclable">♻️ Recyclable</span>
-                  <span className="legend-item biodegradable">🍃 Biodegradable</span>
-                  <span className="legend-item non-biodegradable">🗑️ Non-Biodegradable</span>
-                </div>
-              </div>
-              <div className="chart-container">
-                <div className="trend-chart">
-                  {analyticsData.dailyTrends.map((day, index) => (
-                    <div key={index} className="chart-day">
-                      <div className="chart-bars">
-                        <div 
-                          className="chart-bar recyclable" 
-                          style={{ height: `${Math.max((day.recyclable / Math.max(...analyticsData.dailyTrends.map(d => d.total))) * 100, 2)}%` }}
-                          title={`Recyclable: ${day.recyclable}`}
-                        ></div>
-                        <div 
-                          className="chart-bar biodegradable" 
-                          style={{ height: `${Math.max((day.biodegradable / Math.max(...analyticsData.dailyTrends.map(d => d.total))) * 100, 2)}%` }}
-                          title={`Biodegradable: ${day.biodegradable}`}
-                        ></div>
-                        <div 
-                          className="chart-bar non-biodegradable" 
-                          style={{ height: `${Math.max((day.nonBiodegradable / Math.max(...analyticsData.dailyTrends.map(d => d.total))) * 100, 2)}%` }}
-                          title={`Non-Biodegradable: ${day.nonBiodegradable}`}
-                        ></div>
-                      </div>
-                      <div className="chart-label">{formatDate(day.date)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+          <div className="charts-container">
+            <div className="chart-grid">
+              {/* Daily Waste Chart - Top Left */}
+              <div className="chart-wrapper daily-waste">
+                <h3>Daily Waste Items <span className="chart-meta">(Avg {analyticsData.averageDaily}/day)</span></h3>
+                <div className="stacked-chart">
+                  <div className="chart-container">
+                    {analyticsData.dailyTrends.length > 0 ? (
+                      analyticsData.dailyTrends.map((item, i) => {
+                        const recyclablePercent = ((item.recyclable || 0) / (item.total || 1)) * 100;
+                        const biodegradablePercent = ((item.biodegradable || 0) / (item.total || 1)) * 100;
+                        const nonBiodegradablePercent = ((item.nonBiodegradable || 0) / (item.total || 1)) * 100;
+                        const maxValue = Math.max(...analyticsData.dailyTrends.map(d => d.total || 1));
+                        const height = ((item.total || 0) / maxValue) * 100;
 
-            {/* Monthly Overview */}
-            <div className="chart-card">
-              <div className="chart-header">
-                <h3 className="chart-title">📅 Monthly Overview</h3>
+                        return (
+                          <div key={i} className="chart-bar" style={{ height: `${height}%` }}>
+                            <div className="bar-segment recyclable" style={{ height: `${recyclablePercent}%` }}></div>
+                            <div className="bar-segment biodegradable" style={{ height: `${biodegradablePercent}%` }}></div>
+                            <div className="bar-segment non-biodegradable" style={{ height: `${nonBiodegradablePercent}%` }}></div>
+                            <div className="bar-label">{formatDate(item.date)}</div>
+                            <div className="bar-total">{item.total || 0}</div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="no-data">No data available</div>
+                    )}
+                  </div>
+                  <div className="chart-legend">
+                    <div className="legend-item">
+                      <span className="legend-color recyclable"></span>
+                      <span>Recyclable</span>
+                    </div>
+                    <div className="legend-item">
+                      <span className="legend-color biodegradable"></span>
+                      <span>Biodegradable</span>
+                    </div>
+                    <div className="legend-item">
+                      <span className="legend-color non-biodegradable"></span>
+                      <span>Non-biodegradable</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="chart-container">
-                <div className="monthly-chart">
-                  {analyticsData.monthlyData.map((month, index) => (
-                    <div key={index} className="month-item">
-                      <div className="month-bar">
-                        <div 
-                          className="month-fill" 
-                          style={{ width: `${Math.max((month.total / Math.max(...analyticsData.monthlyData.map(m => m.total))) * 100, 5)}%` }}
-                        ></div>
+
+              {/* Monthly Waste Chart - Top Right */}
+              <div className="chart-wrapper monthly-waste">
+                <h3>Monthly Waste <span className="chart-meta">(Avg {analyticsData.monthlyAverage}/mo)</span></h3>
+                <div className="horizontal-line-graph" style={{ '--line-color': '#10b981' }}>
+                  {analyticsData.monthlyData.length > 0 ? (
+                    <div className="chart-area">
+                      <div className="y-labels">
+                        {[...analyticsData.monthlyData].reverse().map((item, i) => (
+                          <span key={i}>{item.month}</span>
+                        ))}
                       </div>
-                      <div className="month-info">
-                        <div className="month-label">{formatMonth(month.month)}</div>
-                        <div className="month-value">{month.total.toLocaleString()}</div>
+                      <div className="horizontal-bars">
+                        {(() => {
+                          const maxValue = Math.max(...analyticsData.monthlyData.map(d => d.total || 1));
+                          return [...analyticsData.monthlyData].reverse().map((item, i) => {
+                            const width = ((item.total || 0) / maxValue) * 100;
+                            return (
+                              <div key={i} className="horizontal-bar">
+                                <div 
+                                  className="bar-line" 
+                                  style={{ width: `${width}%` }}
+                                >
+                                  <div className="bar-value">{item.total || 0}</div>
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
-                  ))}
+                  ) : (
+                    <div className="no-data">No data available</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Daily Bin Events - Bottom Left */}
+              <div className="chart-wrapper daily-bin">
+                <h3>Daily Bin Events {binAnalytics && <span className="chart-meta">(Avg {binAnalytics.dailyAverage}/day)</span>}</h3>
+                <div className="line-graph" style={{ '--bar-color': '#3b82f6' }}>
+                  {binAnalytics && binAnalytics.dailyTrends.length > 0 ? (
+                    <>
+                      <div className="grid-lines">
+                        {[0, 1, 2, 3, 4].map((_, i) => <span key={i}></span>)}
+                      </div>
+                      <div className="y-axis-labels">
+                        {(() => {
+                          const maxValue = Math.max(...binAnalytics.dailyTrends.map(d => d.count || 1));
+                          const yLabels = [maxValue, Math.floor(maxValue * 0.75), Math.floor(maxValue * 0.5), Math.floor(maxValue * 0.25), 0];
+                          return yLabels.map((val, i) => <span key={i}>{val}</span>);
+                        })()}
+                      </div>
+                      <div className="bars">
+                        {binAnalytics.dailyTrends.map((item, i) => {
+                          const maxValue = Math.max(...binAnalytics.dailyTrends.map(d => d.count || 1));
+                          const height = ((item.count || 0) / maxValue) * 100;
+                          return (
+                            <div
+                              key={i}
+                              className="bar"
+                              style={{ height: `${height}%` }}
+                            >
+                              <div className="bar-value">{item.count || 0}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="bar-labels">
+                        {binAnalytics.dailyTrends.map((item, i) => (
+                          <span key={i}>{formatDate(item.date)}</span>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="no-data">No bin data available</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Monthly Bin Events - Bottom Right */}
+              <div className="chart-wrapper monthly-bin">
+                <h3>Monthly Bin Events {binAnalytics && <span className="chart-meta">(Avg {binAnalytics.monthlyAverage}/mo)</span>}</h3>
+                <div className="horizontal-line-graph" style={{ '--line-color': '#3b82f6' }}>
+                  {binAnalytics && binAnalytics.monthlyData.length > 0 ? (
+                    <div className="chart-area">
+                      <div className="y-labels">
+                        {[...binAnalytics.monthlyData].reverse().map((item, i) => (
+                          <span key={i}>{item.month}</span>
+                        ))}
+                      </div>
+                      <div className="horizontal-bars">
+                        {(() => {
+                          const maxValue = Math.max(...binAnalytics.monthlyData.map(d => d.count || 1));
+                          return [...binAnalytics.monthlyData].reverse().map((item, i) => {
+                            const width = ((item.count || 0) / maxValue) * 100;
+                            return (
+                              <div key={i} className="horizontal-bar">
+                                <div 
+                                  className="bar-line" 
+                                  style={{ width: `${width}%` }}
+                                >
+                                  <div className="bar-value">{item.count || 0}</div>
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="no-data">No bin data available</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -441,39 +580,76 @@ const AnalyticsDashboard = () => {
                     <span className="insight-icon">📈</span>
                     <span>Recycling rate: {analyticsData.percentages.recyclable}% of total waste</span>
                   </div>
-                  <div className="insight-item">
-                    <span className="insight-icon">🎯</span>
-                    <span>Efficiency rating: {analyticsData.efficiency >= 60 ? 'Excellent' : analyticsData.efficiency >= 40 ? 'Good' : 'Needs Improvement'}</span>
-                  </div>
-                  <div className="insight-item">
-                    <span className="insight-icon">🌍</span>
-                    <span>Environmental impact: {analyticsData.co2Saved}kg CO₂ saved</span>
-                  </div>
+                  {binAnalytics && (
+                    <div className="insight-item">
+                      <span className="insight-icon">🗑️</span>
+                      <span>Bin events this period: {binAnalytics.total}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="insight-card">
-                <h3 className="insight-title">💡 Recommendations</h3>
+                <h3 className="insight-title">� Activity Analytics</h3>
                 <div className="recommendation-list">
-                  {analyticsData.percentages.recyclable < 50 && (
-                    <div className="recommendation-item">
-                      <span className="rec-icon">♻️</span>
-                      <span>Increase recycling efforts - currently at {analyticsData.percentages.recyclable}%</span>
-                    </div>
-                  )}
-                  {analyticsData.percentages.nonBiodegradable > 30 && (
-                    <div className="recommendation-item">
-                      <span className="rec-icon">🗑️</span>
-                      <span>Reduce non-biodegradable waste - currently {analyticsData.percentages.nonBiodegradable}%</span>
-                    </div>
-                  )}
                   <div className="recommendation-item">
-                    <span className="rec-icon">📅</span>
-                    <span>Best collection frequency: Every {Math.ceil(analyticsData.averageDaily / 10)} days</span>
+                    <span className="rec-icon">🏆</span>
+                    <span>Most active day: {(() => {
+                      if (!analyticsData.dailyTrends.length) return 'No data';
+                      const mostActive = analyticsData.dailyTrends.reduce((max, day) => 
+                        (day.total || 0) > (max.total || 0) ? day : max
+                      );
+                      return `${formatDate(mostActive.date)} (${mostActive.total} items)`;
+                    })()}</span>
                   </div>
                   <div className="recommendation-item">
-                    <span className="rec-icon">🎯</span>
-                    <span>Target: Maintain {analyticsData.efficiency}% efficiency rate</span>
+                    <span className="rec-icon">📅</span>
+                    <span>Most active month: {(() => {
+                      if (!analyticsData.monthlyData.length) return 'No data';
+                      const mostActive = analyticsData.monthlyData.reduce((max, month) => 
+                        (month.total || 0) > (max.total || 0) ? month : max
+                      );
+                      return `${mostActive.month} (${mostActive.total} items)`;
+                    })()}</span>
+                  </div>
+                  {binAnalytics && binAnalytics.dailyTrends.length > 0 && (
+                    <div className="recommendation-item">
+                      <span className="rec-icon">🗑️</span>
+                      <span>Busiest bin day: {(() => {
+                        const busiestDay = binAnalytics.dailyTrends.reduce((max, day) => 
+                          (day.count || 0) > (max.count || 0) ? day : max
+                        );
+                        return `${formatDate(busiestDay.date)} (${busiestDay.count} events)`;
+                      })()}</span>
+                    </div>
+                  )}
+                  <div className="recommendation-item">
+                    <span className="rec-icon">�</span>
+                    <span>Collection streak: {(() => {
+                      if (!analyticsData.dailyTrends.length) return '0 days';
+                      let streak = 0;
+                      for (let i = analyticsData.dailyTrends.length - 1; i >= 0; i--) {
+                        if ((analyticsData.dailyTrends[i].total || 0) > 0) {
+                          streak++;
+                        } else {
+                          break;
+                        }
+                      }
+                      return `${streak} days`;
+                    })()}</span>
+                  </div>
+                  <div className="recommendation-item">
+                    <span className="rec-icon">♻️</span>
+                    <span>Top category: {(() => {
+                      const totals = analyticsData.totals;
+                      const categories = [
+                        { name: 'Recyclable', value: totals.recyclable },
+                        { name: 'Biodegradable', value: totals.biodegradable },
+                        { name: 'Non-biodegradable', value: totals.nonBiodegradable }
+                      ];
+                      const top = categories.reduce((max, cat) => cat.value > max.value ? cat : max);
+                      return `${top.name} (${top.value} items)`;
+                    })()}</span>
                   </div>
                 </div>
               </div>

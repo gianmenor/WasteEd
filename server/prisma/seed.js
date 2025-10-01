@@ -11,8 +11,9 @@ async function main() {
 
     // Clear existing data
     await prisma.waste_items.deleteMany();
+    await prisma.bin.deleteMany();
     await prisma.account.deleteMany();
-    console.log('🗑️  Cleared existing accounts and waste items');
+    console.log('🗑️  Cleared existing accounts, waste items, and bin records');
 
     // Read account data from JSON file
     const accountJsonPath = path.join(process.cwd(), 'prisma', 'Data', 'account.json');
@@ -121,6 +122,70 @@ async function main() {
 
     console.log(`✅ Created ${createdWasteItems.count} waste items`);
 
+    // Create bin records for the last year
+    const binRecords = [];
+    
+    // Generate realistic bin full events over the year
+    // Bins typically get full every 2-4 days depending on season and usage
+    const startDate = new Date(currentDate);
+    startDate.setDate(currentDate.getDate() - 365);
+    
+    let nextBinDate = new Date(startDate);
+    
+    while (nextBinDate <= currentDate) {
+      // Calculate days until next bin full event
+      const month = nextBinDate.getMonth() + 1;
+      const season = Math.floor((month % 12) / 3);
+      
+      let daysUntilFull = 2; // Base 2 days
+      
+      // Seasonal adjustments for bin frequency
+      switch(season) {
+        case 0: // Winter - less frequent (holidays = more waste, cold = less activity)
+          daysUntilFull = 2 + Math.floor(Math.random() * 2); // 2-3 days
+          break;
+        case 1: // Spring - moderate (spring cleaning)
+          daysUntilFull = 2 + Math.floor(Math.random() * 3); // 2-4 days
+          break;
+        case 2: // Summer - more frequent (more activity, BBQs, etc.)
+          daysUntilFull = 1 + Math.floor(Math.random() * 2); // 1-2 days
+          break;
+        case 3: // Fall - moderate to frequent (back to school, leaf collection)
+          daysUntilFull = 2 + Math.floor(Math.random() * 2); // 2-3 days
+          break;
+      }
+      
+      // Weekend adjustments (more waste on weekends)
+      const dayOfWeek = nextBinDate.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday or Saturday
+        daysUntilFull = Math.max(1, daysUntilFull - 1); // Bins fill faster on weekends
+      }
+      
+      // Random hour during business hours (6 AM to 10 PM)
+      const randomHour = 6 + Math.floor(Math.random() * 16); // 6-21 (6 AM to 9 PM)
+      const randomMinute = Math.floor(Math.random() * 60);
+      
+      nextBinDate.setHours(randomHour, randomMinute, 0, 0);
+      
+      // Add the bin record if it's within our date range
+      if (nextBinDate <= currentDate) {
+        binRecords.push({
+          fullAt: new Date(nextBinDate)
+        });
+      }
+      
+      // Calculate next bin full date
+      nextBinDate.setDate(nextBinDate.getDate() + daysUntilFull);
+      nextBinDate.setHours(0, 0, 0, 0); // Reset to start of day for next calculation
+    }
+    
+    // Insert bin records
+    const createdBinRecords = await prisma.bin.createMany({
+      data: binRecords
+    });
+    
+    console.log(`✅ Created ${createdBinRecords.count} bin records`);
+
     // Fetch and display created accounts (without passwords)
     const allAccounts = await prisma.account.findMany({
       select: {
@@ -170,6 +235,45 @@ async function main() {
     console.log(`  - Grand Total: ${grandTotal} units`);
     console.log(`  - Daily Average: ${Math.round(grandTotal / allWasteItems.length)} units`);
     console.log(`  - Date Range: ${allWasteItems[0].date.toDateString()} to ${allWasteItems[allWasteItems.length - 1].date.toDateString()}`);
+
+    // Fetch and display bin records summary
+    const allBinRecords = await prisma.bin.findMany({
+      orderBy: {
+        fullAt: 'asc'
+      }
+    });
+
+    console.log(`📊 Bin records summary (${allBinRecords.length} events):`);
+    if (allBinRecords.length > 0) {
+      console.log(`  - Date Range: ${allBinRecords[0].fullAt.toDateString()} to ${allBinRecords[allBinRecords.length - 1].fullAt.toDateString()}`);
+      console.log(`  - Average Events per Day: ${(allBinRecords.length / 365).toFixed(2)}`);
+      
+      // Calculate monthly distribution
+      const monthlyCount = {};
+      allBinRecords.forEach(record => {
+        const month = record.fullAt.getMonth() + 1;
+        monthlyCount[month] = (monthlyCount[month] || 0) + 1;
+      });
+      
+      console.log('  - Monthly Distribution:');
+      Object.entries(monthlyCount).forEach(([month, count]) => {
+        const monthName = new Date(2024, month - 1, 1).toLocaleString('default', { month: 'long' });
+        console.log(`    ${monthName}: ${count} events`);
+      });
+      
+      // Show first and last few records
+      console.log('📋 Bin records (showing first 5 and last 5):');
+      allBinRecords.slice(0, 5).forEach((record, index) => {
+        console.log(`  - ${index + 1}. ${record.fullAt.toLocaleString()}`);
+      });
+      if (allBinRecords.length > 10) {
+        console.log(`  ... (${allBinRecords.length - 10} records omitted) ...`);
+        allBinRecords.slice(-5).forEach((record, index) => {
+          const actualIndex = allBinRecords.length - 5 + index + 1;
+          console.log(`  - ${actualIndex}. ${record.fullAt.toLocaleString()}`);
+        });
+      }
+    }
 
     console.log('🎉 Database seeding completed successfully!');
   } catch (error) {

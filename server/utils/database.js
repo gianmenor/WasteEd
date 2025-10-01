@@ -39,7 +39,8 @@ class DatabaseClient {
     // Handle different termination signals
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    process.on('beforeExit', () => gracefulShutdown('beforeExit'));
+    // Temporarily disable beforeExit to prevent premature shutdowns
+    // process.on('beforeExit', () => gracefulShutdown('beforeExit'));
   }
 
   // Helper method to retry database operations with exponential backoff

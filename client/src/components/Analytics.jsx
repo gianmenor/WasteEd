@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import './Analytics.css';
 
 const Analytics = () => {
+  const [category, setCategory] = useState('waste');
   const [timeRange, setTimeRange] = useState('7d');
   const [metric, setMetric] = useState('weight');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true
   const [error, setError] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
 
@@ -65,11 +66,33 @@ const Analytics = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/waste/analytics?range=${timeRange}&metric=${metric}`, {
+      let url = '';
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
+      switch (category) {
+        case 'waste':
+          url = `${API_BASE_URL}/waste/analytics?range=${timeRange}&metric=${metric}`;
+          break;
+        case 'bins':
+          url = `${API_BASE_URL}/bin/analytics/summary`;
+          break;
+        case 'accounts':
+          url = `${API_BASE_URL}/accounts/analytics?range=${timeRange}`;
+          break;
+        case 'notifications':
+          url = `${API_BASE_URL}/bin/analytics/notifications?range=${timeRange}`;
+          break;
+        default:
+          url = `${API_BASE_URL}/waste/analytics?range=${timeRange}&metric=${metric}`;
+      }
+
+      const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers
       });
 
       const result = await response.json();
@@ -82,6 +105,7 @@ const Analytics = () => {
         };
       }
 
+      console.log(`Analytics data for ${category}:`, result);
       setAnalyticsData(result);
 
     } catch (err) {
@@ -90,12 +114,23 @@ const Analytics = () => {
     } finally {
       setLoading(false);
     }
-  }, [timeRange, metric, API_BASE_URL]);
+  }, [category, timeRange, metric, API_BASE_URL]);
 
   // Fetch data when dependencies change
   useEffect(() => {
     fetchAnalyticsData();
   }, [fetchAnalyticsData]);
+
+  // Reset metric when category changes
+  useEffect(() => {
+    if (category === 'waste') {
+      setMetric('weight');
+    } else if (category === 'bins' || category === 'notifications') {
+      setMetric('count');
+    } else if (category === 'accounts') {
+      setMetric('registrations');
+    }
+  }, [category]);
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -161,6 +196,34 @@ const Analytics = () => {
           <p className="analytics-subtitle">Track waste management performance and trends</p>
         </div>
         
+        {/* Category Tabs */}
+        <div className="category-tabs">
+          <button
+            className={`tab-button ${category === 'waste' ? 'active' : ''}`}
+            onClick={() => setCategory('waste')}
+          >
+            ♻️ Waste Management
+          </button>
+          <button
+            className={`tab-button ${category === 'bins' ? 'active' : ''}`}
+            onClick={() => setCategory('bins')}
+          >
+            🗑️ Bin Monitoring
+          </button>
+          <button
+            className={`tab-button ${category === 'accounts' ? 'active' : ''}`}
+            onClick={() => setCategory('accounts')}
+          >
+            👥 User Accounts
+          </button>
+          <button
+            className={`tab-button ${category === 'notifications' ? 'active' : ''}`}
+            onClick={() => setCategory('notifications')}
+          >
+            🔔 Notifications
+          </button>
+        </div>
+        
         {/* Controls */}
         <div className="analytics-controls">
           <div className="control-group">
@@ -185,15 +248,34 @@ const Analytics = () => {
               value={metric}
               onChange={(e) => setMetric(e.target.value)}
               className="control-select"
+              disabled={category !== 'waste'}
             >
-              <option value="weight">Weight (kg)</option>
-              <option value="volume">Volume (L)</option>
-              <option value="count">Count</option>
+              {category === 'waste' && (
+                <>
+                  <option value="weight">Weight (kg)</option>
+                  <option value="volume">Volume (L)</option>
+                  <option value="count">Count</option>
+                </>
+              )}
+              {category === 'bins' && (
+                <option value="count">Bin Full Events</option>
+              )}
+              {category === 'accounts' && (
+                <option value="registrations">Registrations</option>
+              )}
+              {category === 'notifications' && (
+                <option value="count">Notification Count</option>
+              )}
             </select>
           </div>
           
           <button
-            onClick={fetchAnalyticsData}
+            onClick={() => {
+              console.log('Force refreshing analytics...');
+              setAnalyticsData(null);
+              setError(null);
+              fetchAnalyticsData();
+            }}
             className="refresh-btn"
             disabled={loading}
           >
@@ -243,63 +325,239 @@ const Analytics = () => {
         <>
           {/* Key Metrics */}
           <div className="metrics-grid">
-            <div className="metric-card total-weight">
-              <div className="metric-icon">⚖️</div>
-              <div className="metric-content">
-                <div className="metric-value">{formatValue(analyticsData.totalWeight, 'weight')}</div>
-                <div className="metric-label">Total Weight</div>
-                <div className="metric-trend positive">
-                  <span>📈</span>
-                  <span>+12.5% vs last period</span>
+            {category === 'waste' && (
+              <>
+                <div className="metric-card total-weight">
+                  <div className="metric-icon">⚖️</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{formatValue(analyticsData.totalWeight, 'weight')}</div>
+                    <div className="metric-label">Total Weight</div>
+                    <div className="metric-trend positive">
+                      <span>📈</span>
+                      <span>Real data from DB</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="metric-card efficiency">
-              <div className="metric-icon">⚡</div>
-              <div className="metric-content">
-                <div className="metric-value">{analyticsData.efficiency?.toFixed(0) || '89'}%</div>
-                <div className="metric-label">Efficiency Rate</div>
-                <div className="metric-trend positive">
-                  <span>📈</span>
-                  <span>+3.2% vs last period</span>
+                <div className="metric-card efficiency">
+                  <div className="metric-icon">⚡</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.efficiency?.toFixed(1) || '0.0'}%</div>
+                    <div className="metric-label">Collection Rate</div>
+                    <div className="metric-trend positive">
+                      <span>�</span>
+                      <span>Weight/Volume ratio</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="metric-card active-devices">
-              <div className="metric-icon">🔗</div>
-              <div className="metric-content">
-                <div className="metric-value">{analyticsData.activeDevices || '5'}</div>
-                <div className="metric-label">Active Devices</div>
-                <div className="metric-trend neutral">
-                  <span>✅</span>
-                  <span>All systems online</span>
+                <div className="metric-card active-devices">
+                  <div className="metric-icon">�</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.totalRecords || '0'}</div>
+                    <div className="metric-label">Total Records</div>
+                    <div className="metric-trend neutral">
+                      <span>📝</span>
+                      <span>Database entries</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="metric-card co2-saved">
-              <div className="metric-icon">🌱</div>
-              <div className="metric-content">
-                <div className="metric-value">{formatValue(analyticsData.co2Saved, 'weight')}</div>
-                <div className="metric-label">CO₂ Saved</div>
-                <div className="metric-trend positive">
-                  <span>🌍</span>
-                  <span>Environmental impact</span>
+                <div className="metric-card co2-saved">
+                  <div className="metric-icon">🌱</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{formatValue(analyticsData.co2Saved, 'weight')}</div>
+                    <div className="metric-label">CO₂ Saved (Est.)</div>
+                    <div className="metric-trend positive">
+                      <span>🌍</span>
+                      <span>Environmental impact</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
+
+            {category === 'bins' && analyticsData.data && (
+              <>
+                <div className="metric-card total-weight">
+                  <div className="metric-icon">🗑️</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.totalBinFullEvents || 0}</div>
+                    <div className="metric-label">Total Bin Events</div>
+                    <div className="metric-trend neutral">
+                      <span>📊</span>
+                      <span>All time count</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card efficiency">
+                  <div className="metric-icon">📅</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.todayCount || 0}</div>
+                    <div className="metric-label">Today's Events</div>
+                    <div className="metric-trend positive">
+                      <span>🔔</span>
+                      <span>Current day</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card active-devices">
+                  <div className="metric-icon">📊</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.thisWeekCount || 0}</div>
+                    <div className="metric-label">This Week</div>
+                    <div className="metric-trend positive">
+                      <span>📈</span>
+                      <span>Weekly total</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card co2-saved">
+                  <div className="metric-icon">⏰</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.timeSinceLastFull ? `${analyticsData.data.timeSinceLastFull}h` : 'N/A'}</div>
+                    <div className="metric-label">Hours Since Last</div>
+                    <div className="metric-trend neutral">
+                      <span>🕐</span>
+                      <span>Time tracking</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {category === 'accounts' && analyticsData.data?.summary && (
+              <>
+                <div className="metric-card total-weight">
+                  <div className="metric-icon">👥</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.summary.totalAccounts || 0}</div>
+                    <div className="metric-label">Total Users</div>
+                    <div className="metric-trend positive">
+                      <span>👤</span>
+                      <span>All registered</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card efficiency">
+                  <div className="metric-icon">🎯</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.summary.activeAccounts || 0}</div>
+                    <div className="metric-label">Active Users</div>
+                    <div className="metric-trend positive">
+                      <span>✅</span>
+                      <span>Recently active</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card active-devices">
+                  <div className="metric-icon">📈</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.summary.newRegistrations || 0}</div>
+                    <div className="metric-label">New Registrations</div>
+                    <div className="metric-trend positive">
+                      <span>🆕</span>
+                      <span>This period</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card co2-saved">
+                  <div className="metric-icon">📊</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.summary.engagementRate?.toFixed(1) || '0'}%</div>
+                    <div className="metric-label">Engagement Rate</div>
+                    <div className="metric-trend positive">
+                      <span>🎯</span>
+                      <span>User activity</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {category === 'notifications' && analyticsData.data?.summary && (
+              <>
+                <div className="metric-card total-weight">
+                  <div className="metric-icon">📧</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.summary.totalNotifications || 0}</div>
+                    <div className="metric-label">Total Sent</div>
+                    <div className="metric-trend positive">
+                      <span>📤</span>
+                      <span>All time</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card efficiency">
+                  <div className="metric-icon">✅</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.summary.deliveryRate?.toFixed(1) || '98.5'}%</div>
+                    <div className="metric-label">Delivery Rate</div>
+                    <div className="metric-trend positive">
+                      <span>🚀</span>
+                      <span>High success</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card active-devices">
+                  <div className="metric-icon">📈</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.summary.periodNotifications || 0}</div>
+                    <div className="metric-label">This Period</div>
+                    <div className="metric-trend positive">
+                      <span>📊</span>
+                      <span>Recent activity</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card co2-saved">
+                  <div className="metric-icon">⏰</div>
+                  <div className="metric-content">
+                    <div className="metric-value">{analyticsData.data.summary.avgPerDay || 0}</div>
+                    <div className="metric-label">Avg Per Day</div>
+                    <div className="metric-trend neutral">
+                      <span>📅</span>
+                      <span>Daily average</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Main Trend Chart */}
           <div className="chart-section">
             <div className="chart-header">
-              <h2>📈 Waste Collection Trends - {metric.charAt(0).toUpperCase() + metric.slice(1)}</h2>
+              <h2>📈 {
+                category === 'waste' ? 'Waste Collection' : 
+                category === 'bins' ? 'Bin Full Events' : 
+                category === 'accounts' ? 'User Registration' :
+                'Notification Delivery'
+              } Trends - {metric.charAt(0).toUpperCase() + metric.slice(1)}</h2>
               <div className="chart-period">{timeRange.toUpperCase()}</div>
             </div>
             <div className="chart-container">
-              <TrendChart data={analyticsData.trends} metric={metric} />
+              {category === 'waste' && (
+                <TrendChart data={analyticsData.trends} metric={metric} />
+              )}
+              {category === 'bins' && (
+                <div className="no-chart-data">📊 Bin analytics chart coming soon</div>
+              )}
+              {category === 'accounts' && analyticsData.data?.trends && (
+                <TrendChart data={analyticsData.data.trends} metric="registrations" />
+              )}
+              {category === 'notifications' && analyticsData.data?.trends && (
+                <TrendChart data={analyticsData.data.trends} metric="notifications" />
+              )}
             </div>
           </div>
 

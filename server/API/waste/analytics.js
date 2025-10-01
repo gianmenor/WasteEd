@@ -4,27 +4,29 @@ const prisma = new PrismaClient();
 
 const analytics = async (req, res) => {
   try {
-    const { range = '7d', metric = 'weight' } = req.query;
+    const { period = 'monthly', metric = 'weight' } = req.query;
     
-    // Calculate date range
+    // Calculate date range and grouping based on period
     const now = new Date();
     let startDate = new Date();
+    let groupBy = 'day'; // default grouping
     
-    switch (range) {
-      case '24h':
-        startDate.setHours(now.getHours() - 24);
+    switch (period) {
+      case 'daily':
+        startDate.setDate(now.getDate() - 30); // Last 30 days for daily view
+        groupBy = 'day';
         break;
-      case '7d':
-        startDate.setDate(now.getDate() - 7);
+      case 'monthly':
+        startDate.setMonth(now.getMonth() - 12); // Last 12 months for monthly view
+        groupBy = 'month';
         break;
-      case '30d':
-        startDate.setDate(now.getDate() - 30);
-        break;
-      case '90d':
-        startDate.setDate(now.getDate() - 90);
+      case 'yearly':
+        startDate.setFullYear(now.getFullYear() - 5); // Last 5 years for yearly view
+        groupBy = 'year';
         break;
       default:
-        startDate.setDate(now.getDate() - 7);
+        startDate.setMonth(now.getMonth() - 12);
+        groupBy = 'month';
     }
 
     // Get waste records within date range
@@ -40,15 +42,28 @@ const analytics = async (req, res) => {
       }
     });
 
-    // Calculate trends data
+    // Calculate trends data based on groupBy period
     const trendsMap = new Map();
     
+    const getGroupKey = (date, groupBy) => {
+      switch (groupBy) {
+        case 'day':
+          return date.toISOString().split('T')[0]; // YYYY-MM-DD
+        case 'month':
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+        case 'year':
+          return date.getFullYear().toString(); // YYYY
+        default:
+          return date.toISOString().split('T')[0];
+      }
+    };
+    
     records.forEach(record => {
-      const date = record.date.toISOString().split('T')[0];
+      const groupKey = getGroupKey(record.date, groupBy);
       
-      if (!trendsMap.has(date)) {
-        trendsMap.set(date, {
-          date,
+      if (!trendsMap.has(groupKey)) {
+        trendsMap.set(groupKey, {
+          date: groupKey,
           weight: 0,
           volume: 0,
           count: 0,
@@ -59,55 +74,102 @@ const analytics = async (req, res) => {
         });
       }
       
-      const dayData = trendsMap.get(date);
+      const periodData = trendsMap.get(groupKey);
       // Use the actual waste amounts from the database
-      dayData.weight += (record.recyclable + record.biodegradable + record.nonBiodegradable) || 0;
-      dayData.volume += (record.recyclable + record.biodegradable + record.nonBiodegradable) * 1.2 || 0; // Estimate volume
-      dayData.count += 1;
+      periodData.weight += (record.recyclable + record.biodegradable + record.nonBiodegradable) || 0;
+      periodData.volume += (record.recyclable + record.biodegradable + record.nonBiodegradable) * 1.2 || 0; // Estimate volume
+      periodData.count += 1;
       
       // Categorize by waste type
-      dayData.recyclable += record.recyclable || 0;
-      dayData.organic += record.biodegradable || 0;
-      dayData.general += record.nonBiodegradable || 0;
+      periodData.recyclable += record.recyclable || 0;
+      periodData.organic += record.biodegradable || 0;
+      periodData.general += record.nonBiodegradable || 0;
     });
 
     const trends = Array.from(trendsMap.values());
 
     // Calculate summary statistics
-    const totalWeight = records.reduce((sum, record) => sum + (record.recyclable + record.biodegradable + record.nonBiodegradable || 0), 0);
-    const totalVolume = totalWeight * 1.2; // Estimate volume based on weight
     const totalRecords = records.length;
+    const totalRecyclable = records.reduce((sum, record) => sum + (record.recyclable || 0), 0);
+    const totalBiodegradable = records.reduce((sum, record) => sum + (record.biodegradable || 0), 0);
+    const totalNonBiodegradable = records.reduce((sum, record) => sum + (record.nonBiodegradable || 0), 0);
+    const totalItems = totalRecyclable + totalBiodegradable + totalNonBiodegradable;
 
-    // Calculate efficiency (mock calculation based on weight vs volume ratio)
-    const efficiency = totalVolume > 0 ? Math.min(95, (totalWeight / totalVolume) * 100) : 85;
-
-    // Calculate CO2 saved (rough estimate: 1kg waste = 0.5kg CO2 saved through recycling)
-    const co2Saved = totalWeight * 0.5;
-
-    // Mock active devices count
-    const activeDevices = 5;
+    // Calculate percentages based on items, not records
+    const recyclablePercentage = totalItems > 0 ? ((totalRecyclable / totalItems) * 100).toFixed(1) : 0;
+    const biodegradablePercentage = totalItems > 0 ? ((totalBiodegradable / totalItems) * 100).toFixed(1) : 0;
+    const nonBiodegradablePercentage = totalItems > 0 ? ((totalNonBiodegradable / totalItems) * 100).toFixed(1) : 0;
+    
+    // Calculate efficiency as recyclable percentage
+    const efficiency = recyclablePercentage;
 
     res.json({
-      trends,
-      totalWeight,
-      totalVolume,
-      totalRecords,
-      efficiency,
-      co2Saved,
-      activeDevices,
-      dateRange: {
-        start: startDate.toISOString(),
-        end: now.toISOString()
+      success: true,
+      data: {
+        totalRecords,
+        totalItems,
+        recyclableCount: totalRecyclable,
+        biodegradableCount: totalBiodegradable,
+        nonBiodegradableCount: totalNonBiodegradable,
+        recyclablePercentage,
+        biodegradablePercentage,
+        nonBiodegradablePercentage,
+        efficiency,
+        dailyTrends: trends,
+        monthlyData: generateMonthlyData(trends),
+        peakDay: findPeakDay(trends),
+        trends: {
+          total: totalRecords > 0 ? 12.5 : 0 // Mock trend
+        }
       }
     });
 
   } catch (error) {
     console.error('Analytics API error:', error);
     res.status(500).json({ 
+      success: false,
       error: 'Failed to fetch analytics data',
-      details: error.message 
+      message: error.message 
     });
   }
+};
+
+// Helper function to generate monthly data
+const generateMonthlyData = (dailyTrends) => {
+  const monthlyMap = new Map();
+  
+  dailyTrends.forEach(day => {
+    const month = day.date.substring(0, 7); // YYYY-MM
+    
+    if (!monthlyMap.has(month)) {
+      monthlyMap.set(month, {
+        label: new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' }),
+        total: 0,
+        recyclable: 0,
+        biodegradable: 0,
+        nonBiodegradable: 0
+      });
+    }
+    
+    const monthData = monthlyMap.get(month);
+    monthData.total += day.count;
+    monthData.recyclable += day.recyclable;
+    monthData.biodegradable += day.organic;
+    monthData.nonBiodegradable += day.general;
+  });
+  
+  return Array.from(monthlyMap.values()).slice(-6); // Last 6 months
+};
+
+// Helper function to find peak day
+const findPeakDay = (dailyTrends) => {
+  if (!dailyTrends.length) return null;
+  
+  const peak = dailyTrends.reduce((max, day) => 
+    day.count > max.count ? day : max, dailyTrends[0]
+  );
+  
+  return peak.date;
 };
 
 export default analytics;

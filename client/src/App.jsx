@@ -80,6 +80,17 @@ const AppContent = () => {
             />
             
             <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard user={user} onLogout={logout}>
+                    <AnalyticsDashboard />
+                  </Dashboard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
               path="/waste" 
               element={
                 <ProtectedRoute>
