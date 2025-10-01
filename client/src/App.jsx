@@ -1,16 +1,13 @@
 import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { CssBaseline, Box, CircularProgress } from '@mui/material';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import WasteTable from './components/WasteTable';
 import Analytics from './components/Analytics';
+import './App.css';
 
 // Create query client
 const queryClient = new QueryClient({
@@ -22,42 +19,16 @@ const queryClient = new QueryClient({
   },
 });
 
-// Create theme
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#22c55e', // Green primary color
-    },
-    secondary: {
-      main: '#059669',
-    },
-  },
-  typography: {
-    fontFamily: [
-      'Inter',
-      '-apple-system',
-      'BlinkMacSystemFont',
-      '"Segoe UI"',
-      'Roboto',
-      '"Helvetica Neue"',
-      'Arial',
-      'sans-serif',
-    ].join(','),
-  },
-});
-
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
-      <Box 
-        className="min-h-screen flex items-center justify-center"
-        sx={{ bgcolor: 'grey.50' }}
-      >
-        <CircularProgress size={60} thickness={4} />
-      </Box>
+      <div className="loading-container">
+        <div className="loading-spinner">⚡</div>
+        <p>Loading...</p>
+      </div>
     );
   }
 
@@ -70,12 +41,10 @@ const AppContent = () => {
 
   if (loading) {
     return (
-      <Box 
-        className="min-h-screen flex items-center justify-center"
-        sx={{ bgcolor: 'grey.50' }}
-      >
-        <CircularProgress size={60} thickness={4} />
-      </Box>
+      <div className="loading-container">
+        <div className="loading-spinner">⚡</div>
+        <p>Loading...</p>
+      </div>
     );
   }
 
@@ -96,30 +65,30 @@ const AppContent = () => {
           element={
             <ProtectedRoute>
               <Dashboard user={user} onLogout={logout}>
-                <Box className="space-y-6">
-                  <div className="text-center py-12">
-                    <h2 className="text-3xl font-bold text-gray-800 mb-4">
+                <div className="welcome-container">
+                  <div className="welcome-content">
+                    <h2 className="welcome-title">
                       Welcome to RecycList Dashboard
                     </h2>
-                    <p className="text-gray-600 mb-8">
+                    <p className="welcome-subtitle">
                       Smart waste management system powered by Arduino IoT devices
                     </p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                      <div className="bg-white rounded-lg shadow-md p-6">
-                        <h3 className="text-xl font-semibold text-green-600 mb-2">Real-time Monitoring</h3>
-                        <p className="text-gray-600">Track waste collection in real-time with Arduino sensors</p>
+                    <div className="feature-grid">
+                      <div className="feature-card">
+                        <h3 className="feature-title monitoring">Real-time Monitoring</h3>
+                        <p className="feature-description">Track waste collection in real-time with Arduino sensors</p>
                       </div>
-                      <div className="bg-white rounded-lg shadow-md p-6">
-                        <h3 className="text-xl font-semibold text-blue-600 mb-2">Analytics & Reports</h3>
-                        <p className="text-gray-600">Comprehensive analytics and reporting dashboard</p>
+                      <div className="feature-card">
+                        <h3 className="feature-title analytics">Analytics & Reports</h3>
+                        <p className="feature-description">Comprehensive analytics and reporting dashboard</p>
                       </div>
-                      <div className="bg-white rounded-lg shadow-md p-6">
-                        <h3 className="text-xl font-semibold text-orange-600 mb-2">Smart Notifications</h3>
-                        <p className="text-gray-600">Get alerts when bins are full or need maintenance</p>
+                      <div className="feature-card">
+                        <h3 className="feature-title notifications">Smart Notifications</h3>
+                        <p className="feature-description">Get alerts when bins are full or need maintenance</p>
                       </div>
                     </div>
                   </div>
-                </Box>
+                </div>
               </Dashboard>
             </ProtectedRoute>
           } 
@@ -152,10 +121,10 @@ const AppContent = () => {
           element={
             <ProtectedRoute>
               <Dashboard user={user} onLogout={logout}>
-                <Box className="text-center py-12">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-4">Settings</h2>
-                  <p className="text-gray-600">Settings panel coming soon...</p>
-                </Box>
+                <div className="settings-container">
+                  <h2 className="settings-title">Settings</h2>
+                  <p className="settings-description">Settings panel coming soon...</p>
+                </div>
               </Dashboard>
             </ProtectedRoute>
           } 
@@ -171,14 +140,9 @@ const AppContent = () => {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <CssBaseline />
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
-        </LocalizationProvider>
-      </ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

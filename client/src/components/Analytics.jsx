@@ -1,474 +1,384 @@
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import {
-  Box,
-  Paper,
-  Typography,
-  Grid,
-  Card,
-  CardContent,
-  TextField,
-  MenuItem,
-  ButtonGroup,
-  Button,
-  Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  LinearProgress
-} from '@mui/material';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  RadialBarChart,
-  RadialBar
-} from 'recharts';
-import {
-  TrendingUp,
-  TrendingDown,
-  Recycling,
-  Timeline,
-  Assessment,
-  Nature,
-  DeviceHub,
-  Warning
-} from '@mui/icons-material';
+import { useState, useEffect, useCallback } from 'react';
+import './Analytics.css';
 
 const Analytics = () => {
   const [timeRange, setTimeRange] = useState('7d');
-  const [chartType, setChartType] = useState('line');
   const [metric, setMetric] = useState('weight');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [analyticsData, setAnalyticsData] = useState(null);
 
-  // Fetch analytics data
-  const { data: analyticsData, isLoading } = useQuery({
-    queryKey: ['analytics', timeRange, metric],
-    queryFn: async () => {
-      const response = await fetch(`/api/waste/analytics?range=${timeRange}&metric=${metric}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch analytics data');
-      }
-      return response.json();
-    },
-    refetchInterval: 300000, // Refresh every 5 minutes
-  });
+  // API Base URL
+  const API_BASE_URL = 'http://localhost:3000/api';
 
-  // Mock data for demonstration (replace with real API data)
-  const mockTrendData = [
-    { date: '2024-09-24', weight: 45.2, volume: 120, count: 8, recyclable: 25, organic: 15, general: 5 },
-    { date: '2024-09-25', weight: 52.1, volume: 135, count: 12, recyclable: 30, organic: 18, general: 4 },
-    { date: '2024-09-26', weight: 38.9, volume: 98, count: 6, recyclable: 20, organic: 12, general: 7 },
-    { date: '2024-09-27', weight: 64.5, volume: 178, count: 15, recyclable: 35, organic: 22, general: 8 },
-    { date: '2024-09-28', weight: 71.3, volume: 195, count: 18, recyclable: 42, organic: 25, general: 4 },
-    { date: '2024-09-29', weight: 49.7, volume: 132, count: 10, recyclable: 28, organic: 16, general: 6 },
-    { date: '2024-09-30', weight: 58.8, volume: 156, count: 14, recyclable: 33, organic: 20, general: 6 }
-  ];
+  // Error Messages for different scenarios
+  const getErrorMessage = (error) => {
+    if (!error) return null;
 
-  const wasteTypeData = [
-    { name: 'Recyclable', value: 45, color: '#22c55e' },
-    { name: 'Organic', value: 30, color: '#f97316' },
-    { name: 'General', value: 20, color: '#6b7280' },
-    { name: 'Hazardous', value: 5, color: '#ef4444' }
-  ];
-
-  const devicePerformance = [
-    { device: 'ARD001', weight: 234.5, efficiency: 92, status: 'online', lastSeen: '2 min ago' },
-    { device: 'ARD002', weight: 189.2, efficiency: 88, status: 'online', lastSeen: '1 min ago' },
-    { device: 'ARD003', weight: 156.8, efficiency: 85, status: 'offline', lastSeen: '15 min ago' },
-    { device: 'ARD004', weight: 198.7, efficiency: 90, status: 'online', lastSeen: '3 min ago' },
-    { device: 'ARD005', weight: 167.3, efficiency: 82, status: 'warning', lastSeen: '8 min ago' }
-  ];
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'online': return 'success';
-      case 'offline': return 'error';
-      case 'warning': return 'warning';
-      default: return 'default';
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      return {
+        title: '🌐 Connection Error',
+        message: 'Unable to connect to the analytics server. Please check your connection or try again later.',
+        code: 'NETWORK_ERROR'
+      };
     }
+
+    if (error.status) {
+      switch (error.status) {
+        case 400:
+          return {
+            title: '❌ Invalid Request',
+            message: 'Invalid analytics parameters. Please try selecting different options.',
+            code: 'BAD_REQUEST'
+          };
+        case 404:
+          return {
+            title: '🔍 No Analytics Data',
+            message: 'No analytics data available for the selected time range.',
+            code: 'NOT_FOUND'
+          };
+        case 500:
+          return {
+            title: '⚠️ Server Error',
+            message: 'The analytics service encountered an error. Please try again in a few moments.',
+            code: 'SERVER_ERROR'
+          };
+        default:
+          return {
+            title: '🚨 Unexpected Error',
+            message: `An unexpected error occurred (${error.status}). Please contact support if this persists.`,
+            code: 'UNKNOWN_ERROR'
+          };
+      }
+    }
+
+    return {
+      title: '🚨 Unknown Error',
+      message: error.message || 'An unknown error occurred. Please try refreshing the page.',
+      code: 'UNKNOWN'
+    };
   };
 
+  // Fetch analytics data from API
+  const fetchAnalyticsData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/waste/analytics?range=${timeRange}&metric=${metric}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw {
+          status: response.status,
+          statusText: response.statusText,
+          data: result
+        };
+      }
+
+      setAnalyticsData(result);
+
+    } catch (err) {
+      console.error('Error fetching analytics data:', err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [timeRange, metric, API_BASE_URL]);
+
+  // Fetch data when dependencies change
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [fetchAnalyticsData]);
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Format values based on metric type
   const formatValue = (value, type) => {
     switch (type) {
-      case 'weight': return `${value.toFixed(1)} kg`;
-      case 'volume': return `${value.toFixed(0)} L`;
-      case 'count': return value.toString();
-      default: return value.toString();
+      case 'weight': return `${value?.toFixed(1) || '0.0'} kg`;
+      case 'volume': return `${value?.toFixed(0) || '0'} L`;
+      case 'count': return value?.toString() || '0';
+      default: return value?.toString() || '0';
     }
   };
 
-  const renderChart = () => {
-    const data = analyticsData?.trends || mockTrendData;
-    
-    switch (chartType) {
-      case 'area':
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip 
-                formatter={(value) => formatValue(value, metric)}
-                labelStyle={{ color: '#374151' }}
-              />
-              <Legend />
-              <Area 
-                type="monotone" 
-                dataKey={metric} 
-                stroke="#22c55e" 
-                fill="#22c55e"
-                fillOpacity={0.3}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        );
-      
-      case 'bar':
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip 
-                formatter={(value) => formatValue(value, metric)}
-                labelStyle={{ color: '#374151' }}
-              />
-              <Legend />
-              <Bar dataKey={metric} fill="#22c55e" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-      
-      default: // line
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip 
-                formatter={(value) => formatValue(value, metric)}
-                labelStyle={{ color: '#374151' }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey={metric} 
-                stroke="#22c55e" 
-                strokeWidth={3}
-                dot={{ fill: '#22c55e', strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6, stroke: '#22c55e', strokeWidth: 2 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        );
-    }
+  // Get trend indicator
+  const getTrendIndicator = (value) => {
+    if (value > 0) return { icon: '📈', class: 'positive', text: `+${value.toFixed(1)}%` };
+    if (value < 0) return { icon: '📉', class: 'negative', text: `${value.toFixed(1)}%` };
+    return { icon: '➡️', class: 'neutral', text: 'No change' };
+  };
+
+  // Simple chart component for trends
+  const TrendChart = ({ data, metric }) => {
+    if (!data || data.length === 0) return <div className="no-chart-data">📊 No data available</div>;
+
+    const maxValue = Math.max(...data.map(d => d[metric] || 0));
+    const minValue = Math.min(...data.map(d => d[metric] || 0));
+    const range = maxValue - minValue || 1;
+
+    return (
+      <div className="trend-chart">
+        <div className="chart-bars">
+          {data.map((item, index) => {
+            const height = ((item[metric] - minValue) / range) * 100;
+            return (
+              <div key={index} className="chart-bar-container">
+                <div 
+                  className="chart-bar"
+                  style={{ height: `${Math.max(height, 5)}%` }}
+                  title={`${formatDate(item.date)}: ${formatValue(item[metric], metric)}`}
+                ></div>
+                <div className="chart-label">{formatDate(item.date)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <Box className="space-y-6">
-      {/* Header and Controls */}
-      <Box className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
-        <Box>
-          <Typography variant="h4" className="font-bold text-gray-800 dark:text-white mb-2">
-            Analytics Dashboard
-          </Typography>
-          <Typography variant="body1" color="textSecondary">
-            Track waste management performance and Arduino device analytics
-          </Typography>
-        </Box>
+    <div className="analytics-container">
+      {/* Header Section */}
+      <div className="analytics-header">
+        <div className="header-content">
+          <h1 className="analytics-title">📊 Analytics Dashboard</h1>
+          <p className="analytics-subtitle">Track waste management performance and trends</p>
+        </div>
         
-        <Box className="flex flex-wrap gap-2">
-          <TextField
-            select
-            size="small"
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
-            className="w-32"
-          >
-            <MenuItem value="24h">Last 24 Hours</MenuItem>
-            <MenuItem value="7d">Last 7 Days</MenuItem>
-            <MenuItem value="30d">Last 30 Days</MenuItem>
-            <MenuItem value="90d">Last 90 Days</MenuItem>
-          </TextField>
+        {/* Controls */}
+        <div className="analytics-controls">
+          <div className="control-group">
+            <label htmlFor="timeRange">📅 Time Range</label>
+            <select
+              id="timeRange"
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="control-select"
+            >
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="90d">Last 90 Days</option>
+            </select>
+          </div>
           
-          <TextField
-            select
-            size="small"
-            value={metric}
-            onChange={(e) => setMetric(e.target.value)}
-            className="w-32"
-          >
-            <MenuItem value="weight">Weight</MenuItem>
-            <MenuItem value="volume">Volume</MenuItem>
-            <MenuItem value="count">Count</MenuItem>
-          </TextField>
+          <div className="control-group">
+            <label htmlFor="metric">📏 Metric</label>
+            <select
+              id="metric"
+              value={metric}
+              onChange={(e) => setMetric(e.target.value)}
+              className="control-select"
+            >
+              <option value="weight">Weight (kg)</option>
+              <option value="volume">Volume (L)</option>
+              <option value="count">Count</option>
+            </select>
+          </div>
           
-          <ButtonGroup size="small">
-            <Button
-              variant={chartType === 'line' ? 'contained' : 'outlined'}
-              onClick={() => setChartType('line')}
+          <button
+            onClick={fetchAnalyticsData}
+            className="refresh-btn"
+            disabled={loading}
+          >
+            {loading ? '🔄 Loading...' : '🔄 Refresh'}
+          </button>
+        </div>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="error-container">
+          <div className="error-card">
+            <div className="error-header">
+              <h3>{getErrorMessage(error).title}</h3>
+              <button
+                onClick={() => setError(null)}
+                className="error-close"
+                aria-label="Close error"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="error-message">{getErrorMessage(error).message}</p>
+            <div className="error-actions">
+              <button
+                onClick={fetchAnalyticsData}
+                className="btn-primary"
+                disabled={loading}
+              >
+                🔄 Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <div className="loading-container">
+          <div className="loading-spinner">🔄</div>
+          <p>Loading analytics data...</p>
+        </div>
+      )}
+
+      {/* Analytics Content */}
+      {!loading && !error && analyticsData && (
+        <>
+          {/* Key Metrics */}
+          <div className="metrics-grid">
+            <div className="metric-card total-weight">
+              <div className="metric-icon">⚖️</div>
+              <div className="metric-content">
+                <div className="metric-value">{formatValue(analyticsData.totalWeight, 'weight')}</div>
+                <div className="metric-label">Total Weight</div>
+                <div className="metric-trend positive">
+                  <span>📈</span>
+                  <span>+12.5% vs last period</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="metric-card efficiency">
+              <div className="metric-icon">⚡</div>
+              <div className="metric-content">
+                <div className="metric-value">{analyticsData.efficiency?.toFixed(0) || '89'}%</div>
+                <div className="metric-label">Efficiency Rate</div>
+                <div className="metric-trend positive">
+                  <span>📈</span>
+                  <span>+3.2% vs last period</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="metric-card active-devices">
+              <div className="metric-icon">🔗</div>
+              <div className="metric-content">
+                <div className="metric-value">{analyticsData.activeDevices || '5'}</div>
+                <div className="metric-label">Active Devices</div>
+                <div className="metric-trend neutral">
+                  <span>✅</span>
+                  <span>All systems online</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="metric-card co2-saved">
+              <div className="metric-icon">🌱</div>
+              <div className="metric-content">
+                <div className="metric-value">{formatValue(analyticsData.co2Saved, 'weight')}</div>
+                <div className="metric-label">CO₂ Saved</div>
+                <div className="metric-trend positive">
+                  <span>🌍</span>
+                  <span>Environmental impact</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Trend Chart */}
+          <div className="chart-section">
+            <div className="chart-header">
+              <h2>📈 Waste Collection Trends - {metric.charAt(0).toUpperCase() + metric.slice(1)}</h2>
+              <div className="chart-period">{timeRange.toUpperCase()}</div>
+            </div>
+            <div className="chart-container">
+              <TrendChart data={analyticsData.trends} metric={metric} />
+            </div>
+          </div>
+
+          {/* Summary Statistics */}
+          <div className="summary-section">
+            <div className="summary-grid">
+              <div className="summary-card">
+                <h3>📊 Summary Statistics</h3>
+                <div className="summary-stats">
+                  <div className="stat-item">
+                    <span className="stat-label">📈 Total Records:</span>
+                    <span className="stat-value">{analyticsData.totalRecords || 0}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">📅 Date Range:</span>
+                    <span className="stat-value">
+                      {analyticsData.dateRange ? 
+                        `${formatDate(analyticsData.dateRange.start)} - ${formatDate(analyticsData.dateRange.end)}` : 
+                        'N/A'
+                      }
+                    </span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">🎯 Collection Efficiency:</span>
+                    <span className="stat-value">{analyticsData.efficiency?.toFixed(1) || '0.0'}%</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">💾 Total Volume:</span>
+                    <span className="stat-value">{formatValue(analyticsData.totalVolume, 'volume')}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="summary-card">
+                <h3>🎯 Performance Insights</h3>
+                <div className="insight-list">
+                  <div className="insight-item">
+                    <span className="insight-icon">💡</span>
+                    <span>Peak collection day: {analyticsData.trends && analyticsData.trends.length > 0 ? 
+                      formatDate(analyticsData.trends.reduce((max, curr) => 
+                        curr[metric] > max[metric] ? curr : max
+                      ).date) : 'N/A'}</span>
+                  </div>
+                  <div className="insight-item">
+                    <span className="insight-icon">⏰</span>
+                    <span>Data updated: {new Date().toLocaleString()}</span>
+                  </div>
+                  <div className="insight-item">
+                    <span className="insight-icon">🌱</span>
+                    <span>Environmental impact: {formatValue(analyticsData.co2Saved, 'weight')} CO₂ saved</span>
+                  </div>
+                  <div className="insight-item">
+                    <span className="insight-icon">🔄</span>
+                    <span>System status: All devices operational</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* No Data State */}
+      {!loading && !error && !analyticsData && (
+        <div className="no-data-container">
+          <div className="no-data-content">
+            <div className="no-data-icon">📊</div>
+            <h3>No Analytics Data Available</h3>
+            <p>Start collecting waste data to see analytics and trends.</p>
+            <button
+              onClick={fetchAnalyticsData}
+              className="btn-primary"
             >
-              Line
-            </Button>
-            <Button
-              variant={chartType === 'area' ? 'contained' : 'outlined'}
-              onClick={() => setChartType('area')}
-            >
-              Area
-            </Button>
-            <Button
-              variant={chartType === 'bar' ? 'contained' : 'outlined'}
-              onClick={() => setChartType('bar')}
-            >
-              Bar
-            </Button>
-          </ButtonGroup>
-        </Box>
-      </Box>
-
-      {/* Key Metrics */}
-      <Grid container spacing={3}>
-        <Grid size={{xs: 12, sm: 6, md: 3}}>
-          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-            <CardContent>
-              <Box className="flex items-center justify-between">
-                <Box>
-                  <Typography variant="h4" className="font-bold">
-                    {analyticsData?.totalWeight?.toFixed(1) || '847.2'} kg
-                  </Typography>
-                  <Typography variant="body2">Total Weight</Typography>
-                  <Box className="flex items-center mt-1">
-                    <TrendingUp className="text-sm mr-1" />
-                    <Typography variant="caption">+12.5% vs last week</Typography>
-                  </Box>
-                </Box>
-                <Recycling className="text-4xl opacity-80" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid size={{xs: 12, sm: 6, md: 3}}>
-          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-            <CardContent>
-              <Box className="flex items-center justify-between">
-                <Box>
-                  <Typography variant="h4" className="font-bold">
-                    {analyticsData?.efficiency?.toFixed(0) || '89'}%
-                  </Typography>
-                  <Typography variant="body2">Efficiency Rate</Typography>
-                  <Box className="flex items-center mt-1">
-                    <TrendingUp className="text-sm mr-1" />
-                    <Typography variant="caption">+3.2% vs last week</Typography>
-                  </Box>
-                </Box>
-                <Assessment className="text-4xl opacity-80" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid size={{xs: 12, sm: 6, md: 3}}>
-          <Card className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
-            <CardContent>
-              <Box className="flex items-center justify-between">
-                <Box>
-                  <Typography variant="h4" className="font-bold">
-                    {analyticsData?.activeDevices || '5'}
-                  </Typography>
-                  <Typography variant="body2">Active Devices</Typography>
-                  <Box className="flex items-center mt-1">
-                    <DeviceHub className="text-sm mr-1" />
-                    <Typography variant="caption">All systems online</Typography>
-                  </Box>
-                </Box>
-                <DeviceHub className="text-4xl opacity-80" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid size={{xs: 12, sm: 6, md: 3}}>
-          <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-            <CardContent>
-              <Box className="flex items-center justify-between">
-                <Box>
-                  <Typography variant="h4" className="font-bold">
-                    {analyticsData?.co2Saved?.toFixed(1) || '156.8'} kg
-                  </Typography>
-                  <Typography variant="body2">CO₂ Saved</Typography>
-                  <Box className="flex items-center mt-1">
-                    <Nature className="text-sm mr-1" />
-                    <Typography variant="caption">Environmental impact</Typography>
-                  </Box>
-                </Box>
-                <Nature className="text-4xl opacity-80" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Main Chart */}
-      <Paper className="p-4">
-        <Typography variant="h6" className="mb-4">
-          Waste Collection Trends - {metric.charAt(0).toUpperCase() + metric.slice(1)}
-        </Typography>
-        {isLoading ? (
-          <Box className="h-96 flex items-center justify-center">
-            <LinearProgress className="w-48" />
-          </Box>
-        ) : (
-          renderChart()
-        )}
-      </Paper>
-
-      {/* Charts Row */}
-      <Grid container spacing={3}>
-        {/* Waste Type Distribution */}
-        <Grid size={{xs: 12, md: 6}}>
-          <Paper className="p-4">
-            <Typography variant="h6" className="mb-4">Waste Type Distribution</Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={wasteTypeData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {wasteTypeData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `${value}%`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </Paper>
-        </Grid>
-
-        {/* Device Performance */}
-        <Grid size={{xs: 12, md: 6}}>
-          <Paper className="p-4">
-            <Typography variant="h6" className="mb-4">Device Performance</Typography>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Device</TableCell>
-                    <TableCell align="right">Weight (kg)</TableCell>
-                    <TableCell align="right">Efficiency</TableCell>
-                    <TableCell>Status</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {devicePerformance.map((device) => (
-                    <TableRow key={device.device}>
-                      <TableCell>
-                        <Typography variant="body2" className="font-medium">
-                          {device.device}
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                          {device.lastSeen}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">{device.weight}</TableCell>
-                      <TableCell align="right">
-                        <Box className="flex items-center justify-end">
-                          <Box className="w-16 mr-2">
-                            <LinearProgress
-                              variant="determinate"
-                              value={device.efficiency}
-                              className="h-1"
-                              sx={{
-                                backgroundColor: 'gray.200',
-                                '& .MuiLinearProgress-bar': {
-                                  backgroundColor: device.efficiency > 85 ? 'green.500' : 
-                                                 device.efficiency > 70 ? 'orange.500' : 'red.500'
-                                }
-                              }}
-                            />
-                          </Box>
-                          <Typography variant="body2">{device.efficiency}%</Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={device.status}
-                          size="small"
-                          color={getStatusColor(device.status)}
-                          icon={device.status === 'warning' ? <Warning /> : undefined}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Waste Type Trends */}
-      <Paper className="p-4">
-        <Typography variant="h6" className="mb-4">Waste Type Trends</Typography>
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={mockTrendData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Area
-              type="monotone"
-              dataKey="recyclable"
-              stackId="1"
-              stroke="#22c55e"
-              fill="#22c55e"
-              fillOpacity={0.8}
-            />
-            <Area
-              type="monotone"
-              dataKey="organic"
-              stackId="1"
-              stroke="#f97316"
-              fill="#f97316"
-              fillOpacity={0.8}
-            />
-            <Area
-              type="monotone"
-              dataKey="general"
-              stackId="1"
-              stroke="#6b7280"
-              fill="#6b7280"
-              fillOpacity={0.8}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </Paper>
-    </Box>
+              🔄 Refresh Data
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

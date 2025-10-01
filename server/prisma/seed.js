@@ -52,23 +52,59 @@ async function main() {
 
     console.log(`✅ Created ${accounts.count} accounts`);
 
-    // Create waste items for the last 20 days (one record per day)
+    // Create waste items for the last year (365 days - one record per day)
     const wasteItems = [];
     const currentDate = new Date();
 
-    // Generate 20 daily waste records
-    for (let i = 0; i < 20; i++) {
-      const daysAgo = 19 - i; // Start from 19 days ago to today
+    // Generate 365 daily waste records (1 full year)
+    for (let i = 0; i < 365; i++) {
+      const daysAgo = 364 - i; // Start from 364 days ago to today
       const itemDate = new Date(currentDate);
       itemDate.setDate(currentDate.getDate() - daysAgo);
       
       // Reset time to start of day for consistent date formatting
       itemDate.setHours(0, 0, 0, 0);
       
-      // Generate random amounts for each category (0-50 units)
-      const recyclableAmount = Math.floor(Math.random() * 51);
-      const biodegradableAmount = Math.floor(Math.random() * 51);
-      const nonBiodegradableAmount = Math.floor(Math.random() * 51);
+      // Generate more realistic seasonal variation in waste amounts
+      const month = itemDate.getMonth() + 1; // 1-12
+      const season = Math.floor((month % 12) / 3); // 0=winter, 1=spring, 2=summer, 3=fall
+      
+      // Base amounts with seasonal variations
+      let baseRecyclable = 15 + Math.floor(Math.random() * 20); // 15-35
+      let baseBiodegradable = 10 + Math.floor(Math.random() * 15); // 10-25
+      let baseNonBiodegradable = 5 + Math.floor(Math.random() * 10); // 5-15
+      
+      // Seasonal adjustments
+      switch(season) {
+        case 0: // Winter (Dec, Jan, Feb) - more packaging, less organic
+          baseRecyclable += Math.floor(Math.random() * 10); // +0-10
+          baseBiodegradable -= Math.floor(Math.random() * 5); // -0-5
+          break;
+        case 1: // Spring (Mar, Apr, May) - cleaning, gardening
+          baseBiodegradable += Math.floor(Math.random() * 8); // +0-8
+          break;
+        case 2: // Summer (Jun, Jul, Aug) - more food waste, beverages
+          baseRecyclable += Math.floor(Math.random() * 7); // +0-7
+          baseBiodegradable += Math.floor(Math.random() * 10); // +0-10
+          break;
+        case 3: // Fall (Sep, Oct, Nov) - yard waste, holiday prep
+          baseBiodegradable += Math.floor(Math.random() * 12); // +0-12
+          baseRecyclable += Math.floor(Math.random() * 5); // +0-5
+          break;
+      }
+      
+      // Weekend variations (slightly more waste on weekends)
+      const dayOfWeek = itemDate.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday or Saturday
+        baseRecyclable += Math.floor(Math.random() * 5);
+        baseBiodegradable += Math.floor(Math.random() * 5);
+        baseNonBiodegradable += Math.floor(Math.random() * 3);
+      }
+      
+      // Ensure minimums and apply some randomness
+      const recyclableAmount = Math.max(0, baseRecyclable + Math.floor(Math.random() * 11) - 5);
+      const biodegradableAmount = Math.max(0, baseBiodegradable + Math.floor(Math.random() * 11) - 5);
+      const nonBiodegradableAmount = Math.max(0, baseNonBiodegradable + Math.floor(Math.random() * 7) - 3);
 
       wasteItems.push({
         recyclable: recyclableAmount,
@@ -107,21 +143,33 @@ async function main() {
       },
     });
 
-    console.log('📋 Created waste items:');
-    allWasteItems.forEach((item, index) => {
+    console.log('📋 Created waste items (showing first 10 and last 5):');
+    // Show first 10 records
+    allWasteItems.slice(0, 10).forEach((item, index) => {
       console.log(`  - ${index + 1}. ${item.date.toDateString()}: R:${item.recyclable}, B:${item.biodegradable}, NB:${item.nonBiodegradable}`);
     });
+    if (allWasteItems.length > 15) {
+      console.log(`  ... (${allWasteItems.length - 15} records omitted) ...`);
+      // Show last 5 records
+      allWasteItems.slice(-5).forEach((item, index) => {
+        const actualIndex = allWasteItems.length - 5 + index + 1;
+        console.log(`  - ${actualIndex}. ${item.date.toDateString()}: R:${item.recyclable}, B:${item.biodegradable}, NB:${item.nonBiodegradable}`);
+      });
+    }
 
     // Summary statistics
     const totalRecyclable = allWasteItems.reduce((sum, item) => sum + item.recyclable, 0);
     const totalBiodegradable = allWasteItems.reduce((sum, item) => sum + item.biodegradable, 0);
     const totalNonBiodegradable = allWasteItems.reduce((sum, item) => sum + item.nonBiodegradable, 0);
+    const grandTotal = totalRecyclable + totalBiodegradable + totalNonBiodegradable;
 
-    console.log('📊 Waste items summary (20 days):');
+    console.log(`📊 Waste items summary (${allWasteItems.length} days):`);
     console.log(`  - Total Recyclable: ${totalRecyclable} units`);
     console.log(`  - Total Biodegradable: ${totalBiodegradable} units`);
     console.log(`  - Total Non-Biodegradable: ${totalNonBiodegradable} units`);
-    console.log(`  - Grand Total: ${totalRecyclable + totalBiodegradable + totalNonBiodegradable} units`);
+    console.log(`  - Grand Total: ${grandTotal} units`);
+    console.log(`  - Daily Average: ${Math.round(grandTotal / allWasteItems.length)} units`);
+    console.log(`  - Date Range: ${allWasteItems[0].date.toDateString()} to ${allWasteItems[allWasteItems.length - 1].date.toDateString()}`);
 
     console.log('🎉 Database seeding completed successfully!');
   } catch (error) {

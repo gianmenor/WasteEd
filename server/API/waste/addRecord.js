@@ -38,7 +38,11 @@ export const addWasteRecord = async (req, res) => {
 
     // Automatically use today's date (server time)
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset to start of day for consistent date handling
+    // Create a date string in YYYY-MM-DD format for MySQL Date field
+    const todayDateString = today.getFullYear() + '-' + 
+                           String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                           String(today.getDate()).padStart(2, '0');
+    const todayDate = new Date(todayDateString);
 
     try {
       // Try to create the record directly - let the unique constraint do the checking
@@ -47,7 +51,7 @@ export const addWasteRecord = async (req, res) => {
           recyclable,
           biodegradable,
           nonBiodegradable,
-          date: today
+          date: todayDate
         }
       });
 
@@ -71,7 +75,7 @@ export const addWasteRecord = async (req, res) => {
       if (createError.code === 'P2002') {
         try {
           const existingRecord = await prisma.waste_items.findUnique({
-            where: { date: today }
+            where: { date: todayDate }
           });
 
           return res.status(409).json({
