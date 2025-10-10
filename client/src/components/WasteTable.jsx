@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
+import LoadingSpinner from './LoadingSpinner';
 import './WasteTable.css';
 
 const WasteTable = () => {
@@ -179,30 +180,7 @@ const WasteTable = () => {
   if (loading) {
     return (
       <div className="waste-table-container">
-        <div className="loading-container" role="status" aria-live="polite">
-          <div className="loading-spinner" aria-hidden="true">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="spinning"
-            >
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <polyline points="1 20 1 14 7 14"></polyline>
-              <path d="m20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-            </svg>
-          </div>
-          <p className="loading-text">Loading waste collection data...</p>
-          <div className="loading-progress">
-            <div className="loading-bar"></div>
-          </div>
-          <span className="visually-hidden">Please wait while we fetch the latest waste collection records.</span>
-        </div>
+        <LoadingSpinner message="Loading waste collection data..." />
       </div>
     );
   }

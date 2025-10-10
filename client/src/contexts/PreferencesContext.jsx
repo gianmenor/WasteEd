@@ -37,10 +37,10 @@ export const PreferencesProvider = ({ children }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       const response = await fetch(API_ENDPOINTS.PREFERENCES, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json'
         }
       });
@@ -72,11 +72,11 @@ export const PreferencesProvider = ({ children }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       const response = await fetch(API_ENDPOINTS.PREFERENCES, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newPreferences)
@@ -130,11 +130,11 @@ export const PreferencesProvider = ({ children }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       const response = await fetch(`${API_ENDPOINTS.PREFERENCES}/reset`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json'
         }
       });

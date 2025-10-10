@@ -12,6 +12,7 @@ import WasteTable from './components/WasteTable';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Settings from './components/Settings';
 import NotificationTest from './components/NotificationTest';
+import LoadingSpinner from './components/LoadingSpinner';
 import './App.css';
 
 // Create query client
@@ -29,12 +30,7 @@ const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner">⚡</div>
-        <p>Loading...</p>
-      </div>
-    );
+    return <LoadingSpinner fullscreen message="Loading..." />;
   }
 
   return isAuthenticated ? children : <Navigate to="/login" replace />;
@@ -45,28 +41,7 @@ const AppContent = () => {
   const { isAuthenticated, user, logout, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="spinning"
-          >
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="m20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-          </svg>
-        </div>
-        <p>Loading...</p>
-      </div>
-    );
+    return <LoadingSpinner fullscreen message="Loading..." />;
   }
 
   return (

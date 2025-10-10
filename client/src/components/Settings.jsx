@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
+import LoadingSpinner from './LoadingSpinner';
 import './Settings.css';
 
 const Settings = () => {
@@ -196,6 +197,7 @@ const Settings = () => {
 
   return (
     <div className={`settings-page ui-size-${preferences?.uiSize || 'medium'}`}>
+      {(prefsLoading || isLoading) && <LoadingSpinner fullscreen message="Loading..." />}
       <div className="settings-header">
         <h1 className="settings-title">Settings</h1>
       </div>
