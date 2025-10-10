@@ -14,7 +14,7 @@ model Account {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   email       String?
-  role        String           @default("user")
+  role        accounts_role    @default(user)
   preferences UserPreferences?
 
   @@map("accounts")
@@ -58,4 +58,9 @@ model Bin {
   createdAt DateTime @default(now())
 
   @@map("bin_records")
+}
+
+enum accounts_role {
+  user
+  admin
 }

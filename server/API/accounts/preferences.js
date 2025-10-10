@@ -10,18 +10,34 @@ const router = express.Router();
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 
+// Helper: resolve an accountId to use for preferences when auth is disabled
+// Strategy: prefer username 'admin', else first account. If none, return null.
+async function resolveAccountId() {
+  try {
+    const admin = await prisma.account.findUnique({ where: { username: 'admin' } });
+    if (admin) return admin.id;
+
+    const first = await prisma.account.findFirst({ orderBy: { id: 'asc' } });
+    if (first) return first.id;
+
+    return null;
+  } catch (e) {
+    console.error('Error resolving accountId for preferences:', e);
+    return null;
+  }
+}
+
 // Get user preferences
 router.get('/', async (req, res) => {
   try {
-    // Use the admin user ID that exists in the database (from the token logs, it's ID 15)
-    const userId = 15;
+    const userId = await resolveAccountId();
     
     console.log('GET Using userId:', userId); // Debug log
     
     if (!userId) {
       return res.status(400).json({ 
         success: false, 
-        error: 'User ID not found in token' 
+        error: 'No accounts found to attach preferences. Create an account first.' 
       });
     }
     
@@ -76,15 +92,14 @@ router.get('/', async (req, res) => {
 // Update user preferences
 router.put('/', async (req, res) => {
   try {
-    // Use the admin user ID that exists in the database (from the token logs, it's ID 15)
-    const userId = 15;
+    const userId = await resolveAccountId();
     
     console.log('PUT Using userId:', userId); // Debug log
     
     if (!userId) {
       return res.status(400).json({ 
         success: false, 
-        error: 'User ID not found in token' 
+        error: 'No accounts found to attach preferences. Create an account first.' 
       });
     }
     const {
@@ -186,8 +201,14 @@ router.put('/', async (req, res) => {
 // Reset preferences to default
 router.post('/reset', async (req, res) => {
   try {
-    // Use the admin user ID that exists in the database (from the token logs, it's ID 15)
-    const userId = 15;
+    const userId = await resolveAccountId();
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'No accounts found to attach preferences. Create an account first.'
+      });
+    }
 
     const preferences = await prisma.userPreferences.upsert({
       where: { accountId: userId },

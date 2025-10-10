@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext';
 import { usePreferences } from './PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
 
-const BinNotificationContext = createContext();
+export const BinNotificationContext = createContext();
 
 export const useBinNotifications = () => {
   const context = useContext(BinNotificationContext);
@@ -293,6 +293,19 @@ export const BinNotificationProvider = ({ children }) => {
 
   return (
     <BinNotificationContext.Provider value={value}>
+      {isLoading && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+          aria-live="polite"
+          aria-busy="true"
+          role="status"
+        >
+          <div
+            className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500"
+            aria-label="Loading"
+          />
+        </div>
+      )}
       {children}
     </BinNotificationContext.Provider>
   );
