@@ -12,4 +12,7 @@ router.post('/add', addRecord);
 import analytics from './analytics.js';
 router.get('/analytics', analytics);
 
+import deleteToday from './deleteToday.js';
+router.post('/delete-today', deleteToday);
+
 export default router;

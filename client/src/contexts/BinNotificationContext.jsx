@@ -15,6 +15,7 @@ export const useBinNotifications = () => {
 };
 
 export const BinNotificationProvider = ({ children }) => {
+  const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.MODE === 'development';
   const { user } = useAuth();
   const { preferences } = usePreferences();
   const [notifications, setNotifications] = useState([]);
@@ -55,7 +56,8 @@ export const BinNotificationProvider = ({ children }) => {
           title: 'Bin Full Alert',
           message: 'The waste bin is full and needs to be emptied.',
           timestamp: new Date(record.fullAt),
-          isRead: seenNotifications.current.has(record.id.toString()), // Mark as read if already seen
+          // In development, always show as unread for easier testing
+          isRead: isDev ? false : seenNotifications.current.has(record.id.toString()),
           icon: '🗑️',
           priority: 'high'
         }));
@@ -216,9 +218,11 @@ export const BinNotificationProvider = ({ children }) => {
         
         // Check if we've already seen this notification
         const notificationId = binRecord.id.toString();
-        if (seenNotifications.current.has(notificationId)) {
+        if (seenNotifications.current.has(notificationId) && !isDev) {
           console.log('Notification already seen, skipping:', notificationId);
           return;
+        } else if (seenNotifications.current.has(notificationId) && isDev) {
+          console.log('Dev mode: ignoring seen check for notification', notificationId);
         }
         
         // Add to notifications list

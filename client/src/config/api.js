@@ -37,6 +37,8 @@ export const API_ENDPOINTS = {
   // Waste records
   WASTE_RECORDS: `${API_BASE_URL}/api/waste/records`,
   WASTE_ANALYTICS: `${API_BASE_URL}/api/waste/analytics`,
+  WASTE_ADD: `${API_BASE_URL}/api/waste/add`,
+  WASTE_DELETE_TODAY: `${API_BASE_URL}/api/waste/delete-today`,
   
   // Bin records
   BIN_RECORDS: `${API_BASE_URL}/api/bin/records`,

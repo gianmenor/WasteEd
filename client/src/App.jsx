@@ -13,6 +13,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Settings from './components/Settings';
 import NotificationTest from './components/NotificationTest';
 import LoadingSpinner from './components/LoadingSpinner';
+import DevPage from './components/DevPage';
 import './App.css';
 
 // Create query client
@@ -98,6 +99,17 @@ const AppContent = () => {
                 <ProtectedRoute>
                   <Dashboard user={user} onLogout={logout}>
                     <Settings />
+                  </Dashboard>
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/dev" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard user={user} onLogout={logout}>
+                    <DevPage />
                   </Dashboard>
                 </ProtectedRoute>
               } 
