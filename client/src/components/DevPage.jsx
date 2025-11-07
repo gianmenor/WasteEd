@@ -1,8 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
 
+const DEV_PASSWORD = 'sean121802';
+const DEV_AUTH_KEY = 'devPageAuthorized';
+
 export default function DevPage() {
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -10,6 +17,76 @@ export default function DevPage() {
 
   const [lastRequest, setLastRequest] = useState(null); // { url, method, body, status }
   const [form, setForm] = useState({ recyclable: 20, biodegradable: 4, nonBiodegradable: 8 });
+
+  // Check if already authorized from session storage
+  useEffect(() => {
+    const authorized = sessionStorage.getItem(DEV_AUTH_KEY);
+    if (authorized === 'true') {
+      setIsAuthorized(true);
+    }
+  }, []);
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (passwordInput === DEV_PASSWORD) {
+      setIsAuthorized(true);
+      sessionStorage.setItem(DEV_AUTH_KEY, 'true');
+      setPasswordError('');
+    } else {
+      setPasswordError('Invalid password');
+      setPasswordInput('');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthorized(false);
+    sessionStorage.removeItem(DEV_AUTH_KEY);
+    setPasswordInput('');
+  };
+
+  // Show password prompt if not authorized
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <div className="text-center mb-6">
+              <div className="text-4xl mb-2">🔒</div>
+              <h1 className="text-2xl font-semibold mb-2">Developer Access</h1>
+              <p className="text-sm text-gray-600">Enter password to access developer tools</p>
+            </div>
+            
+            <form onSubmit={handlePasswordSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="Enter password"
+                  autoFocus
+                />
+              </div>
+              
+              {passwordError && (
+                <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+                  {passwordError}
+                </div>
+              )}
+              
+              <button
+                type="submit"
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Access Developer Tools
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const total = useMemo(() => (Number(form.recyclable)||0) + (Number(form.biodegradable)||0) + (Number(form.nonBiodegradable)||0), [form]);
 
@@ -80,6 +157,13 @@ export default function DevPage() {
         <div className="flex items-center gap-2 text-xs">
           <span className="px-2 py-1 rounded bg-gray-100">Env: {import.meta.env.MODE}</span>
           <span className="px-2 py-1 rounded bg-gray-100">API: {API_BASE_URL || 'relative'}</span>
+          <button
+            onClick={handleLogout}
+            className="px-2 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100"
+            title="Lock developer tools"
+          >
+            🔒 Lock
+          </button>
         </div>
       </div>
 

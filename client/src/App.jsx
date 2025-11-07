@@ -107,11 +107,9 @@ const AppContent = () => {
             <Route 
               path="/dev" 
               element={
-                <ProtectedRoute>
-                  <Dashboard user={user} onLogout={logout}>
-                    <DevPage />
-                  </Dashboard>
-                </ProtectedRoute>
+                <Dashboard user={user} onLogout={logout}>
+                  <DevPage />
+                </Dashboard>
               } 
             />
 
