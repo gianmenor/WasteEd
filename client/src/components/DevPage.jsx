@@ -18,6 +18,9 @@ export default function DevPage() {
   const [lastRequest, setLastRequest] = useState(null); // { url, method, body, status }
   const [form, setForm] = useState({ recyclable: 20, biodegradable: 4, nonBiodegradable: 8 });
 
+  // All hooks must be called before any conditional returns
+  const total = useMemo(() => (Number(form.recyclable)||0) + (Number(form.biodegradable)||0) + (Number(form.nonBiodegradable)||0), [form]);
+
   // Check if already authorized from session storage
   useEffect(() => {
     const authorized = sessionStorage.getItem(DEV_AUTH_KEY);
@@ -87,8 +90,6 @@ export default function DevPage() {
       </div>
     );
   }
-
-  const total = useMemo(() => (Number(form.recyclable)||0) + (Number(form.biodegradable)||0) + (Number(form.nonBiodegradable)||0), [form]);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
