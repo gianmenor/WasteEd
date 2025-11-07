@@ -14,6 +14,16 @@ export const useBinNotifications = () => {
   return context;
 };
 
+// Helper function to map bin type to display name
+const getBinName = (binType) => {
+  const binTypes = {
+    1: 'Recyclable',
+    2: 'Biodegradable',
+    3: 'Non-Biodegradable'
+  };
+  return binTypes[binType] || 'Unknown';
+};
+
 export const BinNotificationProvider = ({ children }) => {
   const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.MODE === 'development';
   const { user } = useAuth();
@@ -50,17 +60,24 @@ export const BinNotificationProvider = ({ children }) => {
       const data = await response.json();
       
       if (data.success && data.data?.records) {
-        const binRecords = data.data.records.map(record => ({
-          id: record.id,
-          type: 'bin_full',
-          title: 'Bin Full Alert',
-          message: 'The waste bin is full and needs to be emptied.',
-          timestamp: new Date(record.fullAt),
-          // In development, always show as unread for easier testing
-          isRead: isDev ? false : seenNotifications.current.has(record.id.toString()),
-          icon: '🗑️',
-          priority: 'high'
-        }));
+        const binRecords = data.data.records.map(record => {
+          const binType = record.binType || 1;
+          const binName = getBinName(binType);
+          
+          return {
+            id: record.id,
+            type: 'bin_full',
+            title: `${binName} Bin Full Alert`,
+            message: `The ${binName.toLowerCase()} bin is full and needs to be emptied.`,
+            timestamp: new Date(record.fullAt),
+            // In development, always show as unread for easier testing
+            isRead: isDev ? false : seenNotifications.current.has(record.id.toString()),
+            icon: '🗑️',
+            priority: 'high',
+            binType: binType,
+            binName: binName
+          };
+        });
 
         setNotifications(binRecords);
         setUnreadCount(binRecords.filter(notif => !notif.isRead).length);
@@ -204,16 +221,21 @@ export const BinNotificationProvider = ({ children }) => {
           return;
         }
         
-        // Create notification object
+        // Create notification object with bin type info
+        const binType = binRecord.binType || 1;
+        const binName = getBinName(binType);
+        
         const notification = {
           id: binRecord.id,
           type: 'bin_full',
-          title: 'Bin Full Alert',
-          message: 'The waste bin is full and needs to be emptied.',
+          title: `${binName} Bin Full Alert`,
+          message: `The ${binName.toLowerCase()} bin is full and needs to be emptied.`,
           timestamp: new Date(binRecord.fullAt),
           isRead: false,
           icon: '🗑️',
-          priority: 'high'
+          priority: 'high',
+          binType: binType,
+          binName: binName
         };
         
         // Check if we've already seen this notification

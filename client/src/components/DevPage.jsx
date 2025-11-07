@@ -17,6 +17,7 @@ export default function DevPage() {
 
   const [lastRequest, setLastRequest] = useState(null); // { url, method, body, status }
   const [form, setForm] = useState({ recyclable: 20, biodegradable: 4, nonBiodegradable: 8 });
+  const [binType, setBinType] = useState(1); // 1=Recyclable, 2=Biodegradable, 3=Non-Biodegradable
 
   // All hooks must be called before any conditional returns
   const total = useMemo(() => (Number(form.recyclable)||0) + (Number(form.biodegradable)||0) + (Number(form.nonBiodegradable)||0), [form]);
@@ -182,10 +183,24 @@ export default function DevPage() {
             <span className="text-[11px] rounded bg-blue-50 text-blue-700 px-2 py-0.5">POST /api/bin/full</span>
           </div>
           <p className="text-xs text-gray-600 mb-3">Simulate the device notifying that a bin is full. This also broadcasts to connected clients.</p>
+          
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Bin Type</label>
+            <select
+              value={binType}
+              onChange={(e) => setBinType(Number(e.target.value))}
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value={1}>1 - Recyclable</option>
+              <option value={2}>2 - Biodegradable</option>
+              <option value={3}>3 - Non-Biodegradable</option>
+            </select>
+          </div>
+          
           <button
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             disabled={loading}
-            onClick={() => callApi({ url: API_ENDPOINTS.BIN_FULL, method: 'POST' })}
+            onClick={() => callApi({ url: API_ENDPOINTS.BIN_FULL, method: 'POST', body: { bin: binType } })}
           >
             Trigger Bin Full
           </button>

@@ -6,15 +6,30 @@ import { broadcastBinNotification } from './notifications.js';
 const router = express.Router();
 
 // POST /api/bin/full - Called by the machine when bin becomes full
+// Expected body: { bin: 1|2|3 } where 1=Recyclable, 2=Biodegradable, 3=Non-Biodegradable
 router.post('/', async (req, res) => {
   try {
     console.log('Bin full notification received at:', new Date().toISOString());
+    
+    const { bin } = req.body;
+    
+    // Validate bin type
+    if (!bin || ![1, 2, 3].includes(Number(bin))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid bin type. Must be 1 (Recyclable), 2 (Biodegradable), or 3 (Non-Biodegradable)',
+        received: bin
+      });
+    }
+
+    const binType = Number(bin);
     
     // Create a new bin record using retry operation for reliability
     const newBinRecord = await retryOperation(async () => {
       return await prisma.bin.create({
         data: {
           fullAt: new Date(),
+          binType: binType,
         },
       });
     });
@@ -30,6 +45,7 @@ router.post('/', async (req, res) => {
       data: {
         id: newBinRecord.id,
         fullAt: newBinRecord.fullAt,
+        binType: newBinRecord.binType,
         createdAt: newBinRecord.createdAt
       }
     });

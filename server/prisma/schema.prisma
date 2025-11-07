@@ -55,6 +55,7 @@ model waste_items {
 model Bin {
   id        Int      @id @default(autoincrement())
   fullAt    DateTime @default(now())
+  binType   Int      @default(1)
   createdAt DateTime @default(now())
 
   @@map("bin_records")

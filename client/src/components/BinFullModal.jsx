@@ -56,7 +56,7 @@ const BinFullModal = () => {
               <div className="bin-icon-pulse"></div>
             </div>
             <div className="bin-modal-title">
-              <h2>Bin Full Alert!</h2>
+              <h2>{latestNotification.title}</h2>
               <p className="bin-modal-subtitle">Immediate attention required</p>
             </div>
             <button 
@@ -82,12 +82,12 @@ const BinFullModal = () => {
               </div>
               
               <div className="bin-alert-details">
-                <h3>Bin is Full!</h3>
+                <h3>{latestNotification.binName ? `${latestNotification.binName} Bin is Full!` : 'Bin is Full!'}</h3>
                 <p>
-                  The bin reached capacity at <strong>{formatTime(latestNotification.timestamp)}</strong>
+                  The {latestNotification.binName ? latestNotification.binName.toLowerCase() + ' ' : ''}bin reached capacity at <strong>{formatTime(latestNotification.timestamp)}</strong>
                 </p>
                 <p>
-                  Please empty the bin as soon as possible.
+                  Please empty the {latestNotification.binName ? latestNotification.binName.toLowerCase() + ' ' : ''}bin as soon as possible.
                 </p>
               </div>
             </div>
