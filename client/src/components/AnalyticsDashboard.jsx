@@ -95,6 +95,8 @@ const fetchAllBinData = async () => {
 const AnalyticsDashboard = () => {
   const { settings } = useSettings();
   const [period, setPeriod] = useState('all');
+  const [exporting, setExporting] = useState(false);
+  const [toast, setToast] = useState(null);
 
   // Use React Query for data fetching with caching
   const { data: wasteData = [], isLoading: wasteLoading, error: wasteError, refetch: refetchWaste } = useQuery({
@@ -120,6 +122,132 @@ const AnalyticsDashboard = () => {
     refetchWaste();
     refetchBin();
   }, [refetchWaste, refetchBin]);
+
+  // Export to Excel function
+  const exportToExcel = useCallback(async () => {
+    setExporting(true);
+    try {
+      // Fetch all waste data using pagination
+      let allData = [];
+      let currentPage = 1;
+      let hasMoreData = true;
+
+      while (hasMoreData) {
+        const params = new URLSearchParams({
+          pageSize: '100',
+          page: currentPage.toString()
+        });
+        
+        const response = await fetch(`${API_ENDPOINTS.WASTE_RECORDS}?${params.toString()}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch data: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.success && Array.isArray(result.data)) {
+          allData = [...allData, ...result.data];
+          hasMoreData = result.meta?.pagination?.hasNextPage || false;
+          currentPage++;
+        } else {
+          throw new Error('Invalid data format received');
+        }
+      }
+
+      if (allData.length === 0) {
+        setToast({ 
+          type: 'error', 
+          message: 'No data available to export.' 
+        });
+        setTimeout(() => setToast(null), 4000);
+        setExporting(false);
+        return;
+      }
+
+      // Group data by month
+      const dataByMonth = {};
+      allData.forEach(record => {
+        const date = new Date(record.date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthName = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+        
+        if (!dataByMonth[monthKey]) {
+          dataByMonth[monthKey] = {
+            name: monthName,
+            records: []
+          };
+        }
+        
+        dataByMonth[monthKey].records.push(record);
+      });
+
+      // Create CSV content with multiple sheets (one per month)
+      let csvContent = '';
+      const months = Object.keys(dataByMonth).sort();
+
+      months.forEach((monthKey, index) => {
+        const monthData = dataByMonth[monthKey];
+        
+        // Add sheet separator (for Excel multi-sheet CSV)
+        if (index > 0) {
+          csvContent += '\n\n';
+        }
+        
+        csvContent += `Sheet: ${monthData.name}\n`;
+        csvContent += 'Date,Recyclable (kg),Biodegradable (kg),Non-Biodegradable (kg),Total (kg)\n';
+        
+        monthData.records.forEach(record => {
+          const date = new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+          const recyclable = record.recyclable || 0;
+          const biodegradable = record.biodegradable || 0;
+          const nonBiodegradable = record.nonBiodegradable || 0;
+          const total = recyclable + biodegradable + nonBiodegradable;
+          
+          csvContent += `${date},${recyclable},${biodegradable},${nonBiodegradable},${total}\n`;
+        });
+        
+        // Add monthly summary
+        const totalRecyclable = monthData.records.reduce((sum, r) => sum + (r.recyclable || 0), 0);
+        const totalBiodegradable = monthData.records.reduce((sum, r) => sum + (r.biodegradable || 0), 0);
+        const totalNonBiodegradable = monthData.records.reduce((sum, r) => sum + (r.nonBiodegradable || 0), 0);
+        const monthTotal = totalRecyclable + totalBiodegradable + totalNonBiodegradable;
+        
+        csvContent += `\nMonthly Total,${totalRecyclable.toFixed(2)},${totalBiodegradable.toFixed(2)},${totalNonBiodegradable.toFixed(2)},${monthTotal.toFixed(2)}\n`;
+        csvContent += `Average per Day,${(totalRecyclable / monthData.records.length).toFixed(2)},${(totalBiodegradable / monthData.records.length).toFixed(2)},${(totalNonBiodegradable / monthData.records.length).toFixed(2)},${(monthTotal / monthData.records.length).toFixed(2)}\n`;
+      });
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `waste_analytics_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Show success message
+      setToast({ 
+        type: 'success', 
+        message: `Excel file exported successfully! Exported ${months.length} month(s) of data with ${allData.length} total records.` 
+      });
+      setTimeout(() => setToast(null), 4000);
+      
+    } catch (err) {
+      console.error('Export error:', err);
+      setToast({ 
+        type: 'error', 
+        message: 'Failed to export data. Please try again.' 
+      });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setExporting(false);
+    }
+  }, []);
 
   // Helper functions for data processing
   const generateDailyTrends = (data) => {
@@ -380,6 +508,15 @@ const AnalyticsDashboard = () => {
 
   return (
     <div className={`analytics-dashboard ${themeClass}`}>
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`analytics-toast ${toast.type}`}>
+          <span className="toast-icon">{toast.type === 'success' ? '✅' : '❌'}</span>
+          <span className="toast-message">{toast.message}</span>
+          <button className="toast-close" onClick={() => setToast(null)}>×</button>
+        </div>
+      )}
+
       {/* Filters Section */}
       <div className="filters-section">
         <div className="filters-header">
@@ -409,6 +546,14 @@ const AnalyticsDashboard = () => {
           </div>
           
           <div className="filters-right">
+            <button 
+              onClick={exportToExcel} 
+              className="export-btn"
+              disabled={exporting}
+              title="Export waste data to Excel (monthly sheets)"
+            >
+              {exporting ? '⏳ Exporting...' : '📊 Export to Excel'}
+            </button>
             <button onClick={handleRefresh} className="refresh-button">
               🔄 Refresh Data
             </button>

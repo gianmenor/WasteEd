@@ -12,7 +12,7 @@ import WasteTable from './components/WasteTable';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Settings from './components/Settings';
 import NotificationTest from './components/NotificationTest';
-import LoadingSpinner from './components/LoadingSpinner';
+import DashboardSkeleton from './components/DashboardSkeleton';
 import DevPage from './components/DevPage';
 import './App.css';
 
@@ -31,7 +31,7 @@ const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return <LoadingSpinner fullscreen message="Loading..." />;
+    return <DashboardSkeleton />;
   }
 
   return isAuthenticated ? children : <Navigate to="/login" replace />;
@@ -42,7 +42,7 @@ const AppContent = () => {
   const { isAuthenticated, user, logout, loading } = useAuth();
 
   if (loading) {
-    return <LoadingSpinner fullscreen message="Loading..." />;
+    return <DashboardSkeleton />;
   }
 
   return (

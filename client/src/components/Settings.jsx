@@ -1,16 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import './Settings.css';
 
+// Fetch accounts function
+const fetchAccounts = async () => {
+  const token = localStorage.getItem('token');
+  const response = await fetch('/api/accounts/manage/list', {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch accounts');
+  }
+
+  const data = await response.json();
+  return data.accounts || [];
+};
+
 const Settings = () => {
   const { user } = useAuth();
   const { preferences, updatePreference, isLoading: prefsLoading } = usePreferences();
+  const queryClient = useQueryClient();
   
   const [activeTab, setActiveTab] = useState('system');
-  const [accounts, setAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
@@ -28,60 +47,53 @@ const Settings = () => {
     role: 'user'
   });
 
-  // Fetch accounts
-  const fetchAccounts = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/accounts/manage/list', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+  // Use React Query for accounts data
+  const { data: accounts = [], refetch: refetchAccounts } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: fetchAccounts,
+    enabled: activeTab === 'accounts',
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+  });
 
-      if (response.ok) {
-        const data = await response.json();
-        setAccounts(data.accounts || []);
-      }
-    } catch (error) {
-      console.error('Error fetching accounts:', error);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'accounts') {
-      fetchAccounts();
-    }
-  }, [activeTab]);
-
-  const showMessage = (text, type = 'success') => {
+  // Memoize message handler
+  const showMessage = useCallback((text, type = 'success') => {
     setMessage(text);
     setMessageType(type);
     setTimeout(() => {
       setMessage('');
       setMessageType('');
     }, 3000);
-  };
+  }, []);
 
-  const handleSettingChange = async (setting, value) => {
+  // Memoized handlers with optimistic updates
+  const handleSettingChange = useCallback(async (setting, value) => {
+    // Optimistic update
+    const previousValue = preferences[setting];
+    
     try {
       await updatePreference(setting, value);
       showMessage('Setting updated successfully');
     } catch (error) {
+      // Revert on error
+      await updatePreference(setting, previousValue);
       showMessage('Failed to update setting', 'error');
     }
-  };
+  }, [preferences, updatePreference, showMessage]);
 
-  const handleThemeChange = async (theme) => {
+  const handleThemeChange = useCallback(async (theme) => {
+    const previousTheme = preferences.theme;
+    
     try {
       await updatePreference('theme', theme);
       showMessage('Theme updated successfully');
     } catch (error) {
+      await updatePreference('theme', previousTheme);
       showMessage('Failed to update theme', 'error');
     }
-  };
+  }, [preferences.theme, updatePreference, showMessage]);
 
-  const handleProfileSave = async () => {
+  const handleProfileSave = useCallback(async () => {
     if (profile.password && profile.password !== profile.confirmPassword) {
       showMessage('Passwords do not match', 'error');
       return;
@@ -117,9 +129,9 @@ const Settings = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [profile, user.id, showMessage]);
 
-  const handleCreateAccount = async () => {
+  const handleCreateAccount = useCallback(async () => {
     if (!newAccount.username || !newAccount.password) {
       showMessage('Username and password are required', 'error');
       return;
@@ -149,7 +161,7 @@ const Settings = () => {
       if (response.ok) {
         showMessage('Account created successfully');
         setNewAccount({ username: '', password: '', confirmPassword: '', role: 'user' });
-        fetchAccounts();
+        refetchAccounts();
       } else {
         const error = await response.json();
         showMessage(error.message || 'Failed to create account', 'error');
@@ -159,9 +171,9 @@ const Settings = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [newAccount, refetchAccounts, showMessage]);
 
-  const handleDeleteAccount = async (accountId) => {
+  const handleDeleteAccount = useCallback(async (accountId) => {
     if (!confirm('Are you sure you want to delete this account?')) return;
 
     setIsLoading(true);
@@ -177,7 +189,7 @@ const Settings = () => {
 
       if (response.ok) {
         showMessage('Account deleted successfully');
-        fetchAccounts();
+        refetchAccounts();
       } else {
         const error = await response.json();
         showMessage(error.message || 'Failed to delete account', 'error');
@@ -187,16 +199,23 @@ const Settings = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [refetchAccounts, showMessage]);
 
-  const tabs = [
+  // Memoize tabs array
+  const tabs = useMemo(() => [
     { id: 'system', label: 'System', icon: '⚙️' },
     { id: 'profile', label: 'Profile', icon: '👤' },
     { id: 'accounts', label: 'Account Management', icon: '👥' }
-  ];
+  ], []);
+
+  // Memoize UI size class
+  const uiSizeClass = useMemo(() => 
+    `ui-size-${preferences?.uiSize || 'medium'}`,
+    [preferences?.uiSize]
+  );
 
   return (
-    <div className={`settings-page ui-size-${preferences?.uiSize || 'medium'}`}>
+    <div className={`settings-page ${uiSizeClass}`}>
       {(prefsLoading || isLoading) && <LoadingSpinner fullscreen message="Loading..." />}
       <div className="settings-header">
         <h1 className="settings-title">Settings</h1>
@@ -495,4 +514,4 @@ const Settings = () => {
   );
 };
 
-export default Settings;
+export default memo(Settings);

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
+import DashboardSkeleton from './DashboardSkeleton';
 import './Login.css';
 
 const Login = () => {
@@ -15,36 +16,101 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) => {
-    setCredentials({
-      ...credentials,
-      [e.target.name]: e.target.value
-    });
+  // Memoize input change handler
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setCredentials(prev => ({
+      ...prev,
+      [name]: value
+    }));
     setError('');
-  };
+  }, []);
 
-  const handleSubmit = async (e) => {
+  // Memoize submit handler with validation
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    setLoading(true);
+    e.stopPropagation();
+    
+    // Basic validation
+    if (!credentials.username.trim()) {
+      setError('❌ Username is required');
+      return;
+    }
+    
+    if (!credentials.password) {
+      setError('❌ Password is required');
+      return;
+    }
+    
+    if (credentials.password.length < 3) {
+      setError('❌ Password must be at least 3 characters');
+      return;
+    }
+    
     setError('');
 
     try {
       const result = await login(credentials);
       
       if (!result.success) {
-        setError(result.error);
+        // Provide helpful error messages
+        const errorMsg = result.error || 'Login failed';
+        
+        // Check for specific error patterns
+        if (errorMsg.toLowerCase().includes('network')) {
+          setError('❌ Network error. Please check your internet connection and try again.');
+        } else if (errorMsg.toLowerCase().includes('required')) {
+          setError('❌ Username and password are required.');
+        } else if (errorMsg.toLowerCase().includes('invalid')) {
+          // This is the most common error from backend
+          setError('Invalid credentials');
+        } else {
+          setError(`❌ ${errorMsg}`);
+        }
+      } else {
+        // Only show dashboard skeleton after successful login
+        setLoading(true);
       }
-      // If successful, the AuthContext will handle the redirect
     } catch (err) {
-      setError('Network error. Please try again.');
-      console.error('Login error:', err);
-    } finally {
-      setLoading(false);
+      console.error('Login exception:', err);
+      setError('❌ Network error. Please check your internet connection and try again.');
     }
-  };
+  }, [credentials, login]);
+
+  // Memoize password toggle
+  const togglePasswordVisibility = useCallback(() => {
+    setShowPassword(prev => !prev);
+  }, []);
+
+  // Memoize error dismiss handler
+  const dismissError = useCallback(() => {
+    setError('');
+  }, []);
+
+  // Memoize remember me change handler
+  const handleRememberMeChange = useCallback((e) => {
+    setRememberMe(e.target.checked);
+  }, []);
+
+  // Memoize UI size class
+  const uiSizeClass = useMemo(() => 
+    `ui-size-${preferences?.uiSize || 'medium'}`,
+    [preferences?.uiSize]
+  );
+
+  // Memoize button disabled state
+  const isSubmitDisabled = useMemo(() => 
+    loading || !credentials.username.trim() || !credentials.password,
+    [loading, credentials.username, credentials.password]
+  );
+
+  // Show dashboard skeleton while loading (successful login)
+  if (loading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
-    <div className={`login-page ui-size-${preferences?.uiSize || 'medium'}`}>
+    <div className={`login-page ${uiSizeClass}`}>
       <div className="login-container">
         <div className="login-card">
           {/* Header */}
@@ -68,7 +134,7 @@ const Login = () => {
               <span className="alert-message">{error}</span>
               <button 
                 className="alert-close"
-                onClick={() => setError('')}
+                onClick={dismissError}
                 aria-label="Close error"
               >
                 ✕
@@ -115,7 +181,7 @@ const Login = () => {
                 <button
                   type="button"
                   className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={togglePasswordVisibility}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? '👁️' : '👁️‍🗨️'}
@@ -128,7 +194,7 @@ const Login = () => {
                 <input
                   type="checkbox"
                   checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
+                  onChange={handleRememberMeChange}
                   className="checkbox-input"
                 />
                 <span className="checkbox-custom"></span>
@@ -139,32 +205,9 @@ const Login = () => {
             <button
               type="submit"
               className={`btn btn-primary login-btn ${loading ? 'loading' : ''}`}
-              disabled={loading}
+              disabled={isSubmitDisabled}
             >
-              {loading ? (
-                <>
-                  <span className="loading-spinner">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="spinning"
-                    >
-                      <polyline points="23 4 23 10 17 10"></polyline>
-                      <polyline points="1 20 1 14 7 14"></polyline>
-                      <path d="m20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-                    </svg>
-                  </span>
-                  Signing In...
-                </>
-              ) : (
-                'Sign In'
-              )}
+              Sign In
             </button>
           </form>
         </div>

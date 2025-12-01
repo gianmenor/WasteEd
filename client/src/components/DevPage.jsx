@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
+import './DevPage.css';
 
-const DEV_PASSWORD = 'sean121802';
+const DEV_PASSWORD = '123123DevAccessKey';
 const DEV_AUTH_KEY = 'devPageAuthorized';
 
 export default function DevPage() {
@@ -15,14 +16,12 @@ export default function DevPage() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
 
-  const [lastRequest, setLastRequest] = useState(null); // { url, method, body, status }
+  const [lastRequest, setLastRequest] = useState(null);
   const [form, setForm] = useState({ recyclable: 20, biodegradable: 4, nonBiodegradable: 8 });
-  const [binType, setBinType] = useState(1); // 1=Recyclable, 2=Biodegradable, 3=Non-Biodegradable
+  const [binType, setBinType] = useState(1);
 
-  // All hooks must be called before any conditional returns
   const total = useMemo(() => (Number(form.recyclable)||0) + (Number(form.biodegradable)||0) + (Number(form.nonBiodegradable)||0), [form]);
 
-  // Check if already authorized from session storage
   useEffect(() => {
     const authorized = sessionStorage.getItem(DEV_AUTH_KEY);
     if (authorized === 'true') {
@@ -48,45 +47,37 @@ export default function DevPage() {
     setPasswordInput('');
   };
 
-  // Show password prompt if not authorized
   if (!isAuthorized) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full mx-4">
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="text-center mb-6">
-              <div className="text-4xl mb-2">🔒</div>
-              <h1 className="text-2xl font-semibold mb-2">Developer Access</h1>
-              <p className="text-sm text-gray-600">Enter password to access developer tools</p>
+      <div className="dev-password-gate">
+        <div className="dev-password-card">
+          <div className="dev-password-icon">🔒</div>
+          <h1 className="dev-password-title">Developer Access</h1>
+          <p className="dev-password-subtitle">Enter password to access developer tools</p>
+          
+          <form onSubmit={handlePasswordSubmit} className="dev-password-form">
+            <div className="dev-form-group">
+              <label className="dev-form-label">Password</label>
+              <input
+                type="password"
+                className="dev-input"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Enter password"
+                autoFocus
+              />
             </div>
             
-            <form onSubmit={handlePasswordSubmit}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                <input
-                  type="password"
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={passwordInput}
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  placeholder="Enter password"
-                  autoFocus
-                />
+            {passwordError && (
+              <div className="dev-password-error">
+                {passwordError}
               </div>
-              
-              {passwordError && (
-                <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
-                  {passwordError}
-                </div>
-              )}
-              
-              <button
-                type="submit"
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Access Developer Tools
-              </button>
-            </form>
-          </div>
+            )}
+            
+            <button type="submit" className="dev-btn dev-btn-primary" style={{ width: '100%' }}>
+              Access Developer Tools
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -147,130 +138,153 @@ export default function DevPage() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="dev-page">
       {loading && <LoadingSpinner fullscreen message="Calling API..." />}
 
-      {/* Top header */}
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Developer Tools</h1>
-          <p className="text-sm text-gray-600">Trigger common backend actions, seed data, and debug payloads.</p>
+      <div className="dev-header">
+        <div className="dev-header-content">
+          <h1>Developer Tools</h1>
+          <p>Trigger common backend actions, seed data, and debug payloads.</p>
         </div>
-        <div className="flex items-center gap-2 text-xs">
-          <span className="px-2 py-1 rounded bg-gray-100">Env: {import.meta.env.MODE}</span>
-          <span className="px-2 py-1 rounded bg-gray-100">API: {API_BASE_URL || 'relative'}</span>
-          <button
-            onClick={handleLogout}
-            className="px-2 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100"
-            title="Lock developer tools"
-          >
+        <div className="dev-header-actions">
+          <span className="dev-badge">Env: {import.meta.env.MODE}</span>
+          <span className="dev-badge">API: {API_BASE_URL || 'relative'}</span>
+          <button onClick={handleLogout} className="dev-lock-btn" title="Lock developer tools">
             🔒 Lock
           </button>
         </div>
       </div>
 
       {toast && (
-        <div className={`mb-4 rounded px-3 py-2 text-sm ${toast.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+        <div className={`dev-toast ${toast.type}`}>
           {toast.message}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Bin Full */}
-        <section className="border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-medium">Bin: Mark Full</h2>
-            <span className="text-[11px] rounded bg-blue-50 text-blue-700 px-2 py-0.5">POST /api/bin/full</span>
+      <div className="dev-grid">
+        <section className="dev-section">
+          <div className="dev-section-header">
+            <h2 className="dev-section-title">Bin: Mark Full</h2>
+            <span className="dev-endpoint-badge post">POST /api/bin/full</span>
           </div>
-          <p className="text-xs text-gray-600 mb-3">Simulate the device notifying that a bin is full. This also broadcasts to connected clients.</p>
-          
-          <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Bin Type</label>
-            <select
-              value={binType}
-              onChange={(e) => setBinType(Number(e.target.value))}
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          <div className="dev-section-body">
+            <p className="dev-section-description">
+              Simulate the device notifying that a bin is full. This also broadcasts to connected clients.
+            </p>
+            
+            <div className="dev-form-group">
+              <label className="dev-form-label">Bin Type</label>
+              <select
+                value={binType}
+                onChange={(e) => setBinType(Number(e.target.value))}
+                className="dev-select"
+              >
+                <option value={1}>1 - Recyclable</option>
+                <option value={2}>2 - Biodegradable</option>
+                <option value={3}>3 - Non-Biodegradable</option>
+              </select>
+            </div>
+            
+            <button
+              className="dev-btn dev-btn-primary"
+              disabled={loading}
+              onClick={() => callApi({ url: API_ENDPOINTS.BIN_FULL, method: 'POST', body: { bin: binType } })}
             >
-              <option value={1}>1 - Recyclable</option>
-              <option value={2}>2 - Biodegradable</option>
-              <option value={3}>3 - Non-Biodegradable</option>
-            </select>
+              Trigger Bin Full
+            </button>
           </div>
-          
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            disabled={loading}
-            onClick={() => callApi({ url: API_ENDPOINTS.BIN_FULL, method: 'POST', body: { bin: binType } })}
-          >
-            Trigger Bin Full
-          </button>
         </section>
 
-        {/* Delete Today */}
-        <section className="border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-medium">Waste: Delete Today</h2>
-            <span className="text-[11px] rounded bg-red-50 text-red-700 px-2 py-0.5">POST /api/waste/delete-today</span>
+        <section className="dev-section">
+          <div className="dev-section-header">
+            <h2 className="dev-section-title">Waste: Delete Today</h2>
+            <span className="dev-endpoint-badge delete">POST /api/waste/delete-today</span>
           </div>
-          <p className="text-xs text-gray-600 mb-3">Removes todays waste records. Useful when a duplicate was added.</p>
-          <button
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-            disabled={loading}
-            onClick={() => {
-              if (confirm('Delete today\'s records? This cannot be undone.')) {
-                callApi({ url: API_ENDPOINTS.WASTE_DELETE_TODAY, method: 'POST' });
-              }
-            }}
-          >
-            Delete Todays Records
-          </button>
+          <div className="dev-section-body">
+            <p className="dev-section-description">
+              Removes today's waste records. Useful when a duplicate was added.
+            </p>
+            <button
+              className="dev-btn dev-btn-danger"
+              disabled={loading}
+              onClick={() => {
+                if (confirm('Delete today\'s records? This cannot be undone.')) {
+                  callApi({ url: API_ENDPOINTS.WASTE_DELETE_TODAY, method: 'POST' });
+                }
+              }}
+            >
+              Delete Today's Records
+            </button>
+          </div>
         </section>
 
-        {/* Add Daily Record */}
-        <section className="md:col-span-2 border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-medium">Waste: Add Daily Record</h2>
-            <span className="text-[11px] rounded bg-green-50 text-green-700 px-2 py-0.5">POST /api/waste/add</span>
+        <section className="dev-section full-width">
+          <div className="dev-section-header">
+            <h2 className="dev-section-title">Waste: Add Daily Record</h2>
+            <span className="dev-endpoint-badge post">POST /api/waste/add</span>
           </div>
-          <p className="text-xs text-gray-600 mb-4">Creates a record for today. If a record already exists, the API returns a 409 with the existing entry.</p>
+          <div className="dev-section-body">
+            <p className="dev-section-description">
+              Creates a record for today. If a record already exists, the API returns a 409 with the existing entry.
+            </p>
 
-          {/* Presets */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {presets.map((p) => (
-              <button key={p.label} className="px-2 py-1 text-xs rounded border hover:bg-gray-50"
-                onClick={() => setForm(p.values)}>
-                {p.label}
+            <div className="dev-presets">
+              {presets.map((p) => (
+                <button 
+                  key={p.label} 
+                  className="dev-btn dev-btn-secondary"
+                  onClick={() => setForm(p.values)}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <button 
+                className="dev-btn dev-btn-secondary" 
+                onClick={() => setForm({ recyclable: 0, biodegradable: 0, nonBiodegradable: 0 })}
+              >
+                Reset
               </button>
-            ))}
-            <button className="px-2 py-1 text-xs rounded border hover:bg-gray-50" onClick={() => setForm({ recyclable: 0, biodegradable: 0, nonBiodegradable: 0 })}>Reset</button>
-          </div>
+            </div>
 
-          {/* Inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {(['recyclable','biodegradable','nonBiodegradable']).map((key) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 mb-1 capitalize">{key.replace('nonBiodegradable','non-biodegradable')}</label>
-                <div className="flex items-center gap-2">
-                  <button type="button" className="px-2 py-1 rounded border hover:bg-gray-50" onClick={() => step(key, -1)}>-</button>
-                  <input
-                    type="number"
-                    min={0}
-                    className="border rounded p-2 w-full"
-                    value={form[key]}
-                    onChange={(e) => setForm((f) => ({ ...f, [key]: clampNum(e.target.value) }))}
-                  />
-                  <button type="button" className="px-2 py-1 rounded border hover:bg-gray-50" onClick={() => step(key, 1)}>+</button>
+            <div className="dev-input-grid">
+              {(['recyclable','biodegradable','nonBiodegradable']).map((key) => (
+                <div key={key} className="dev-form-group">
+                  <label className="dev-form-label">
+                    {key.replace('nonBiodegradable','Non-Biodegradable').replace(/([A-Z])/g, ' $1').trim()}
+                  </label>
+                  <div className="dev-input-wrapper">
+                    <button 
+                      type="button" 
+                      className="dev-step-btn" 
+                      onClick={() => step(key, -1)}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      min={0}
+                      className="dev-input"
+                      value={form[key]}
+                      onChange={(e) => setForm((f) => ({ ...f, [key]: clampNum(e.target.value) }))}
+                    />
+                    <button 
+                      type="button" 
+                      className="dev-step-btn" 
+                      onClick={() => step(key, 1)}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          {/* Summary and submit */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-gray-700">Total: <span className="font-semibold">{total}</span></div>
-            <div className="flex items-center gap-2">
+            <div className="dev-summary-row">
+              <div className="dev-total">
+                Total: <span className="dev-total-value">{total}</span>
+              </div>
               <button
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                className="dev-btn dev-btn-success"
                 disabled={loading}
                 onClick={() => callApi({ url: API_ENDPOINTS.WASTE_ADD, method: 'POST', body: form })}
               >
@@ -281,47 +295,51 @@ export default function DevPage() {
         </section>
       </div>
 
-      {/* Request/Response */}
       {(result || error || lastRequest) && (
-        <section className="border rounded-lg p-4 mt-6">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-medium">Request & Response</h2>
+        <section className="dev-section response full-width">
+          <div className="dev-section-header">
+            <h2 className="dev-section-title">Request & Response</h2>
             {lastRequest?.status != null && (
-              <span className={`text-[11px] px-2 py-0.5 rounded ${lastRequest.status >= 400 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+              <span className={`dev-status-badge ${lastRequest.status >= 400 ? 'error' : 'success'}`}>
                 Status: {lastRequest.status}
               </span>
             )}
           </div>
-
-          {/* Request details */}
-          {lastRequest && (
-            <div className="mb-3">
-              <div className="text-xs text-gray-600 mb-1">{lastRequest.method} {lastRequest.url}</div>
-              {lastRequest.body && (
-                <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto">{JSON.stringify(lastRequest.body, null, 2)}</pre>
-              )}
-              <div className="mt-2 flex gap-2">
-                <button
-                  className="px-2 py-1 text-xs rounded border hover:bg-gray-50"
-                  onClick={() => navigator.clipboard.writeText(buildCurl(lastRequest))}
-                >Copy cURL</button>
+          <div className="dev-section-body">
+            {lastRequest && (
+              <div className="dev-request-details">
+                <div className="dev-response-label">Request</div>
+                <div className="dev-request-method">
+                  {lastRequest.method} {lastRequest.url}
+                </div>
+                {lastRequest.body && (
+                  <pre className="dev-code-block">{JSON.stringify(lastRequest.body, null, 2)}</pre>
+                )}
+                <div className="dev-code-actions">
+                  <button
+                    className="dev-btn dev-btn-secondary"
+                    onClick={() => navigator.clipboard.writeText(buildCurl(lastRequest))}
+                  >
+                    📋 Copy cURL
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Response */}
-          {result && (
-            <div className="mb-2">
-              <div className="text-xs text-gray-600 mb-1">Response</div>
-              <pre className="text-sm bg-gray-50 p-3 rounded overflow-auto">{JSON.stringify(result, null, 2)}</pre>
-            </div>
-          )}
-          {error && (
-            <div className="mb-2">
-              <div className="text-xs text-gray-600 mb-1">Error</div>
-              <pre className="text-sm bg-red-50 p-3 rounded overflow-auto text-red-800">{JSON.stringify(error, null, 2)}</pre>
-            </div>
-          )}
+            {result && (
+              <div>
+                <div className="dev-response-label">Response</div>
+                <pre className="dev-code-block">{JSON.stringify(result, null, 2)}</pre>
+              </div>
+            )}
+            
+            {error && (
+              <div>
+                <div className="dev-response-label">Error</div>
+                <pre className="dev-code-block error">{JSON.stringify(error, null, 2)}</pre>
+              </div>
+            )}
+          </div>
         </section>
       )}
     </div>
