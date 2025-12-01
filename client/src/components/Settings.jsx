@@ -312,21 +312,7 @@ const Settings = () => {
                   </div>
                 </div>
 
-                <div className="setting-item">
-                  <div className="setting-info">
-                    <label className="setting-label">Notifications</label>
-                    <p className="setting-description">
-                      Enable desktop notifications
-                    </p>
-                  </div>
-                  <div className="setting-control">
-                    <button
-                      className={`toggle-switch ${preferences.notifications ? 'checked' : ''}`}
-                      onClick={() => handleSettingChange('notifications', !preferences.notifications)}
-                    >
-                    </button>
-                  </div>
-                </div>
+                
 
                 <div className="setting-item">
                   <div className="setting-info">
@@ -420,7 +406,7 @@ const Settings = () => {
                           </div>
                           <div className="account-details">
                             <h4>{account.username}</h4>
-                            <p>{account.role || 'User'}</p>
+                            <p>'Admin'</p>
                           </div>
                         </div>
                         <div className="account-actions">

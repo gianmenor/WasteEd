@@ -3,11 +3,10 @@ import cors from 'cors';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../utils/database.js';
 
 // Configure
 dotenv.config();
-const prisma = new PrismaClient();
 
 // Route: /api/accounts/manage
 const router = express.Router();
@@ -276,11 +275,6 @@ router.put('/:id', async (req, res) => {
       message: 'Failed to update account' 
     });
   }
-});
-
-// Cleanup on app termination
-process.on('beforeExit', async () => {
-  await prisma.$disconnect();
 });
 
 export default router;

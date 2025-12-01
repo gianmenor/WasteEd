@@ -3,11 +3,10 @@ import cors from 'cors';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../utils/database.js';
 
 // Configure
 dotenv.config();
-const prisma = new PrismaClient();
 
 // Route: /api/accounts/
 const router = express.Router();
@@ -124,11 +123,6 @@ router.post('/logout', async (req, res) => {
   // In a real app, you might want to blacklist the token
   // For now, just return success
   return res.json({ message: 'Logged out successfully' });
-});
-
-// Cleanup on app termination
-process.on('beforeExit', async () => {
-  await prisma.$disconnect();
 });
 
 export default router;

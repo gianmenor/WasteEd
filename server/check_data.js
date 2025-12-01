@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './utils/database.js';
 
 async function checkData() {
-  const prisma = new PrismaClient();
   
   try {
     // Get total count
@@ -37,8 +36,6 @@ async function checkData() {
     
   } catch (error) {
     console.error('Error:', error);
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

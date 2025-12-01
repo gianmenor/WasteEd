@@ -1448,3 +1448,52 @@
   padding: 0.75rem 1rem;
   font-size: 1rem;
 }
+
+/* Skeleton Loading Styles */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.skeleton-row {
+  animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.skeleton-cell {
+  height: 24px;
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Dark mode skeleton styles */
+@media (prefers-color-scheme: dark) {
+  .skeleton-cell {
+    background: linear-gradient(
+      90deg,
+      #2a2a2a 25%,
+      #333333 50%,
+      #2a2a2a 75%
+    );
+  }
+}

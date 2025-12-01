@@ -1,219 +1,127 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useSettings } from './Dashboard';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import './AnalyticsDashboard.css';
 
+// Skeleton loading component
+const ChartSkeleton = memo(() => (
+  <div className="chart-skeleton">
+    <div className="skeleton-header"></div>
+    <div className="skeleton-bars">
+      {[...Array(8)].map((_, i) => (
+        <div key={i} className="skeleton-bar" style={{ height: `${Math.random() * 80 + 20}%` }}></div>
+      ))}
+    </div>
+  </div>
+));
+
+ChartSkeleton.displayName = 'ChartSkeleton';
+
+// Metric card skeleton
+const MetricSkeleton = memo(() => (
+  <div className="metric-card skeleton">
+    <div className="skeleton-icon"></div>
+    <div className="skeleton-value"></div>
+    <div className="skeleton-label"></div>
+  </div>
+));
+
+MetricSkeleton.displayName = 'MetricSkeleton';
+
+// Fetch functions for React Query
+const fetchAllWasteData = async () => {
+  let allData = [];
+  let currentPage = 1;
+  let hasMoreData = true;
+
+  while (hasMoreData) {
+    const params = new URLSearchParams({
+      pageSize: '100',
+      page: currentPage.toString()
+    });
+    
+    const response = await fetch(`${API_ENDPOINTS.WASTE_RECORDS}?${params.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch data: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success && Array.isArray(result.data)) {
+      allData = [...allData, ...result.data];
+      hasMoreData = result.meta?.pagination?.hasNextPage || false;
+      currentPage++;
+    } else {
+      throw new Error('Invalid data format received');
+    }
+  }
+
+  return allData;
+};
+
+const fetchAllBinData = async () => {
+  let allRecords = [];
+  let page = 1;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const params = new URLSearchParams({ 
+      page: page.toString(), 
+      limit: '100', 
+      sortBy: 'fullAt', 
+      sortOrder: 'asc' 
+    });
+    
+    const res = await fetch(`${API_ENDPOINTS.BIN_RECORDS}?${params.toString()}`);
+    if (!res.ok) throw new Error(`Failed to fetch bin records: ${res.status}`);
+    
+    const json = await res.json();
+    if (!json.success) throw new Error('Invalid bin records response');
+    
+    const records = json.data?.records || [];
+    allRecords = [...allRecords, ...records];
+    
+    const pagination = json.data?.pagination;
+    hasMore = pagination?.hasNext || pagination?.hasNextPage || false;
+    page++;
+  }
+  
+  return allRecords;
+};
+
 const AnalyticsDashboard = () => {
   const { settings } = useSettings();
   const [period, setPeriod] = useState('all');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [wasteData, setWasteData] = useState([]);
-  const [binData, setBinData] = useState([]);
-  const [analyticsData, setAnalyticsData] = useState(null);
-  const [binAnalytics, setBinAnalytics] = useState(null); // derived analytics for bin events
 
-  // Fetch waste data for analytics
-  const fetchWasteData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Use React Query for data fetching with caching
+  const { data: wasteData = [], isLoading: wasteLoading, error: wasteError, refetch: refetchWaste } = useQuery({
+    queryKey: ['wasteData'],
+    queryFn: fetchAllWasteData,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: false,
+  });
 
-      let allData = [];
-      let currentPage = 1;
-      let hasMoreData = true;
+  const { data: binData = [], isLoading: binLoading, error: binError, refetch: refetchBin } = useQuery({
+    queryKey: ['binData'],
+    queryFn: fetchAllBinData,
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-      // Fetch all pages of data for comprehensive analytics
-      while (hasMoreData) {
-        let url = API_ENDPOINTS.WASTE_RECORDS;
-        const params = new URLSearchParams();
-        
-        params.append('pageSize', '100');
-        params.append('page', currentPage.toString());
-        
-        const response = await fetch(url + '?' + params.toString());
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch data: ${response.status}`);
-        }
+  const loading = wasteLoading || binLoading;
+  const error = wasteError || binError;
 
-        const result = await response.json();
+  const handleRefresh = useCallback(() => {
+    refetchWaste();
+    refetchBin();
+  }, [refetchWaste, refetchBin]);
 
-        if (result.success && Array.isArray(result.data)) {
-          allData = [...allData, ...result.data];
-          hasMoreData = result.meta?.pagination?.hasNextPage || false;
-          currentPage++;
-        } else {
-          throw new Error('Invalid data format received');
-        }
-      }
-
-      setWasteData(allData);
-      generateWasteAnalytics(allData);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch bin records data (pagination loop)
-  const fetchBinData = useCallback(async () => {
-    try {
-      let allRecords = [];
-      let page = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const params = new URLSearchParams({ page: page.toString(), limit: '100', sortBy: 'fullAt', sortOrder: 'asc' });
-        const res = await fetch(`${API_ENDPOINTS.BIN_RECORDS}?${params.toString()}`);
-        if (!res.ok) throw new Error(`Failed to fetch bin records: ${res.status}`);
-        const json = await res.json();
-        if (!json.success) throw new Error('Invalid bin records response');
-        const records = json.data?.records || [];
-        allRecords = [...allRecords, ...records];
-        const pagination = json.data?.pagination;
-        hasMore = pagination?.hasNext || pagination?.hasNextPage || false;
-        page++;
-      }
-      setBinData(allRecords);
-      generateBinAnalytics(allRecords);
-    } catch (e) {
-      console.error('Error fetching bin records:', e);
-    }
-  }, []);
-
-  // Generate comprehensive waste analytics from raw data
-  const generateWasteAnalytics = (data) => {
-    if (!data.length) return;
-
-    // Filter data by time range
-    const now = new Date();
-    const cutoffDate = new Date();
-    
-    switch (period) {
-      case '7d':
-        cutoffDate.setDate(now.getDate() - 7);
-        break;
-      case '30d':
-        cutoffDate.setDate(now.getDate() - 30);
-        break;
-      case '90d':
-        cutoffDate.setDate(now.getDate() - 90);
-        break;
-      case '1y':
-        cutoffDate.setFullYear(now.getFullYear() - 1);
-        break;
-      case 'all':
-        cutoffDate.setTime(0); // include everything
-        break;
-      default:
-        cutoffDate.setDate(now.getDate() - 30);
-    }
-
-    const filteredData = data.filter(record => 
-      new Date(record.date) >= cutoffDate
-    );
-
-    // Calculate totals and averages
-    const totals = filteredData.reduce((acc, record) => {
-      acc.recyclable += record.recyclable || 0;
-      acc.biodegradable += record.biodegradable || 0;
-      acc.nonBiodegradable += record.nonBiodegradable || 0;
-      acc.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
-      return acc;
-    }, { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0 });
-
-    // Generate daily trends
-    const dailyTrends = generateDailyTrends(filteredData);
-    
-    // Generate monthly aggregation
-    const monthlyData = generateMonthlyData(filteredData);
-    
-    // Calculate percentages
-    const percentages = {
-      recyclable: totals.total > 0 ? (totals.recyclable / totals.total * 100).toFixed(1) : 0,
-      biodegradable: totals.total > 0 ? (totals.biodegradable / totals.total * 100).toFixed(1) : 0,
-      nonBiodegradable: totals.total > 0 ? (totals.nonBiodegradable / totals.total * 100).toFixed(1) : 0
-    };
-
-    // Calculate trends vs previous period
-    const prevPeriodData = data.filter(record => {
-      const recordDate = new Date(record.date);
-      const prevCutoff = new Date(cutoffDate);
-      prevCutoff.setDate(prevCutoff.getDate() - (cutoffDate.getDate() - new Date(cutoffDate).setDate(cutoffDate.getDate() - (now.getDate() - cutoffDate.getDate()))));
-      return recordDate >= prevCutoff && recordDate < cutoffDate;
-    });
-
-    const prevTotals = prevPeriodData.reduce((acc, record) => {
-      acc.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
-      return acc;
-    }, { total: 0 });
-
-    const trend = prevTotals.total > 0 ? 
-      ((totals.total - prevTotals.total) / prevTotals.total * 100).toFixed(1) : 0;
-
-    const averageDaily = filteredData.length > 0 ? (totals.total / filteredData.length).toFixed(1) : 0;
-    const monthlyAverage = monthlyData.length > 0 ? (totals.total / monthlyData.length).toFixed(1) : 0;
-    setAnalyticsData({
-      totals,
-      percentages,
-      trend: parseFloat(trend),
-      dailyTrends,
-      monthlyData,
-      averageDaily,
-      monthlyAverage,
-      recordCount: filteredData.length,
-      peakDay: findPeakDay(filteredData)
-    });
-  };
-
-  // Derive bin analytics (daily & monthly counts) respecting period
-  const generateBinAnalytics = (records) => {
-    if (!records.length) return;
-    const now = new Date();
-    const cutoff = new Date();
-    switch (period) {
-      case '7d': cutoff.setDate(now.getDate() - 7); break;
-      case '30d': cutoff.setDate(now.getDate() - 30); break;
-      case '90d': cutoff.setDate(now.getDate() - 90); break;
-      case '1y': cutoff.setFullYear(now.getFullYear() - 1); break;
-      case 'all': cutoff.setTime(0); break;
-      default: cutoff.setDate(now.getDate() - 30);
-    }
-    const filtered = records.filter(r => new Date(r.fullAt) >= cutoff);
-    // Build continuous day range for selected period (default cap 120 days for performance)
-    const dayRangeLimit = period === '1y' || period === 'all' ? 365 : 120;
-    const dayStart = new Date(Math.max(cutoff.getTime(), now.getTime() - dayRangeLimit * 86400000));
-    const dayMap = new Map();
-    for (let d = new Date(dayStart); d <= now; d.setDate(d.getDate() + 1)) {
-      const key = d.toISOString().split('T')[0];
-      dayMap.set(key, 0);
-    }
-    filtered.forEach(r => {
-      const key = new Date(r.fullAt).toISOString().split('T')[0];
-      if (dayMap.has(key)) dayMap.set(key, dayMap.get(key) + 1);
-    });
-    const dailyTrends = Array.from(dayMap.entries())
-      .map(([date, count]) => ({ date, count }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    // monthly
-    const monthlyMap = new Map();
-    filtered.forEach(r => {
-      const d = new Date(r.fullAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthlyMap.set(key, (monthlyMap.get(key) || 0) + 1);
-    });
-    const monthlyData = Array.from(monthlyMap.entries())
-      .map(([month, count]) => ({ month, count }))
-      .sort((a, b) => a.month.localeCompare(b.month));
-    const dailyAverage = dailyTrends.length > 0 ? (filtered.length / dailyTrends.length).toFixed(2) : 0;
-    const monthlyAverage = monthlyData.length > 0 ? (filtered.length / monthlyData.length).toFixed(2) : 0;
-    setBinAnalytics({ total: filtered.length, dailyTrends, monthlyData, dailyAverage, monthlyAverage });
-  };
-
+  // Helper functions for data processing
   const generateDailyTrends = (data) => {
     const dailyMap = {};
     
@@ -284,18 +192,177 @@ const AnalyticsDashboard = () => {
     });
   };
 
-  useEffect(() => {
-    fetchWasteData();
-    fetchBinData();
-  }, [fetchWasteData, fetchBinData]);
+  // Generate comprehensive waste analytics from raw data (memoized)
+  const analyticsData = useMemo(() => {
+    if (!wasteData.length) return null;
 
-  useEffect(() => {
-    if (wasteData.length > 0) generateWasteAnalytics(wasteData);
-    if (binData.length > 0) generateBinAnalytics(binData);
-  }, [period, wasteData, binData]);
+    const now = new Date();
+    const cutoffDate = new Date();
+    
+    switch (period) {
+      case '7d':
+        cutoffDate.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        cutoffDate.setDate(now.getDate() - 30);
+        break;
+      case '90d':
+        cutoffDate.setDate(now.getDate() - 90);
+        break;
+      case '1y':
+        cutoffDate.setFullYear(now.getFullYear() - 1);
+        break;
+      case 'all':
+        cutoffDate.setTime(0);
+        break;
+      default:
+        cutoffDate.setDate(now.getDate() - 30);
+    }
 
+    const filteredData = wasteData.filter(record => 
+      new Date(record.date) >= cutoffDate
+    );
+
+    const totals = filteredData.reduce((acc, record) => {
+      acc.recyclable += record.recyclable || 0;
+      acc.biodegradable += record.biodegradable || 0;
+      acc.nonBiodegradable += record.nonBiodegradable || 0;
+      acc.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
+      return acc;
+    }, { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0 });
+
+    const dailyTrends = generateDailyTrends(filteredData);
+    const monthlyData = generateMonthlyData(filteredData);
+    
+    const percentages = {
+      recyclable: totals.total > 0 ? (totals.recyclable / totals.total * 100).toFixed(1) : 0,
+      biodegradable: totals.total > 0 ? (totals.biodegradable / totals.total * 100).toFixed(1) : 0,
+      nonBiodegradable: totals.total > 0 ? (totals.nonBiodegradable / totals.total * 100).toFixed(1) : 0
+    };
+
+    const prevPeriodData = wasteData.filter(record => {
+      const recordDate = new Date(record.date);
+      const prevCutoff = new Date(cutoffDate);
+      prevCutoff.setDate(prevCutoff.getDate() - (cutoffDate.getDate() - new Date(cutoffDate).setDate(cutoffDate.getDate() - (now.getDate() - cutoffDate.getDate()))));
+      return recordDate >= prevCutoff && recordDate < cutoffDate;
+    });
+
+    const prevTotals = prevPeriodData.reduce((acc, record) => {
+      acc.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
+      return acc;
+    }, { total: 0 });
+
+    const trend = prevTotals.total > 0 ? 
+      ((totals.total - prevTotals.total) / prevTotals.total * 100).toFixed(1) : 0;
+
+    const averageDaily = filteredData.length > 0 ? (totals.total / filteredData.length).toFixed(1) : 0;
+    const monthlyAverage = monthlyData.length > 0 ? (totals.total / monthlyData.length).toFixed(1) : 0;
+    
+    return {
+      totals,
+      percentages,
+      trend: parseFloat(trend),
+      dailyTrends,
+      monthlyData,
+      averageDaily,
+      monthlyAverage,
+      recordCount: filteredData.length,
+      peakDay: findPeakDay(filteredData)
+    };
+  }, [wasteData, period]);
+
+  // Derive bin analytics (memoized)
+  const binAnalytics = useMemo(() => {
+    if (!binData.length) return null;
+    
+    const now = new Date();
+    const cutoff = new Date();
+    
+    switch (period) {
+      case '7d': cutoff.setDate(now.getDate() - 7); break;
+      case '30d': cutoff.setDate(now.getDate() - 30); break;
+      case '90d': cutoff.setDate(now.getDate() - 90); break;
+      case '1y': cutoff.setFullYear(now.getFullYear() - 1); break;
+      case 'all': cutoff.setTime(0); break;
+      default: cutoff.setDate(now.getDate() - 30);
+    }
+    
+    const filtered = binData.filter(r => new Date(r.fullAt) >= cutoff);
+    
+    const dayRangeLimit = period === '1y' || period === 'all' ? 365 : 120;
+    const dayStart = new Date(Math.max(cutoff.getTime(), now.getTime() - dayRangeLimit * 86400000));
+    const dayMap = new Map();
+    
+    for (let d = new Date(dayStart); d <= now; d.setDate(d.getDate() + 1)) {
+      const key = d.toISOString().split('T')[0];
+      dayMap.set(key, 0);
+    }
+    
+    filtered.forEach(r => {
+      const key = new Date(r.fullAt).toISOString().split('T')[0];
+      if (dayMap.has(key)) dayMap.set(key, dayMap.get(key) + 1);
+    });
+    
+    const dailyTrends = Array.from(dayMap.entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const monthlyMap = new Map();
+    filtered.forEach(r => {
+      const d = new Date(r.fullAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyMap.set(key, (monthlyMap.get(key) || 0) + 1);
+    });
+    
+    const monthlyData = Array.from(monthlyMap.entries())
+      .map(([month, count]) => ({ month, count }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+    
+    const dailyAverage = dailyTrends.length > 0 ? (filtered.length / dailyTrends.length).toFixed(2) : 0;
+    const monthlyAverage = monthlyData.length > 0 ? (filtered.length / monthlyData.length).toFixed(2) : 0;
+    
+    return { total: filtered.length, dailyTrends, monthlyData, dailyAverage, monthlyAverage };
+  }, [binData, period]);
+
+  // Memoize theme class
+  const themeClass = useMemo(() => 
+    settings?.darkMode ? 'dark-theme' : 'light-theme',
+    [settings?.darkMode]
+  );
+
+  // Show skeleton while loading
   if (loading) {
-    return <LoadingSpinner message="Loading analytics data..." />;
+    return (
+      <div className={`analytics-dashboard ${themeClass}`}>
+        <div className="filters-section">
+          <div className="filters-header">
+            <h1 className="analytics-title">
+              <span className="title-icon">📊</span>
+              Analytics Dashboard
+            </h1>
+          </div>
+          <div className="filters-controls skeleton-pulse">
+            <div className="skeleton-filter"></div>
+          </div>
+        </div>
+        
+        <div className="metrics-grid">
+          <MetricSkeleton />
+          <MetricSkeleton />
+          <MetricSkeleton />
+          <MetricSkeleton />
+        </div>
+        
+        <div className="charts-container">
+          <div className="chart-grid">
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -303,15 +370,13 @@ const AnalyticsDashboard = () => {
       <div className="analytics-error">
         <div className="error-icon">⚠️</div>
         <h3>Failed to Load Analytics</h3>
-        <p>{error}</p>
-        <button onClick={fetchWasteData} className="retry-button">
+        <p>{error?.message || 'Unknown error'}</p>
+        <button onClick={handleRefresh} className="retry-button">
           🔄 Retry
         </button>
       </div>
     );
   }
-
-  const themeClass = settings?.darkMode ? 'dark-theme' : 'light-theme';
 
   return (
     <div className={`analytics-dashboard ${themeClass}`}>
@@ -344,7 +409,7 @@ const AnalyticsDashboard = () => {
           </div>
           
           <div className="filters-right">
-            <button onClick={() => { fetchWasteData(); fetchBinData(); }} className="refresh-button">
+            <button onClick={handleRefresh} className="refresh-button">
               🔄 Refresh Data
             </button>
           </div>
@@ -658,4 +723,4 @@ const AnalyticsDashboard = () => {
   );
 };
 
-export default AnalyticsDashboard;
+export default memo(AnalyticsDashboard);

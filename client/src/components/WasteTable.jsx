@@ -1,85 +1,87 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import './WasteTable.css';
 
+// Skeleton row component
+const SkeletonRow = memo(() => (
+  <tr className="skeleton-row">
+    <td><div className="skeleton-cell skeleton-pulse"></div></td>
+    <td><div className="skeleton-cell skeleton-pulse"></div></td>
+    <td><div className="skeleton-cell skeleton-pulse"></div></td>
+    <td><div className="skeleton-cell skeleton-pulse"></div></td>
+    <td><div className="skeleton-cell skeleton-pulse"></div></td>
+  </tr>
+));
+
+SkeletonRow.displayName = 'SkeletonRow';
+
+// Fetch function for React Query
+const fetchAllWasteData = async ({ dateFrom, dateTo }) => {
+  let allData = [];
+  let currentPage = 1;
+  let hasMoreData = true;
+
+  while (hasMoreData) {
+    const params = new URLSearchParams();
+    
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    params.append('pageSize', '100');
+    params.append('page', currentPage.toString());
+    
+    const response = await fetch(`${API_ENDPOINTS.WASTE_RECORDS}?${params.toString()}`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success && Array.isArray(result.data)) {
+      allData = [...allData, ...result.data];
+      hasMoreData = result.meta?.pagination?.hasNextPage || false;
+      currentPage++;
+    } else {
+      throw new Error('Invalid data format received');
+    }
+  }
+
+  return allData;
+};
+
 const WasteTable = () => {
   const { preferences } = usePreferences();
   const tableRef = useRef(null);
-  const [wasteData, setWasteData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState('daily'); // 'daily' or 'monthly'
+  const [viewMode, setViewMode] = useState('daily');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   
   const itemsPerPage = preferences?.recordsPerPage || 10;
 
-  // Fetch waste data from API
-  const fetchWasteData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Use React Query for data fetching with caching
+  const { data: wasteData = [], isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey: ['wasteData', dateFrom, dateTo],
+    queryFn: () => fetchAllWasteData({ dateFrom, dateTo }),
+    staleTime: 3 * 60 * 1000, // 3 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: false,
+  });
 
-      let allData = [];
-      let currentPage = 1;
-      let hasMoreData = true;
+  const error = useMemo(() => {
+    if (!queryError) return null;
+    return {
+      message: 'Unable to load waste collection data',
+      details: queryError.message,
+      timestamp: new Date().toISOString()
+    };
+  }, [queryError]);
 
-      // Fetch all pages of data
-      while (hasMoreData) {
-        let url = API_ENDPOINTS.WASTE_RECORDS;
-        const params = new URLSearchParams();
-        
-        if (dateFrom) params.append('dateFrom', dateFrom);
-        if (dateTo) params.append('dateTo', dateTo);
-        params.append('pageSize', '100'); // Maximum allowed
-        params.append('page', currentPage.toString());
-        
-        if (params.toString()) {
-          url += '?' + params.toString();
-        }
-
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
-        }
-
-        const result = await response.json();
-
-        if (result.success && Array.isArray(result.data)) {
-          allData = [...allData, ...result.data];
-          
-          // Check if there are more pages
-          hasMoreData = result.meta?.pagination?.hasNextPage || false;
-          currentPage++;
-        } else {
-          throw new Error('Invalid data format received');
-        }
-      }
-
-      setWasteData(allData);
-    } catch (err) {
-      console.error('Error fetching waste data:', err);
-      setError({
-        message: 'Unable to load waste collection data',
-        details: err.message,
-        timestamp: new Date().toISOString()
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Load data on component mount
-  useEffect(() => {
-    fetchWasteData();
-  }, [dateFrom, dateTo]);
-
-  // Aggregate data by month
-  const aggregateByMonth = (data) => {
+  // Aggregate data by month (memoized)
+  const aggregateByMonth = useCallback((data) => {
     const monthlyData = {};
     
     data.forEach(record => {
@@ -104,58 +106,65 @@ const WasteTable = () => {
     });
     
     return Object.values(monthlyData).sort((a, b) => new Date(b.date) - new Date(a.date));
-  };
+  }, []);
 
-  // Process data based on view mode
-  const processedData = viewMode === 'monthly' ? aggregateByMonth(wasteData) : wasteData;
+  // Process data based on view mode (memoized)
+  const processedData = useMemo(() => 
+    viewMode === 'monthly' ? aggregateByMonth(wasteData) : wasteData,
+    [viewMode, wasteData, aggregateByMonth]
+  );
 
-  // Calculate pagination
-  const totalItems = processedData.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedData = processedData.slice(startIndex, endIndex);
+  // Calculate pagination (memoized)
+  const { totalItems, totalPages, startIndex, endIndex, paginatedData } = useMemo(() => {
+    const totalItems = processedData.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedData = processedData.slice(startIndex, endIndex);
+    return { totalItems, totalPages, startIndex, endIndex, paginatedData };
+  }, [processedData, currentPage, itemsPerPage]);
 
-  // Calculate statistics
-  const statistics = processedData.reduce((acc, record) => {
-    acc.recyclable += record.recyclable || 0;
-    acc.biodegradable += record.biodegradable || 0;
-    acc.nonBiodegradable += record.nonBiodegradable || 0;
-    acc.total += (record.recyclable || 0) +
-                 (record.biodegradable || 0) +
-                 (record.nonBiodegradable || 0);
-    return acc;
-  }, { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0, totalDays: totalItems });
+  // Calculate statistics (memoized)
+  const statistics = useMemo(() => {
+    const stats = { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0, totalDays: totalItems };
+    processedData.forEach(record => {
+      stats.recyclable += record.recyclable || 0;
+      stats.biodegradable += record.biodegradable || 0;
+      stats.nonBiodegradable += record.nonBiodegradable || 0;
+      stats.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
+    });
+    return stats;
+  }, [processedData, totalItems]);
 
   // Reset to first page when data changes
   useEffect(() => {
     setCurrentPage(1);
   }, [viewMode, dateFrom, dateTo]);
 
-  // Pagination handlers
-  const goToPage = (page) => {
+  // Pagination handlers (memoized)
+  const scrollToTop = useCallback(() => {
+    if (tableRef.current) {
+      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  const goToPage = useCallback((page) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
-    if (tableRef.current) {
-      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+    scrollToTop();
+  }, [totalPages, scrollToTop]);
 
-  const goToPrevPage = () => {
+  const goToPrevPage = useCallback(() => {
     setCurrentPage(prev => Math.max(1, prev - 1));
-    if (tableRef.current) {
-      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+    scrollToTop();
+  }, [scrollToTop]);
 
-  const goToNextPage = () => {
+  const goToNextPage = useCallback(() => {
     setCurrentPage(prev => Math.min(totalPages, prev + 1));
-    if (tableRef.current) {
-      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+    scrollToTop();
+  }, [totalPages, scrollToTop]);
 
-  // Format date helper
-  const formatDate = (dateString) => {
+  // Format helpers (memoized)
+  const formatDate = useCallback((dateString) => {
     const date = new Date(dateString);
     if (viewMode === 'monthly') {
       return date.toLocaleDateString('en-US', {
@@ -168,25 +177,21 @@ const WasteTable = () => {
       month: 'short',
       day: 'numeric'
     });
-  };
+  }, [viewMode]);
 
-  // Format count helper
-  const formatCount = (count) => {
+  const formatCount = useCallback((count) => {
     if (count == null) return '0';
     return parseInt(count).toString();
-  };
+  }, []);
 
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="waste-table-container">
-        <LoadingSpinner message="Loading waste collection data..." />
-      </div>
-    );
-  }
+  // Memoize UI size class
+  const uiSizeClass = useMemo(() => 
+    `ui-size-${preferences?.uiSize || 'medium'}`,
+    [preferences?.uiSize]
+  );
 
   return (
-    <div className={`waste-table-container ui-size-${preferences?.uiSize || 'medium'}`}>
+    <div className={`waste-table-container ${uiSizeClass}`}>
 
       {/* Filter Controls */}
       <div className="filter-controls">
@@ -253,16 +258,10 @@ const WasteTable = () => {
             <div className="error-actions">
               <button
                 className="btn-primary"
-                onClick={fetchWasteData}
+                onClick={refetch}
               >
                 <span className="btn-icon">🔄</span>
                 <span className="btn-text">Try Again</span>
-              </button>
-              <button
-                className="btn-outline"
-                onClick={() => setError(null)}
-              >
-                <span className="btn-text">Dismiss</span>
               </button>
             </div>
           </div>
@@ -342,7 +341,7 @@ const WasteTable = () => {
             <div className="table-actions">
               <button
                 className="refresh-btn"
-                onClick={fetchWasteData}
+                onClick={refetch}
                 disabled={loading}
                 aria-label="Refresh data"
                 title="Refresh data"
@@ -418,7 +417,11 @@ const WasteTable = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedData.map((record, index) => {
+                  {loading ? (
+                    // Show skeleton rows while loading
+                    [...Array(itemsPerPage)].map((_, i) => <SkeletonRow key={i} />)
+                  ) : (
+                    paginatedData.map((record, index) => {
                     const globalIndex = startIndex + index;
                     const totalCount = (record.recyclable || 0) +
                                        (record.biodegradable || 0) +
@@ -462,7 +465,8 @@ const WasteTable = () => {
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -544,4 +548,4 @@ const WasteTable = () => {
   );
 };
 
-export default WasteTable;
+export default memo(WasteTable);

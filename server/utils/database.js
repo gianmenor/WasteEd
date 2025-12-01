@@ -1,18 +1,24 @@
 import { PrismaClient } from '@prisma/client';
 
-// Create a singleton Prisma client instance with optimal configuration
+// Create a singleton Prisma client instance optimized for Aiven (pooling limit: 20)
 class DatabaseClient {
   constructor() {
     if (DatabaseClient.instance) {
       return DatabaseClient.instance;
     }
 
+    // Parse DATABASE_URL to add connection pool parameters for Aiven
+    const databaseUrl = process.env.DATABASE_URL;
+    const urlWithPooling = databaseUrl.includes('?') 
+      ? `${databaseUrl}&connection_limit=15&pool_timeout=30`
+      : `${databaseUrl}?connection_limit=15&pool_timeout=30`;
+
     this.prisma = new PrismaClient({
-      log: ['error', 'warn'],
-      errorFormat: 'pretty',
+      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+      errorFormat: 'minimal',
       datasources: {
         db: {
-          url: process.env.DATABASE_URL
+          url: urlWithPooling
         }
       }
     });
@@ -86,6 +92,16 @@ class DatabaseClient {
   getClient() {
     return this.prisma;
   }
+
+  // Batch multiple queries to reduce connection overhead
+  async batchQueries(queries) {
+    try {
+      return await Promise.all(queries.map(query => query()));
+    } catch (error) {
+      console.error('Batch query error:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
@@ -100,3 +116,6 @@ export const retryOperation = dbClient.retryOperation.bind(dbClient);
 
 // Export health check
 export const healthCheck = dbClient.healthCheck.bind(dbClient);
+
+// Export batch queries helper
+export const batchQueries = dbClient.batchQueries.bind(dbClient);

@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../utils/database.js';
 
 const analytics = async (req, res) => {
   try {
@@ -88,11 +86,18 @@ const analytics = async (req, res) => {
 
     const trends = Array.from(trendsMap.values());
 
-    // Calculate summary statistics
-    const totalRecords = records.length;
-    const totalRecyclable = records.reduce((sum, record) => sum + (record.recyclable || 0), 0);
-    const totalBiodegradable = records.reduce((sum, record) => sum + (record.biodegradable || 0), 0);
-    const totalNonBiodegradable = records.reduce((sum, record) => sum + (record.nonBiodegradable || 0), 0);
+    // Calculate summary statistics in a single pass for efficiency
+    let totalRecords = records.length;
+    let totalRecyclable = 0;
+    let totalBiodegradable = 0;
+    let totalNonBiodegradable = 0;
+
+    records.forEach(record => {
+      totalRecyclable += record.recyclable || 0;
+      totalBiodegradable += record.biodegradable || 0;
+      totalNonBiodegradable += record.nonBiodegradable || 0;
+    });
+
     const totalItems = totalRecyclable + totalBiodegradable + totalNonBiodegradable;
 
     // Calculate percentages based on items, not records

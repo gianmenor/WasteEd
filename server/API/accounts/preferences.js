@@ -1,5 +1,5 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../utils/database.js';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
@@ -7,7 +7,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 
 // Helper: resolve an accountId to use for preferences when auth is disabled

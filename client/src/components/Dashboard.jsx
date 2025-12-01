@@ -1,9 +1,11 @@
-﻿import { useState, createContext, useContext } from 'react';
+﻿import { useState, createContext, useContext, memo, useCallback, useMemo, lazy, Suspense, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { useBinNotifications } from '../contexts/BinNotificationContext';
-import BinFullModal from './BinFullModal';
 import './Dashboard.css';
+
+// Lazy load BinFullModal for code splitting
+const BinFullModal = lazy(() => import('./BinFullModal'));
 
 // Theme Context
 const ThemeContext = createContext();
@@ -14,10 +16,80 @@ export const useThemeContext = () => useContext(ThemeContext);
 const SettingsContext = createContext();
 export const useSettings = () => useContext(SettingsContext);
 
+// Memoized menu items to prevent re-creation on every render
+const MENU_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard' },
+  { id: 'waste', label: 'Waste Management', icon: '♻️', path: '/waste' },
+  { id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings' },
+];
+
+// Memoized notification item component
+const NotificationItem = memo(({ notification, onClick, formatTime }) => {
+  const handleClick = useCallback(() => {
+    onClick(notification);
+  }, [notification, onClick]);
+
+  return (
+    <div
+      className={`notification-item ${notification.isRead ? 'read' : 'unread'}`}
+      onClick={handleClick}
+    >
+      <div className="notification-content">
+        <div className="notification-icon-wrapper">
+          <span className="notification-type-icon">
+            {notification.icon}
+          </span>
+          {!notification.isRead && (
+            <div className="unread-indicator"></div>
+          )}
+        </div>
+        <div className="notification-details">
+          <div className="notification-title">
+            {notification.title}
+          </div>
+          <div className="notification-message">
+            {notification.message}
+          </div>
+          <div className="notification-time">
+            {formatTime(notification.timestamp)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+NotificationItem.displayName = 'NotificationItem';
+
+// Memoized sidebar navigation
+const SidebarNav = memo(({ items, currentPath, onItemClick }) => (
+  <nav className="sidebar-nav">
+    <ul className="nav-list">
+      {items.map((item) => (
+        <li key={item.id}>
+          <button
+            className={`nav-item ${currentPath === item.path ? 'active' : ''}`}
+            onClick={() => onItemClick(item.path)}
+          >
+            <span className="nav-icon">{item.icon}</span>
+            <span className="nav-label">{item.label}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  </nav>
+));
+
+SidebarNav.displayName = 'SidebarNav';
+
 const Dashboard = ({ user, onLogout, children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
+  
+  // Refs for click-outside detection
+  const userMenuRef = useRef(null);
+  const notificationMenuRef = useRef(null);
   
   // Use preferences context for theme and settings
   const { preferences, updatePreference } = usePreferences();
@@ -35,44 +107,41 @@ const Dashboard = ({ user, onLogout, children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard' },
-    { id: 'waste', label: 'Waste Management', icon: '♻️', path: '/waste' },
-    { id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings' },
-  ];
+  // Memoize menu items
+  const menuItems = useMemo(() => MENU_ITEMS, []);
 
-  const handleMenuClick = (path) => {
+  // Memoize callbacks to prevent re-renders
+  const handleMenuClick = useCallback((path) => {
     navigate(path);
     if (window.innerWidth <= 768) {
       setMobileOpen(false);
     }
-  };
+  }, [navigate]);
 
-  const toggleSidebar = () => {
-    setMobileOpen(!mobileOpen);
-  };
+  const toggleSidebar = useCallback(() => {
+    setMobileOpen(prev => !prev);
+  }, []);
 
-  const handleDarkModeToggle = async () => {
+  const handleDarkModeToggle = useCallback(async () => {
     const newTheme = preferences.theme === 'dark' ? 'light' : 'dark';
     await updatePreference('theme', newTheme);
-  };
+  }, [preferences.theme, updatePreference]);
 
-  const toggleNotificationMenu = () => {
-    setNotificationMenuOpen(!notificationMenuOpen);
-    setUserMenuOpen(false); // Close user menu if open
-  };
+  const toggleNotificationMenu = useCallback(() => {
+    setNotificationMenuOpen(prev => !prev);
+    setUserMenuOpen(false);
+  }, []);
 
-  const handleNotificationClick = (notification) => {
+  const handleNotificationClick = useCallback((notification) => {
     markAsRead(notification.id);
     setNotificationMenuOpen(false);
     
-    // Navigate based on notification type
     if (notification.type === 'bin_full') {
       navigate('/waste');
     }
-  };
+  }, [markAsRead, navigate]);
 
-  const formatNotificationTime = (timestamp) => {
+  const formatNotificationTime = useCallback((timestamp) => {
     const now = new Date();
     const notifTime = new Date(timestamp);
     const diffInMinutes = Math.floor((now - notifTime) / (1000 * 60));
@@ -81,31 +150,89 @@ const Dashboard = ({ user, onLogout, children }) => {
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
-  };
+  }, []);
 
-  const themeClasses = preferences.theme === 'dark' ? 'dark-theme' : 'light-theme';
-  const fontSizeClass = `font-${preferences.uiSize}`;
-  const scaleClass = `scale-normal`;
+  const toggleUserMenu = useCallback(() => {
+    setUserMenuOpen(prev => !prev);
+    setNotificationMenuOpen(false);
+  }, []);
+
+  const handleSettingsClick = useCallback(() => {
+    navigate('/settings');
+    setUserMenuOpen(false);
+  }, [navigate]);
+
+  const handleLogout = useCallback(() => {
+    onLogout();
+    setUserMenuOpen(false);
+  }, [onLogout]);
+
+  // Memoize computed values
+  const themeClasses = useMemo(() => 
+    preferences.theme === 'dark' ? 'dark-theme' : 'light-theme',
+    [preferences.theme]
+  );
+
+  const fontSizeClass = useMemo(() => 
+    `font-${preferences.uiSize}`,
+    [preferences.uiSize]
+  );
+
+  const currentPageTitle = useMemo(() => 
+    menuItems.find(item => item.path === location.pathname)?.label || 'Dashboard',
+    [menuItems, location.pathname]
+  );
+
+  // Memoize notification list (show max 10)
+  const displayNotifications = useMemo(() => 
+    notifications.slice(0, 10),
+    [notifications]
+  );
+
+  // Memoize settings object
+  const settingsValue = useMemo(() => ({
+    settings: {
+      darkMode: preferences.theme === 'dark',
+      fontSize: preferences.uiSize,
+      uiScale: 'normal',
+      notifications: preferences.notifications,
+      soundEffects: true,
+      compactMode: false,
+      showTooltips: true,
+      autoSave: preferences.autoRefresh
+    },
+    updateSettings: () => {}
+  }), [preferences.theme, preferences.uiSize, preferences.notifications, preferences.autoRefresh]);
+
+  const themeValue = useMemo(() => ({
+    darkMode: preferences.theme === 'dark',
+    toggleDarkMode: handleDarkModeToggle
+  }), [preferences.theme, handleDarkModeToggle]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setUserMenuOpen(false);
+      }
+      if (notificationMenuRef.current && !notificationMenuRef.current.contains(event.target)) {
+        setNotificationMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   return (
-    <SettingsContext.Provider value={{ 
-      settings: {
-        darkMode: preferences.theme === 'dark',
-        fontSize: preferences.uiSize,
-        uiScale: 'normal',
-        notifications: preferences.notifications,
-        soundEffects: true,
-        compactMode: false,
-        showTooltips: true,
-        autoSave: preferences.autoRefresh
-      }, 
-      updateSettings: () => {} // deprecated, use preferences context instead
-    }}>
-      <ThemeContext.Provider value={{ 
-        darkMode: preferences.theme === 'dark', 
-        toggleDarkMode: handleDarkModeToggle 
-      }}>
-        <div className={`dashboard ${themeClasses} ${fontSizeClass} ${scaleClass}`}>
+    <SettingsContext.Provider value={settingsValue}>
+      <ThemeContext.Provider value={themeValue}>
+        <div className={`dashboard ${themeClasses} ${fontSizeClass} scale-normal`}>
           {/* Mobile Overlay */}
           {mobileOpen && (
             <div className="mobile-overlay" onClick={() => setMobileOpen(false)}></div>
@@ -123,21 +250,11 @@ const Dashboard = ({ user, onLogout, children }) => {
               <p className="tagline">Smart Waste Management</p>
             </div>
 
-            <nav className="sidebar-nav">
-              <ul className="nav-list">
-                {menuItems.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
-                      onClick={() => handleMenuClick(item.path)}
-                    >
-                      <span className="nav-icon">{item.icon}</span>
-                      <span className="nav-label">{item.label}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
+            <SidebarNav 
+              items={menuItems}
+              currentPath={location.pathname}
+              onItemClick={handleMenuClick}
+            />
 
             <div className="sidebar-footer">
               <div className="quick-settings">
@@ -164,12 +281,12 @@ const Dashboard = ({ user, onLogout, children }) => {
                   <span className="hamburger">☰</span>
                 </button>
                 <h2 className="page-title">
-                  {menuItems.find(item => item.path === location.pathname)?.label || 'Dashboard'}
+                  {currentPageTitle}
                 </h2>
               </div>
 
               <div className="top-bar-right">
-                <div className="notification-container">
+                <div className="notification-container" ref={notificationMenuRef}>
                   <button 
                     className="notification-btn" 
                     title="Notifications"
@@ -217,34 +334,13 @@ const Dashboard = ({ user, onLogout, children }) => {
                             <p>No notifications</p>
                           </div>
                         ) : (
-                          notifications.slice(0, 10).map((notification) => (
-                            <div
+                          displayNotifications.map((notification) => (
+                            <NotificationItem
                               key={notification.id}
-                              className={`notification-item ${notification.isRead ? 'read' : 'unread'}`}
-                              onClick={() => handleNotificationClick(notification)}
-                            >
-                              <div className="notification-content">
-                                <div className="notification-icon-wrapper">
-                                  <span className="notification-type-icon">
-                                    {notification.icon}
-                                  </span>
-                                  {!notification.isRead && (
-                                    <div className="unread-indicator"></div>
-                                  )}
-                                </div>
-                                <div className="notification-details">
-                                  <div className="notification-title">
-                                    {notification.title}
-                                  </div>
-                                  <div className="notification-message">
-                                    {notification.message}
-                                  </div>
-                                  <div className="notification-time">
-                                    {formatNotificationTime(notification.timestamp)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                              notification={notification}
+                              onClick={handleNotificationClick}
+                              formatTime={formatNotificationTime}
+                            />
                           ))
                         )}
                       </div>
@@ -260,10 +356,10 @@ const Dashboard = ({ user, onLogout, children }) => {
                   )}
                 </div>
 
-                <div className="user-menu">
+                <div className="user-menu" ref={userMenuRef}>
                   <button
                     className="user-avatar"
-                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    onClick={toggleUserMenu}
                   >
                     <span className="avatar-icon">👤</span>
                     <span className="user-name">{user?.username || 'User'}</span>
@@ -276,11 +372,11 @@ const Dashboard = ({ user, onLogout, children }) => {
                         <p className="user-email">{user?.email || 'user@example.com'}</p>
                       </div>
                       <div className="dropdown-divider"></div>
-                      <button className="dropdown-item" onClick={() => navigate('/settings')}>
+                      <button className="dropdown-item" onClick={handleSettingsClick}>
                         <span className="dropdown-icon">⚙️</span>
                         Settings
                       </button>
-                      <button className="dropdown-item" onClick={onLogout}>
+                      <button className="dropdown-item" onClick={handleLogout}>
                         <span className="dropdown-icon">🚪</span>
                         Logout
                       </button>
@@ -297,11 +393,13 @@ const Dashboard = ({ user, onLogout, children }) => {
           </div>
         </div>
         
-        {/* Bin Full Modal */}
-        <BinFullModal />
+        {/* Bin Full Modal - Lazy loaded */}
+        <Suspense fallback={null}>
+          <BinFullModal />
+        </Suspense>
       </ThemeContext.Provider>
     </SettingsContext.Provider>
   );
 };
 
-export default Dashboard;
+export default memo(Dashboard);

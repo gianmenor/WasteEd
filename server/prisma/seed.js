@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../utils/database.js';
 import bcrypt from 'bcrypt';
 import fs from 'fs';
 import path from 'path';
-
-const prisma = new PrismaClient();
 
 async function main() {
   try {
@@ -310,8 +308,6 @@ async function main() {
   } catch (error) {
     console.error('❌ Error during seeding:', error);
     process.exit(1);
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
