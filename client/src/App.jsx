@@ -16,6 +16,7 @@ import ProfitRewards from './components/ProfitRewards';
 import NotificationTest from './components/NotificationTest';
 import DashboardSkeleton from './components/DashboardSkeleton';
 import DevPage from './components/DevPage';
+import LandingPage from './components/LandingPage';
 import './App.css';
 
 // Create query client
@@ -57,13 +58,18 @@ const AppContent = () => {
                 path="/login" 
                 element={
                   isAuthenticated ? 
-                  <Navigate to="/" replace /> : 
+                  <Navigate to="/dashboard" replace /> : 
                   <Login />
                 } 
               />
-            
+
+              <Route 
+                path="/" 
+                element={<LandingPage />} 
+              />
+          
             <Route 
-              path="/" 
+              path="/dashboard" 
               element={
                 <ProtectedRoute>
                   <Dashboard user={user} onLogout={logout}>

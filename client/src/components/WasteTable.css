@@ -85,8 +85,8 @@
 
 .filter-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: flex-end;
   gap: var(--spacing-lg);
   flex-wrap: wrap;
 }

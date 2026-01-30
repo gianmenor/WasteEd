@@ -30,7 +30,7 @@ const fetchRecords = async (year, month) => {
   }
 
   const data = await response.json();
-  return data.records || [];
+  return data.data || data.records || [];
 };
 
 // Fetch summary
@@ -50,7 +50,7 @@ const fetchSummary = async (period) => {
   }
 
   const data = await response.json();
-  return data.summary || {};
+  return data.data || data.summary || {};
 };
 
 const ProfitRewards = () => {
@@ -64,11 +64,12 @@ const ProfitRewards = () => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
-    type: 'PROFIT',
-    amount: '',
+    profitAmount: '',
+    expenseAmount: '',
     source: '',
     description: ''
   });
@@ -101,9 +102,16 @@ const ProfitRewards = () => {
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
 
-    const amount = parseFloat(formData.amount);
-    if (isNaN(amount) || amount <= 0) {
-      showMessage('Please enter a valid amount', 'error');
+    const profitAmount = parseFloat(formData.profitAmount) || 0;
+    const expenseAmount = parseFloat(formData.expenseAmount) || 0;
+
+    if (profitAmount < 0 || expenseAmount < 0) {
+      showMessage('Amounts cannot be negative', 'error');
+      return;
+    }
+
+    if (profitAmount === 0 && expenseAmount === 0) {
+      showMessage('Please enter at least one amount', 'error');
       return;
     }
 
@@ -115,9 +123,10 @@ const ProfitRewards = () => {
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('token');
+      const revenue = profitAmount - expenseAmount;
       
       if (editingId) {
-        // Update existing record
+        // Update existing record with new structure
         const response = await fetch(`${API_ENDPOINTS.PROFIT_UPDATE}/${editingId}`, {
           method: 'PUT',
           headers: {
@@ -125,10 +134,9 @@ const ProfitRewards = () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            type: formData.type,
-            amount,
-            source: formData.source,
-            description: formData.description || null
+            profitFromRecyclables: profitAmount,
+            rewardsSpent: expenseAmount,
+            notes: formData.description || formData.source || null
           })
         });
 
@@ -140,7 +148,7 @@ const ProfitRewards = () => {
           showMessage(error.message || 'Failed to update record', 'error');
         }
       } else {
-        // Add new record
+        // Add new record with both profit and expense
         const response = await fetch(API_ENDPOINTS.PROFIT_ADD, {
           method: 'POST',
           headers: {
@@ -148,15 +156,16 @@ const ProfitRewards = () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            type: formData.type,
-            amount,
+            profitAmount,
+            expenseAmount,
+            revenue,
             source: formData.source,
             description: formData.description || null
           })
         });
 
         if (response.ok) {
-          showMessage('Record added successfully');
+          showMessage(`Record added: Revenue $${revenue.toFixed(2)}`);
         } else {
           const error = await response.json();
           showMessage(error.message || 'Failed to add record', 'error');
@@ -165,14 +174,15 @@ const ProfitRewards = () => {
       
       // Reset form
       setFormData({
-        type: 'PROFIT',
-        amount: '',
+        profitAmount: '',
+        expenseAmount: '',
         source: '',
         description: ''
       });
       
       refetchRecords();
       refetchSummary();
+      setShowModal(false);
     } catch (error) {
       showMessage('Operation failed', 'error');
     } finally {
@@ -183,11 +193,12 @@ const ProfitRewards = () => {
   const handleEdit = useCallback((record) => {
     setEditingId(record.id);
     setFormData({
-      type: record.type,
-      amount: record.amount.toString(),
-      source: record.source,
-      description: record.description || ''
+      profitAmount: (record.profitFromRecyclables || 0).toString(),
+      expenseAmount: (record.rewardsSpent || 0).toString(),
+      source: record.notes || '',
+      description: record.notes || ''
     });
+    setShowModal(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
@@ -220,11 +231,12 @@ const ProfitRewards = () => {
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
     setFormData({
-      type: 'PROFIT',
-      amount: '',
+      profitAmount: '',
+      expenseAmount: '',
       source: '',
       description: ''
     });
+    setShowModal(false);
   }, []);
 
   const formatDate = useCallback((dateString) => {
@@ -311,7 +323,7 @@ const ProfitRewards = () => {
             <div className="summary-icon">🎁</div>
             <div className="summary-content">
               <div className="summary-label">Total Rewards</div>
-              <div className="summary-value">{formatCurrency(summary.totalRewards || 0)}</div>
+              <div className="summary-value">{formatCurrency(summary.totalRewardsSpent || summary.totalRewards || 0)}</div>
               <div className="summary-hint">Given to users</div>
             </div>
           </div>
@@ -320,106 +332,29 @@ const ProfitRewards = () => {
             <div className="summary-icon">📊</div>
             <div className="summary-content">
               <div className="summary-label">Net Profit</div>
-              <div className="summary-value">{formatCurrency(summary.netProfit || 0)}</div>
+              <div className="summary-value">{formatCurrency(summary.totalNetProfit || summary.netProfit || 0)}</div>
               <div className="summary-hint">Profit - Rewards</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Add/Edit Form */}
-      <div className="form-section">
-        <h2 className="form-title">
-          {editingId ? '✏️ Edit Record' : '➕ Add New Record'}
-        </h2>
-        <form className="profit-form" onSubmit={handleSubmit}>
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="type">Type</label>
-              <select
-                id="type"
-                className="form-input"
-                value={formData.type}
-                onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                disabled={isSubmitting}
-              >
-                <option value="PROFIT">Profit (from recyclables)</option>
-                <option value="REWARD">Reward (given to users)</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="amount">Amount ($)</label>
-              <input
-                id="amount"
-                type="number"
-                step="0.01"
-                className="form-input"
-                value={formData.amount}
-                onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                placeholder="0.00"
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="source">Source</label>
-              <input
-                id="source"
-                type="text"
-                className="form-input"
-                value={formData.source}
-                onChange={(e) => setFormData(prev => ({ ...prev, source: e.target.value }))}
-                placeholder="e.g., Plastic bottles sale"
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="description">Description (optional)</label>
-            <textarea
-              id="description"
-              className="form-input form-textarea"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Additional details..."
-              disabled={isSubmitting}
-              rows="3"
-            />
-          </div>
-
-          <div className="form-actions">
-            <button 
-              type="submit" 
-              className="btn btn-primary"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Processing...' : editingId ? 'Update Record' : 'Add Record'}
-            </button>
-            
-            {editingId && (
-              <button 
-                type="button" 
-                className="btn btn-secondary"
-                onClick={handleCancelEdit}
-                disabled={isSubmitting}
-              >
-                Cancel Edit
-              </button>
-            )}
-          </div>
-        </form>
-      </div>
-
       {/* Records Table */}
       <div className="records-section">
         <div className="records-header">
           <h2 className="records-title">Records</h2>
-          <div className="filter-controls">
-            <label>Year:</label>
+          <div className="records-header-actions">
+            <button 
+              className="btn btn-primary btn-add-record"
+              onClick={() => setShowModal(true)}
+            >
+              ➕ Add Record
+            </button>
+          </div>
+        </div>
+        
+        <div className="filter-controls">
+          <label>Year:</label>
             <select
               className="filter-select"
               value={selectedYear}
@@ -450,7 +385,6 @@ const ProfitRewards = () => {
               <option value="11">November</option>
               <option value="12">December</option>
             </select>
-          </div>
         </div>
 
         {records.length === 0 ? (
@@ -464,10 +398,10 @@ const ProfitRewards = () => {
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Type</th>
-                  <th>Amount</th>
-                  <th>Source</th>
-                  <th>Description</th>
+                  <th>Profit</th>
+                  <th>Expense</th>
+                  <th>Revenue</th>
+                  <th>Notes</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -476,19 +410,23 @@ const ProfitRewards = () => {
                   <tr key={record.id}>
                     <td>{formatDate(record.date)}</td>
                     <td>
-                      <span className={`record-type ${record.type.toLowerCase()}`}>
-                        {record.type === 'PROFIT' ? '💵 Profit' : '🎁 Reward'}
+                      <span className="record-amount profit">
+                        {formatCurrency(record.profitFromRecyclables || 0)}
                       </span>
                     </td>
                     <td>
-                      <span className={`record-amount ${record.type.toLowerCase()}`}>
-                        {formatCurrency(record.amount)}
+                      <span className="record-amount reward">
+                        {formatCurrency(record.rewardsSpent || 0)}
                       </span>
                     </td>
-                    <td>{record.source}</td>
                     <td>
-                      <span className="record-description" title={record.description}>
-                        {record.description || '-'}
+                      <span className={`record-amount ${record.netProfit >= 0 ? 'profit' : 'reward'}`}>
+                        {formatCurrency(record.netProfit || 0)}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="record-description" title={record.notes}>
+                        {record.notes || '-'}
                       </span>
                     </td>
                     <td>
@@ -516,6 +454,123 @@ const ProfitRewards = () => {
           </div>
         )}
       </div>
+
+      {/* Modal for Add/Edit Form */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => !isSubmitting && handleCancelEdit()}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                {editingId ? '✏️ Edit Record' : '➕ Add New Record'}
+              </h2>
+              <button 
+                className="modal-close" 
+                onClick={handleCancelEdit}
+                disabled={isSubmitting}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form className="profit-form modal-form" onSubmit={handleSubmit}>
+              <div className="modal-form-body">
+                {/* Amount Inputs Section */}
+                <div className="amounts-grid">
+                  <div className="form-group">
+                    <label htmlFor="profitAmount">💵 Profit ($)</label>
+                    <input
+                      id="profitAmount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="form-input profit-input"
+                      value={formData.profitAmount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, profitAmount: e.target.value }))}
+                      placeholder="0.00"
+                      disabled={isSubmitting}
+                    />
+                    <span className="input-hint">Income from recyclables</span>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="expenseAmount">🎁 Expense ($)</label>
+                    <input
+                      id="expenseAmount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="form-input expense-input"
+                      value={formData.expenseAmount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, expenseAmount: e.target.value }))}
+                      placeholder="0.00"
+                      disabled={isSubmitting}
+                    />
+                    <span className="input-hint">Rewards/costs paid out</span>
+                  </div>
+                </div>
+
+                {/* Revenue Display */}
+                <div className="revenue-display">
+                  <div className="revenue-label">
+                    <span className="revenue-icon">📊</span>
+                    <span>Total Revenue</span>
+                  </div>
+                  <div className="revenue-value">
+                    ${(parseFloat(formData.profitAmount || 0) - parseFloat(formData.expenseAmount || 0)).toFixed(2)}
+                  </div>
+                </div>
+
+                {/* Source/Notes Section */}
+                <div className="form-group">
+                  <label htmlFor="source">Source / Description *</label>
+                  <input
+                    id="source"
+                    type="text"
+                    className="form-input"
+                    value={formData.source}
+                    onChange={(e) => setFormData(prev => ({ ...prev, source: e.target.value }))}
+                    placeholder="e.g., Plastic bottles sale, User rewards distribution"
+                    disabled={isSubmitting}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="description">Additional Notes (optional)</label>
+                  <textarea
+                    id="description"
+                    className="form-input form-textarea"
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Any additional details about this transaction..."
+                    disabled={isSubmitting}
+                    rows="3"
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Processing...' : editingId ? 'Update Record' : 'Add Record'}
+                </button>
+                
+                <button 
+                  type="button" 
+                  className="btn btn-secondary"
+                  onClick={handleCancelEdit}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

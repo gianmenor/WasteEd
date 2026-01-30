@@ -5,10 +5,12 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TextField } from '@mui/material';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
+import ExportModal from './ExportModal';
 import './WasteTable.css';
 
 // Skeleton row component
@@ -68,6 +70,7 @@ const WasteTable = () => {
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
   const [typeFilter, setTypeFilter] = useState('all'); // all, recyclable, biodegradable, nonBiodegradable
+  const [showExportModal, setShowExportModal] = useState(false);
   
   // Convert Date objects to strings for API
   const dateFrom = useMemo(() => 
@@ -232,6 +235,24 @@ const WasteTable = () => {
   }, []);
 
   // PDF Export handler
+  // Unified export handler
+  const handleExport = useCallback((options) => {
+    const { format, includeTypes } = options;
+    
+    // Map includeTypes from modal to internal format
+    const wasteTypes = {
+      recyclable: includeTypes?.recyclable ?? true,
+      biodegradable: includeTypes?.wet ?? true,
+      nonBiodegradable: includeTypes?.dry ?? true
+    };
+    
+    if (format === 'excel') {
+      handleExcelExport(wasteTypes);
+    } else if (format === 'pdf') {
+      handlePDFExport();
+    }
+  }, [processedData, formatDate, formatCount, statistics, dateFrom, dateTo, viewMode, typeFilter, totalItems]);
+
   const handlePDFExport = useCallback(() => {
     const doc = new jsPDF();
     
@@ -278,7 +299,7 @@ const WasteTable = () => {
     ]);
     
     // Generate table
-    doc.autoTable({
+    autoTable(doc, {
       head: [['Date', 'Recyclable', 'Wet Wastes', 'Dry Wastes', 'Total']],
       body: tableData,
       startY: 50,
@@ -311,6 +332,52 @@ const WasteTable = () => {
     const fileName = `waste-report-${viewMode}-${typeFilter}-${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(fileName);
   }, [processedData, formatDate, formatCount, statistics, dateFrom, dateTo, viewMode, typeFilter, totalItems]);
+
+  const handleExcelExport = useCallback((wasteTypes) => {
+    // Ensure processedData exists and is an array
+    if (!processedData || !Array.isArray(processedData) || processedData.length === 0) {
+      console.warn('No data available for export');
+      return;
+    }
+
+    // Filter data based on selected waste types
+    const filteredData = processedData.map(record => {
+      if (!record) return null;
+      
+      const filtered = { date: formatDate(record.date) };
+      
+      if (wasteTypes.recyclable) {
+        filtered['Recyclable (kg)'] = formatCount(record.recyclable);
+      }
+      if (wasteTypes.biodegradable) {
+        filtered['Wet Wastes (kg)'] = formatCount(record.biodegradable);
+      }
+      if (wasteTypes.nonBiodegradable) {
+        filtered['Dry Wastes (kg)'] = formatCount(record.nonBiodegradable);
+      }
+      
+      return filtered;
+    }).filter(Boolean); // Remove any null entries
+
+    // Add totals row
+    const totalsRow = { date: 'TOTAL' };
+    if (wasteTypes.recyclable) totalsRow['Recyclable (kg)'] = formatCount(statistics.recyclable);
+    if (wasteTypes.biodegradable) totalsRow['Wet Wastes (kg)'] = formatCount(statistics.biodegradable);
+    if (wasteTypes.nonBiodegradable) totalsRow['Dry Wastes (kg)'] = formatCount(statistics.nonBiodegradable);
+    
+    filteredData.push(totalsRow);
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(filteredData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Waste Data');
+
+    // Generate filename
+    const fileName = `waste-report-${viewMode}-${typeFilter}-${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    // Download
+    XLSX.writeFile(wb, fileName);
+  }, [processedData, formatDate, formatCount, statistics, viewMode, typeFilter]);
 
   // Pagination handlers (memoized)
   const scrollToTop = useCallback(() => {
@@ -347,43 +414,42 @@ const WasteTable = () => {
       <div className="filter-controls">
         <div className="filter-row">
           <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <div className="date-filters">
-              <div className="date-input-group">
-                <label htmlFor="dateFrom">From:</label>
-                <DatePicker
-                  value={dateFromObj}
-                  onChange={(newValue) => setDateFromObj(newValue)}
-                  enableAccessibleFieldDOMStructure={false}
-                  slots={{
-                    textField: TextField
-                  }}
-                  slotProps={{
-                    textField: {
-                      size: 'small',
-                      className: 'date-picker-input'
-                    }
-                  }}
-                />
-              </div>
-              <div className="date-input-group">
-                <label htmlFor="dateTo">To:</label>
-                <DatePicker
-                  value={dateToObj}
-                  onChange={(newValue) => setDateToObj(newValue)}
-                  enableAccessibleFieldDOMStructure={false}
-                  slots={{
-                    textField: TextField
-                  }}
-                  slotProps={{
-                    textField: {
-                      size: 'small',
-                      className: 'date-picker-input'
-                    }
-                  }}
-                />
-              </div>
+            <div className="date-input-group">
+              <label htmlFor="dateFrom">From:</label>
+              <DatePicker
+                value={dateFromObj}
+                onChange={(newValue) => setDateFromObj(newValue)}
+                enableAccessibleFieldDOMStructure={false}
+                slots={{
+                  textField: TextField
+                }}
+                slotProps={{
+                  textField: {
+                    size: 'small',
+                    className: 'date-picker-input'
+                  }
+                }}
+              />
+            </div>
+            <div className="date-input-group">
+              <label htmlFor="dateTo">To:</label>
+              <DatePicker
+                value={dateToObj}
+                onChange={(newValue) => setDateToObj(newValue)}
+                enableAccessibleFieldDOMStructure={false}
+                slots={{
+                  textField: TextField
+                }}
+                slotProps={{
+                  textField: {
+                    size: 'small',
+                    className: 'date-picker-input'
+                  }
+                }}
+              />
             </div>
           </LocalizationProvider>
+          
           <div className="view-toggle">
             <button
               className={`toggle-btn ${viewMode === 'daily' ? 'active' : ''}`}
@@ -398,11 +464,9 @@ const WasteTable = () => {
               Monthly
             </button>
           </div>
-        </div>
-        
-        {/* Type Filter (only for daily view) */}
-        {viewMode === 'daily' && (
-          <div className="filter-row" style={{ marginTop: '1rem' }}>
+          
+          {/* Type Filter (only for daily view) */}
+          {viewMode === 'daily' && (
             <div className="type-filter">
               <label htmlFor="typeFilter">Filter by Type:</label>
               <select 
@@ -417,22 +481,32 @@ const WasteTable = () => {
                 <option value="nonBiodegradable">Dry Wastes Only</option>
               </select>
             </div>
-            <button
-              className="export-pdf-btn"
-              onClick={handlePDFExport}
-              disabled={loading || processedData.length === 0}
-              title="Export to PDF"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              <span>Export PDF</span>
-            </button>
-          </div>
-        )}
+          )}
+          
+          <button
+            className="export-pdf-btn"
+            onClick={() => setShowExportModal(true)}
+            disabled={loading || processedData.length === 0}
+            title="Export data"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Export Data</span>
+          </button>
+        </div>
+
       </div>
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        title="Export Waste Records"
+      />
 
       {/* Error Display */}
       {error && (

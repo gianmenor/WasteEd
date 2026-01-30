@@ -60,12 +60,13 @@ export const addWasteRecord = async (req, res) => {
         });
       });
 
-      // Consume coupons if recyclable waste is processed
+      // Deduct coupons for ALL waste types (recyclable, wet, dry)
       const couponRate = parseInt(process.env.COUPON_CONSUMPTION_RATE || '1');
-      if (recyclable > 0) {
+      const totalWaste = (recyclable || 0) + (biodegradable || 0) + (nonBiodegradable || 0);
+      if (totalWaste > 0) {
         try {
-          await consumeCoupons(result.id, recyclable * couponRate);
-          console.log(`✓ Consumed ${recyclable * couponRate} coupons for waste record ${result.id}`.green);
+          await consumeCoupons(result.id, totalWaste * couponRate);
+          console.log(`✓ Consumed ${totalWaste * couponRate} coupons for waste record ${result.id}`.green);
         } catch (error) {
           console.warn('Could not consume coupons:', error.message);
           // Don't fail the request if coupon consumption fails

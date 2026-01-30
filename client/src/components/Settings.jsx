@@ -175,7 +175,8 @@ const Settings = () => {
 
                 
 
-                <div className="setting-item">\n                  <div className="setting-info">
+                <div className="setting-item">              
+                  <div className="setting-info">
                     <label className="setting-label">Auto refresh</label>
                     <p className="setting-description">
                       Automatically refresh data

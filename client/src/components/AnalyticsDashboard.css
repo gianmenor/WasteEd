@@ -60,20 +60,7 @@
 .filters-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
-  align-items: end;
-  justify-content: space-between;
-}
-
-.filters-left {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  align-items: end;
-}
-
-.filters-right {
-  display: flex;
+  gap: 1rem;
   align-items: end;
 }
 

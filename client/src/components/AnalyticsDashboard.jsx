@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { TextField } from '@mui/material';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { API_ENDPOINTS } from '../config/api';
+import ExportModal from './ExportModal';
 import LoadingSpinner from './LoadingSpinner';
 import './AnalyticsDashboard.css';
 
@@ -92,9 +100,16 @@ const fetchAllBinData = async () => {
 };
 
 const AnalyticsDashboard = () => {
-  const [period, setPeriod] = useState('all');
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [selectedTypes, setSelectedTypes] = useState({
+    RECYCLABLE: true,
+    WET: true,
+    DRY: true
+  });
 
   // Use React Query for data fetching with caching
   const { data: wasteData = [], isLoading: wasteLoading, error: wasteError, refetch: refetchWaste } = useQuery({
@@ -159,11 +174,34 @@ const AnalyticsDashboard = () => {
     refetchBin();
   }, [refetchWaste, refetchBin]);
 
-  // Export to Excel function
+  // Unified export handler
+  const handleExport = useCallback(async (options) => {
+    const { format, includeTypes, dateRange } = options;
+    
+    // Update selected types based on modal selection
+    const typesToExport = {
+      RECYCLABLE: includeTypes.recyclable,
+      WET: includeTypes.wet,
+      DRY: includeTypes.dry
+    };
+    
+    setSelectedTypes(typesToExport);
+    
+    // Call appropriate export function based on format
+    if (format === 'excel') {
+      await exportToExcel();
+    } else if (format === 'pdf') {
+      await exportToPDF();
+    } else if (format === 'csv') {
+      // CSV export can use same logic as Excel but simpler
+      await exportToExcel();
+    }
+  }, []);
+
+  // Export to Excel function with separate sheets per waste type
   const exportToExcel = useCallback(async () => {
     setExporting(true);
     try {
-      // Fetch all waste data using pagination
       let allData = [];
       let currentPage = 1;
       let hasMoreData = true;
@@ -201,75 +239,57 @@ const AnalyticsDashboard = () => {
         return;
       }
 
-      // Group data by month
-      const dataByMonth = {};
-      allData.forEach(record => {
-        const date = new Date(record.date);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const monthName = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-        
-        if (!dataByMonth[monthKey]) {
-          dataByMonth[monthKey] = {
-            name: monthName,
-            records: []
-          };
-        }
-        
-        dataByMonth[monthKey].records.push(record);
-      });
-
-      // Create CSV content with multiple sheets (one per month)
-      let csvContent = '';
-      const months = Object.keys(dataByMonth).sort();
-
-      months.forEach((monthKey, index) => {
-        const monthData = dataByMonth[monthKey];
-        
-        // Add sheet separator (for Excel multi-sheet CSV)
-        if (index > 0) {
-          csvContent += '\n\n';
-        }
-        
-        csvContent += `Sheet: ${monthData.name}\n`;
-        csvContent += 'Date,Recyclable Wastes (kg),Wet Wastes (kg),Dry Wastes (kg),Total (kg)\n';
-        
-        monthData.records.forEach(record => {
-          const date = new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-          const recyclable = record.recyclable || 0;
-          const biodegradable = record.biodegradable || 0;
-          const nonBiodegradable = record.nonBiodegradable || 0;
-          const total = recyclable + biodegradable + nonBiodegradable;
-          
-          csvContent += `${date},${recyclable},${biodegradable},${nonBiodegradable},${total}\n`;
-        });
-        
-        // Add monthly summary
-        const totalRecyclable = monthData.records.reduce((sum, r) => sum + (r.recyclable || 0), 0);
-        const totalBiodegradable = monthData.records.reduce((sum, r) => sum + (r.biodegradable || 0), 0);
-        const totalNonBiodegradable = monthData.records.reduce((sum, r) => sum + (r.nonBiodegradable || 0), 0);
-        const monthTotal = totalRecyclable + totalBiodegradable + totalNonBiodegradable;
-        
-        csvContent += `\nMonthly Total,${totalRecyclable.toFixed(2)},${totalBiodegradable.toFixed(2)},${totalNonBiodegradable.toFixed(2)},${monthTotal.toFixed(2)}\n`;
-        csvContent += `Average per Day,${(totalRecyclable / monthData.records.length).toFixed(2)},${(totalBiodegradable / monthData.records.length).toFixed(2)},${(totalNonBiodegradable / monthData.records.length).toFixed(2)},${(monthTotal / monthData.records.length).toFixed(2)}\n`;
-      });
-
-      // Create and download file
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
+      // Create workbook
+      const wb = XLSX.utils.book_new();
       
-      link.setAttribute('href', url);
-      link.setAttribute('download', `waste_analytics_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
+      // Create sheet for each waste type if selected
+      if (selectedTypes.RECYCLABLE) {
+        const recyclableData = allData.map(record => ({
+          'Date': new Date(record.date).toLocaleDateString(),
+          'Recyclable Wastes (kg)': record.recyclable || 0,
+          'Total': record.recyclable || 0
+        }));
+        const ws = XLSX.utils.json_to_sheet(recyclableData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Recyclable Wastes');
+      }
       
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (selectedTypes.WET) {
+        const wetData = allData.map(record => ({
+          'Date': new Date(record.date).toLocaleDateString(),
+          'Wet Wastes (kg)': record.biodegradable || 0,
+          'Total': record.biodegradable || 0
+        }));
+        const ws = XLSX.utils.json_to_sheet(wetData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Wet Wastes');
+      }
       
-      // Show success message
+      if (selectedTypes.DRY) {
+        const dryData = allData.map(record => ({
+          'Date': new Date(record.date).toLocaleDateString(),
+          'Dry Wastes (kg)': record.nonBiodegradable || 0,
+          'Total': record.nonBiodegradable || 0
+        }));
+        const ws = XLSX.utils.json_to_sheet(dryData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Dry Wastes');
+      }
+      
+      // Add summary sheet
+      const summaryData = allData.map(record => ({
+        'Date': new Date(record.date).toLocaleDateString(),
+        'Recyclable (kg)': record.recyclable || 0,
+        'Wet (kg)': record.biodegradable || 0,
+        'Dry (kg)': record.nonBiodegradable || 0,
+        'Total (kg)': (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0)
+      }));
+      const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'All Waste Types');
+
+      // Download file
+      XLSX.writeFile(wb, `waste_analytics_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
       setToast({ 
         type: 'success', 
-        message: `Excel file exported successfully! Exported ${months.length} month(s) of data with ${allData.length} total records.` 
+        message: `Excel file exported successfully! ${allData.length} records exported.` 
       });
       setTimeout(() => setToast(null), 4000);
       
@@ -283,7 +303,149 @@ const AnalyticsDashboard = () => {
     } finally {
       setExporting(false);
     }
-  }, []);
+  }, [selectedTypes]);
+
+  // PDF Export function
+  const exportToPDF = useCallback(async () => {
+    setExporting(true);
+    try {
+      let allData = [];
+      let currentPage = 1;
+      let hasMoreData = true;
+
+      while (hasMoreData) {
+        const params = new URLSearchParams({
+          pageSize: '100',
+          page: currentPage.toString()
+        });
+        
+        const response = await fetch(`${API_ENDPOINTS.WASTE_RECORDS}?${params.toString()}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch data: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.success && Array.isArray(result.data)) {
+          allData = [...allData, ...result.data];
+          hasMoreData = result.meta?.pagination?.hasNextPage || false;
+          currentPage++;
+        } else {
+          throw new Error('Invalid data format received');
+        }
+      }
+
+      if (allData.length === 0) {
+        setToast({ 
+          type: 'error', 
+          message: 'No data available to export.' 
+        });
+        setTimeout(() => setToast(null), 4000);
+        setExporting(false);
+        return;
+      }
+
+      const doc = new jsPDF();
+      
+      // Title
+      doc.setFontSize(18);
+      doc.setFont(undefined, 'bold');
+      doc.text('WASTE-ED Analytics Report', 14, 20);
+      
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+      
+      let startY = 35;
+      
+      // Create tables for each selected waste type
+      if (selectedTypes.RECYCLABLE) {
+        const recyclableData = allData.filter(r => (r.recyclable || 0) > 0).map(record => [
+          new Date(record.date).toLocaleDateString(),
+          (record.recyclable || 0).toFixed(2)
+        ]);
+        
+        if (recyclableData.length > 0) {
+          doc.setFontSize(12);
+          doc.setFont(undefined, 'bold');
+          doc.text('Recyclable Wastes', 14, startY);
+          
+          autoTable(doc, {
+            head: [['Date', 'Amount (kg)']],
+            body: recyclableData,
+            startY: startY + 5,
+            headStyles: { fillColor: [34, 197, 94] },
+            margin: { top: 10 }
+          });
+          
+          startY = doc.lastAutoTable.finalY + 10;
+        }
+      }
+      
+      if (selectedTypes.WET) {
+        const wetData = allData.filter(r => (r.biodegradable || 0) > 0).map(record => [
+          new Date(record.date).toLocaleDateString(),
+          (record.biodegradable || 0).toFixed(2)
+        ]);
+        
+        if (wetData.length > 0) {
+          doc.setFontSize(12);
+          doc.setFont(undefined, 'bold');
+          doc.text('Wet Wastes', 14, startY);
+          
+          autoTable(doc, {
+            head: [['Date', 'Amount (kg)']],
+            body: wetData,
+            startY: startY + 5,
+            headStyles: { fillColor: [132, 204, 22] },
+            margin: { top: 10 }
+          });
+          
+          startY = doc.lastAutoTable.finalY + 10;
+        }
+      }
+      
+      if (selectedTypes.DRY) {
+        const dryData = allData.filter(r => (r.nonBiodegradable || 0) > 0).map(record => [
+          new Date(record.date).toLocaleDateString(),
+          (record.nonBiodegradable || 0).toFixed(2)
+        ]);
+        
+        if (dryData.length > 0) {
+          doc.setFontSize(12);
+          doc.setFont(undefined, 'bold');
+          doc.text('Dry Wastes', 14, startY);
+          
+          autoTable(doc, {
+            head: [['Date', 'Amount (kg)']],
+            body: dryData,
+            startY: startY + 5,
+            headStyles: { fillColor: [249, 115, 22] },
+            margin: { top: 10 }
+          });
+        }
+      }
+      
+      doc.save(`waste_analytics_${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      setToast({ 
+        type: 'success', 
+        message: 'PDF exported successfully!' 
+      });
+      setTimeout(() => setToast(null), 4000);
+      
+    } catch (err) {
+      console.error('PDF Export error:', err);
+      setToast({ 
+        type: 'error', 
+        message: 'Failed to export PDF. Please try again.' 
+      });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setExporting(false);
+    }
+  }, [selectedTypes]);
 
   // Helper functions for data processing
   const generateDailyTrends = (data) => {
@@ -360,32 +522,32 @@ const AnalyticsDashboard = () => {
   const analyticsData = useMemo(() => {
     if (!wasteData.length) return null;
 
-    const now = new Date();
-    const cutoffDate = new Date();
+    // Filter by date range if provided
+    let filteredData = wasteData;
     
-    switch (period) {
-      case '7d':
-        cutoffDate.setDate(now.getDate() - 7);
-        break;
-      case '30d':
-        cutoffDate.setDate(now.getDate() - 30);
-        break;
-      case '90d':
-        cutoffDate.setDate(now.getDate() - 90);
-        break;
-      case '1y':
-        cutoffDate.setFullYear(now.getFullYear() - 1);
-        break;
-      case 'all':
-        cutoffDate.setTime(0);
-        break;
-      default:
-        cutoffDate.setDate(now.getDate() - 30);
+    if (dateFrom || dateTo) {
+      filteredData = wasteData.filter(record => {
+        const recordDate = new Date(record.date);
+        recordDate.setHours(0, 0, 0, 0);
+        
+        if (dateFrom && dateTo) {
+          const from = new Date(dateFrom);
+          from.setHours(0, 0, 0, 0);
+          const to = new Date(dateTo);
+          to.setHours(23, 59, 59, 999);
+          return recordDate >= from && recordDate <= to;
+        } else if (dateFrom) {
+          const from = new Date(dateFrom);
+          from.setHours(0, 0, 0, 0);
+          return recordDate >= from;
+        } else if (dateTo) {
+          const to = new Date(dateTo);
+          to.setHours(23, 59, 59, 999);
+          return recordDate <= to;
+        }
+        return true;
+      });
     }
-
-    const filteredData = wasteData.filter(record => 
-      new Date(record.date) >= cutoffDate
-    );
 
     const totals = filteredData.reduce((acc, record) => {
       acc.recyclable += record.recyclable || 0;
@@ -395,8 +557,8 @@ const AnalyticsDashboard = () => {
       return acc;
     }, { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0 });
 
-    const dailyTrends = generateDailyTrends(filteredData);
-    const monthlyData = generateMonthlyData(filteredData);
+    const dailyTrends = generateDailyTrends(filteredData) || [];
+    const monthlyData = generateMonthlyData(filteredData) || [];
     
     const percentages = {
       recyclable: totals.total > 0 ? (totals.recyclable / totals.total * 100).toFixed(1) : 0,
@@ -404,20 +566,8 @@ const AnalyticsDashboard = () => {
       nonBiodegradable: totals.total > 0 ? (totals.nonBiodegradable / totals.total * 100).toFixed(1) : 0
     };
 
-    const prevPeriodData = wasteData.filter(record => {
-      const recordDate = new Date(record.date);
-      const prevCutoff = new Date(cutoffDate);
-      prevCutoff.setDate(prevCutoff.getDate() - (cutoffDate.getDate() - new Date(cutoffDate).setDate(cutoffDate.getDate() - (now.getDate() - cutoffDate.getDate()))));
-      return recordDate >= prevCutoff && recordDate < cutoffDate;
-    });
-
-    const prevTotals = prevPeriodData.reduce((acc, record) => {
-      acc.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
-      return acc;
-    }, { total: 0 });
-
-    const trend = prevTotals.total > 0 ? 
-      ((totals.total - prevTotals.total) / prevTotals.total * 100).toFixed(1) : 0;
+    // Simple trend - just show 0 for now
+    const trend = 0;
 
     const averageDaily = filteredData.length > 0 ? (totals.total / filteredData.length).toFixed(1) : 0;
     const monthlyAverage = monthlyData.length > 0 ? (totals.total / monthlyData.length).toFixed(1) : 0;
@@ -433,60 +583,48 @@ const AnalyticsDashboard = () => {
       recordCount: filteredData.length,
       peakDay: findPeakDay(filteredData)
     };
-  }, [wasteData, period]);
+  }, [wasteData, dateFrom, dateTo]);
 
   // Derive bin analytics (memoized)
   const binAnalytics = useMemo(() => {
     if (!binData.length) return null;
     
-    const now = new Date();
-    const cutoff = new Date();
+    // Filter by date range if provided
+    let filteredBinData = binData;
     
-    switch (period) {
-      case '7d': cutoff.setDate(now.getDate() - 7); break;
-      case '30d': cutoff.setDate(now.getDate() - 30); break;
-      case '90d': cutoff.setDate(now.getDate() - 90); break;
-      case '1y': cutoff.setFullYear(now.getFullYear() - 1); break;
-      case 'all': cutoff.setTime(0); break;
-      default: cutoff.setDate(now.getDate() - 30);
+    if (dateFrom || dateTo) {
+      filteredBinData = binData.filter(record => {
+        const recordDate = new Date(record.fullAt || record.createdAt);
+        recordDate.setHours(0, 0, 0, 0);
+        
+        if (dateFrom && dateTo) {
+          const from = new Date(dateFrom);
+          from.setHours(0, 0, 0, 0);
+          const to = new Date(dateTo);
+          to.setHours(23, 59, 59, 999);
+          return recordDate >= from && recordDate <= to;
+        } else if (dateFrom) {
+          const from = new Date(dateFrom);
+          from.setHours(0, 0, 0, 0);
+          return recordDate >= from;
+        } else if (dateTo) {
+          const to = new Date(dateTo);
+          to.setHours(23, 59, 59, 999);
+          return recordDate <= to;
+        }
+        return true;
+      });
     }
     
-    const filtered = binData.filter(r => new Date(r.fullAt) >= cutoff);
-    
-    const dayRangeLimit = period === '1y' || period === 'all' ? 365 : 120;
-    const dayStart = new Date(Math.max(cutoff.getTime(), now.getTime() - dayRangeLimit * 86400000));
-    const dayMap = new Map();
-    
-    for (let d = new Date(dayStart); d <= now; d.setDate(d.getDate() + 1)) {
-      const key = d.toISOString().split('T')[0];
-      dayMap.set(key, 0);
-    }
-    
-    filtered.forEach(r => {
-      const key = new Date(r.fullAt).toISOString().split('T')[0];
-      if (dayMap.has(key)) dayMap.set(key, dayMap.get(key) + 1);
-    });
-    
-    const dailyTrends = Array.from(dayMap.entries())
-      .map(([date, count]) => ({ date, count }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    const monthlyMap = new Map();
-    filtered.forEach(r => {
-      const d = new Date(r.fullAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthlyMap.set(key, (monthlyMap.get(key) || 0) + 1);
-    });
-    
-    const monthlyData = Array.from(monthlyMap.entries())
-      .map(([month, count]) => ({ month, count }))
-      .sort((a, b) => a.month.localeCompare(b.month));
-    
-    const dailyAverage = dailyTrends.length > 0 ? (filtered.length / dailyTrends.length).toFixed(2) : 0;
-    const monthlyAverage = monthlyData.length > 0 ? (filtered.length / monthlyData.length).toFixed(2) : 0;
-    
-    return { total: filtered.length, dailyTrends, monthlyData, dailyAverage, monthlyAverage };
-  }, [binData, period]);
+    return {
+      total: filteredBinData.length,
+      byType: {
+        RECYCLABLE: filteredBinData.filter(r => r.binType === 'RECYCLABLE').length,
+        WET: filteredBinData.filter(r => r.binType === 'WET').length,
+        DRY: filteredBinData.filter(r => r.binType === 'DRY').length,
+      }
+    };
+  }, [binData, dateFrom, dateTo]);
 
   // Fixed to light theme per PRD
   const themeClass = 'light-theme';
@@ -560,39 +698,57 @@ const AnalyticsDashboard = () => {
         </div>
         
         <div className="filters-controls">
-          <div className="filters-left">
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
             <div className="filter-group">
-              <label className="filter-label" htmlFor="timeRange">Time Period</label>
-              <select
-                id="timeRange"
-                value={period}
-                onChange={(e) => setPeriod(e.target.value)}
-                className="filter-select"
-              >
-                <option value="7d">Last 7 Days</option>
-                <option value="30d">Last 30 Days</option>
-                <option value="90d">Last 90 Days</option>
-                <option value="1y">Last Year</option>
-                <option value="all">All Time</option>
-              </select>
+              <label className="filter-label">Date From</label>
+              <DatePicker
+                value={dateFrom}
+                onChange={(newValue) => setDateFrom(newValue)}
+                slotProps={{
+                  textField: {
+                    size: 'small',
+                    placeholder: 'Start Date',
+                    sx: { minWidth: '180px' }
+                  },
+                }}
+                enableAccessibleFieldDOMStructure={false}
+              />
             </div>
-          </div>
+            <div className="filter-group">
+              <label className="filter-label">Date To</label>
+              <DatePicker
+                value={dateTo}
+                onChange={(newValue) => setDateTo(newValue)}
+                slotProps={{
+                  textField: {
+                    size: 'small',
+                    placeholder: 'End Date',
+                    sx: { minWidth: '180px' }
+                  },
+                }}
+                enableAccessibleFieldDOMStructure={false}
+              />
+            </div>
+          </LocalizationProvider>
           
-          <div className="filters-right">
-            <button 
-              onClick={exportToExcel} 
-              className="export-btn"
-              disabled={exporting}
-              title="Export waste data to Excel (monthly sheets)"
-            >
-              {exporting ? '⏳ Exporting...' : '📊 Export to Excel'}
-            </button>
-            <button onClick={handleRefresh} className="refresh-button">
-              🔄 Refresh Data
-            </button>
-          </div>
+          <button 
+            onClick={() => setShowExportModal(true)} 
+            className="export-btn"
+            disabled={exporting}
+            title="Export waste data"
+          >
+            {exporting ? '⏳ Exporting...' : '📊 Export Data'}
+          </button>
         </div>
       </div>
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        title="Export Waste Data"
+      />
 
       {analyticsData && (
         <>
@@ -693,17 +849,17 @@ const AnalyticsDashboard = () => {
               <div className="chart-wrapper monthly-waste">
                 <h3>Monthly Waste <span className="chart-meta">(Avg {analyticsData.monthlyAverage}/mo)</span></h3>
                 <div className="horizontal-line-graph" style={{ '--line-color': '#10b981' }}>
-                  {analyticsData.monthlyData.length > 0 ? (
+                  {(analyticsData?.monthlyData?.length ?? 0) > 0 ? (
                     <div className="chart-area">
                       <div className="y-labels">
-                        {[...analyticsData.monthlyData].reverse().map((item, i) => (
+                        {[...(analyticsData?.monthlyData ?? [])].reverse().map((item, i) => (
                           <span key={i}>{item.month}</span>
                         ))}
                       </div>
                       <div className="horizontal-bars">
                         {(() => {
-                          const maxValue = Math.max(...analyticsData.monthlyData.map(d => d.total || 1));
-                          return [...analyticsData.monthlyData].reverse().map((item, i) => {
+                          const maxValue = Math.max(...(analyticsData?.monthlyData ?? []).map(d => d.total || 1));
+                          return [...(analyticsData?.monthlyData ?? [])].reverse().map((item, i) => {
                             const width = ((item.total || 0) / maxValue) * 100;
                             return (
                               <div key={i} className="horizontal-bar">
@@ -729,41 +885,27 @@ const AnalyticsDashboard = () => {
               <div className="chart-wrapper daily-bin">
                 <h3>Daily Bin Events {binAnalytics && <span className="chart-meta">(Avg {binAnalytics.dailyAverage}/day)</span>}</h3>
                 <div className="line-graph" style={{ '--bar-color': '#3b82f6' }}>
-                  {binAnalytics && binAnalytics.dailyTrends.length > 0 ? (
+                  {(binAnalytics?.dailyTrends?.length ?? 0) > 0 ? (
                     <>
                       <div className="grid-lines">
                         {[0, 1, 2, 3, 4].map((_, i) => <span key={i}></span>)}
                       </div>
                       <div className="y-axis-labels">
                         {(() => {
-                          const maxValue = Math.max(...binAnalytics.dailyTrends.map(d => d.count || 1));
-                          const yLabels = [maxValue, Math.floor(maxValue * 0.75), Math.floor(maxValue * 0.5), Math.floor(maxValue * 0.25), 0];
-                          return yLabels.map((val, i) => <span key={i}>{val}</span>);
+                          const maxValue = Math.max(...(binAnalytics?.dailyTrends ?? []).map(d => d.count || 1));
+                          return (binAnalytics?.dailyTrends ?? []).map((item, i) => (
+                            <span key={i}>{item.count}</span>
+                          ));
                         })()}
                       </div>
-                      <div className="bars">
-                        {binAnalytics.dailyTrends.map((item, i) => {
-                          const maxValue = Math.max(...binAnalytics.dailyTrends.map(d => d.count || 1));
-                          const height = ((item.count || 0) / maxValue) * 100;
-                          return (
-                            <div
-                              key={i}
-                              className="bar"
-                              style={{ height: `${height}%` }}
-                            >
-                              <div className="bar-value">{item.count || 0}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="bar-labels">
-                        {binAnalytics.dailyTrends.map((item, i) => (
-                          <span key={i}>{formatDate(item.date)}</span>
+                      <div className="line-bars">
+                        {(binAnalytics?.dailyTrends ?? []).map((item, i) => (
+                          <div key={i} className="line-bar" style={{ height: `${(item.count || 0) * 10}px` }}></div>
                         ))}
                       </div>
                     </>
                   ) : (
-                    <div className="no-data">No bin data available</div>
+                    <div className="no-data">No data available</div>
                   )}
                 </div>
               </div>
@@ -772,17 +914,17 @@ const AnalyticsDashboard = () => {
               <div className="chart-wrapper monthly-bin">
                 <h3>Monthly Bin Events {binAnalytics && <span className="chart-meta">(Avg {binAnalytics.monthlyAverage}/mo)</span>}</h3>
                 <div className="horizontal-line-graph" style={{ '--line-color': '#3b82f6' }}>
-                  {binAnalytics && binAnalytics.monthlyData.length > 0 ? (
+                  {(binAnalytics?.monthlyData?.length ?? 0) > 0 ? (
                     <div className="chart-area">
                       <div className="y-labels">
-                        {[...binAnalytics.monthlyData].reverse().map((item, i) => (
+                        {[...(binAnalytics?.monthlyData ?? [])].reverse().map((item, i) => (
                           <span key={i}>{item.month}</span>
                         ))}
                       </div>
                       <div className="horizontal-bars">
                         {(() => {
-                          const maxValue = Math.max(...binAnalytics.monthlyData.map(d => d.count || 1));
-                          return [...binAnalytics.monthlyData].reverse().map((item, i) => {
+                          const maxValue = Math.max(...(binAnalytics?.monthlyData ?? []).map(d => d.count || 1));
+                          return [...(binAnalytics?.monthlyData ?? [])].reverse().map((item, i) => {
                             const width = ((item.count || 0) / maxValue) * 100;
                             return (
                               <div key={i} className="horizontal-bar">
@@ -835,8 +977,8 @@ const AnalyticsDashboard = () => {
                   <div className="recommendation-item">
                     <span className="rec-icon">🏆</span>
                     <span>Most active day: {(() => {
-                      if (!analyticsData.dailyTrends.length) return 'No data';
-                      const mostActive = analyticsData.dailyTrends.reduce((max, day) => 
+                      if (!(analyticsData?.dailyTrends?.length > 0)) return 'No data';
+                      const mostActive = (analyticsData?.dailyTrends ?? []).reduce((max, day) => 
                         (day.total || 0) > (max.total || 0) ? day : max
                       );
                       return `${formatDate(mostActive.date)} (${mostActive.total} items)`;
@@ -845,14 +987,14 @@ const AnalyticsDashboard = () => {
                   <div className="recommendation-item">
                     <span className="rec-icon">📅</span>
                     <span>Most active month: {(() => {
-                      if (!analyticsData.monthlyData.length) return 'No data';
-                      const mostActive = analyticsData.monthlyData.reduce((max, month) => 
+                      if (!(analyticsData?.monthlyData?.length > 0)) return 'No data';
+                      const mostActive = (analyticsData?.monthlyData ?? []).reduce((max, month) => 
                         (month.total || 0) > (max.total || 0) ? month : max
                       );
                       return `${mostActive.month} (${mostActive.total} items)`;
                     })()}</span>
                   </div>
-                  {binAnalytics && binAnalytics.dailyTrends.length > 0 && (
+                  {(binAnalytics?.dailyTrends && binAnalytics.dailyTrends.length > 0) && (
                     <div className="recommendation-item">
                       <span className="rec-icon">🗑️</span>
                       <span>Busiest bin day: {(() => {
@@ -866,10 +1008,10 @@ const AnalyticsDashboard = () => {
                   <div className="recommendation-item">
                     <span className="rec-icon">�</span>
                     <span>Collection streak: {(() => {
-                      if (!analyticsData.dailyTrends.length) return '0 days';
+                      if (!(analyticsData?.dailyTrends?.length > 0)) return '0 days';
                       let streak = 0;
-                      for (let i = analyticsData.dailyTrends.length - 1; i >= 0; i--) {
-                        if ((analyticsData.dailyTrends[i].total || 0) > 0) {
+                      for (let i = (analyticsData?.dailyTrends?.length ?? 0) - 1; i >= 0; i--) {
+                        if (((analyticsData?.dailyTrends?.[i]?.total) || 0) > 0) {
                           streak++;
                         } else {
                           break;

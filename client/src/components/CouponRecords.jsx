@@ -40,7 +40,7 @@ const fetchCouponTransactions = async ({ period = 'all' }) => {
   }
 
   const data = await response.json();
-  return data.transactions || [];
+  return data.data || [];
 };
 
 const CouponRecords = () => {
@@ -86,9 +86,10 @@ const CouponRecords = () => {
 
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['couponBalance']);
-      queryClient.invalidateQueries(['couponTransactions']);
+    onSuccess: async () => {
+      // Refetch and wait for new data
+      await queryClient.invalidateQueries(['couponBalance']);
+      await queryClient.invalidateQueries(['couponTransactions']);
       setAdjustmentAmount('');
       setAdjustmentReason('');
       showMessage('Balance adjusted successfully', 'success');
@@ -109,20 +110,8 @@ const CouponRecords = () => {
 
   const handleAdjustment = useCallback((e) => {
     e.preventDefault();
-    const amount = parseFloat(adjustmentAmount);
-    
-    if (isNaN(amount) || amount === 0) {
-      showMessage('Please enter a valid amount', 'error');
-      return;
-    }
-
-    if (!adjustmentReason.trim()) {
-      showMessage('Please provide a reason for the adjustment', 'error');
-      return;
-    }
-
-    adjustMutation.mutate({ amount, reason: adjustmentReason });
-  }, [adjustmentAmount, adjustmentReason, adjustMutation, showMessage]);
+    // This function is no longer used as we handle it inline with buttons
+  }, []);
 
   const formatDate = useCallback((dateString) => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -157,8 +146,14 @@ const CouponRecords = () => {
     [preferences?.uiSize]
   );
 
-  const balance = balanceData?.balance || 0;
-  const loading = balanceLoading || transactionsLoading;
+  // Ensure balance is always a number for rendering
+  let balance = 0;
+  if (balanceData && balanceData.data && typeof balanceData.data.balance !== 'undefined' && balanceData.data.balance !== null) {
+    const parsed = parseFloat(balanceData.data.balance);
+    balance = isNaN(parsed) ? 0 : parsed;
+  }
+  // Show loading spinner if mutation is pending or data is loading
+  const loading = balanceLoading || transactionsLoading || adjustMutation.isPending;
 
   return (
     <div className={`coupon-records-container ${uiSizeClass}`}>
@@ -188,39 +183,58 @@ const CouponRecords = () => {
 
         {/* Manual Adjustment Form */}
         <div className="adjustment-card">
-          <h3 className="adjustment-title">Manual Adjustment</h3>
+          <h3 className="adjustment-title">Adjust Balance</h3>
           <form onSubmit={handleAdjustment} className="adjustment-form">
             <div className="form-group">
               <label htmlFor="amount">Amount</label>
-              <input
-                id="amount"
-                type="number"
-                step="0.01"
-                value={adjustmentAmount}
-                onChange={(e) => setAdjustmentAmount(e.target.value)}
-                placeholder="e.g., 10 or -5"
-                className="form-input"
-              />
-              <small className="form-hint">Use positive for add, negative for deduct</small>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  value={adjustmentAmount}
+                  onChange={(e) => setAdjustmentAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className="form-input"
+                  style={{ flex: 1 }}
+                />
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const amount = parseFloat(adjustmentAmount);
+                    if (isNaN(amount) || amount === 0) {
+                      showMessage('Please enter a valid amount', 'error');
+                      return;
+                    }
+                    adjustMutation.mutate({ amount: Math.abs(amount), reason: 'Manual credit' });
+                  }}
+                  className="btn btn-success"
+                  disabled={adjustMutation.isPending}
+                  title="Add to balance"
+                  style={{ padding: '8px 16px', minWidth: '80px' }}
+                >
+                  ➕ Add
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const amount = parseFloat(adjustmentAmount);
+                    if (isNaN(amount) || amount === 0) {
+                      showMessage('Please enter a valid amount', 'error');
+                      return;
+                    }
+                    adjustMutation.mutate({ amount: -Math.abs(amount), reason: 'Manual deduction' });
+                  }}
+                  className="btn btn-danger"
+                  disabled={adjustMutation.isPending}
+                  title="Subtract from balance"
+                  style={{ padding: '8px 16px', minWidth: '80px' }}
+                >
+                  ➖ Subtract
+                </button>
+              </div>
+              <small className="form-hint">Enter amount and click Add or Subtract</small>
             </div>
-            <div className="form-group">
-              <label htmlFor="reason">Reason</label>
-              <input
-                id="reason"
-                type="text"
-                value={adjustmentReason}
-                onChange={(e) => setAdjustmentReason(e.target.value)}
-                placeholder="e.g., Bonus reward"
-                className="form-input"
-              />
-            </div>
-            <button 
-              type="submit" 
-              className="btn btn-primary"
-              disabled={adjustMutation.isPending}
-            >
-              {adjustMutation.isPending ? 'Processing...' : 'Apply Adjustment'}
-            </button>
           </form>
         </div>
       </div>
@@ -259,7 +273,7 @@ const CouponRecords = () => {
                   <th>Date & Time</th>
                   <th>Type</th>
                   <th>Amount</th>
-                  <th>Balance After</th>
+                  {/* Removed Balance After column */}
                   <th>Details</th>
                 </tr>
               </thead>
@@ -273,11 +287,14 @@ const CouponRecords = () => {
                       </span>
                     </td>
                     <td>
-                      <span className={`transaction-amount ${transaction.amount >= 0 ? 'positive' : 'negative'}`}>
-                        {transaction.amount >= 0 ? '+' : ''}{transaction.amount.toFixed(2)}
+                      <span className={`transaction-amount ${Number(transaction.amount) >= 0 ? 'positive' : 'negative'}`}>
+                        {Number(transaction.amount) >= 0 ? '+' : ''}
+                        {typeof transaction.amount === 'number' && !isNaN(transaction.amount)
+                          ? transaction.amount.toFixed(2)
+                          : (Number(transaction.amount) ? Number(transaction.amount).toFixed(2) : '0.00')}
                       </span>
                     </td>
-                    <td>{transaction.balanceAfter.toFixed(2)}</td>
+                    {/* Removed Balance After cell */}
                     <td className="transaction-details">
                       {transaction.reason || transaction.metadata?.reason || '-'}
                     </td>

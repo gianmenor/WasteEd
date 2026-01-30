@@ -111,15 +111,17 @@ const Login = () => {
 
   return (
     <div className={`login-page ${uiSizeClass}`}>
+      {/* Brand Header - Outside the card */}
+      <div className="login-brand-header">
+        <h1 className="brand-title">WASTE-ED</h1>
+        <div className="brand-icon-large">♻️</div>
+        <p className="brand-tagline-large">Smart Waste Management System</p>
+      </div>
+
       <div className="login-container">
         <div className="login-card">
-          {/* Header - Now inside the form container */}
+          {/* Welcome Section */}
           <div className="login-header">
-            <h1 className="main-title">WASTE-ED</h1>
-            <div className="brand-section">
-              <div className="brand-icon">♻️</div>
-              <p className="brand-tagline">Smart Waste Management</p>
-            </div>
             <p className="welcome-text">Sign in to your account</p>
           </div>
 

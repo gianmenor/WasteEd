@@ -82,40 +82,40 @@ router.get('/records', async (req, res) => {
 // POST /api/profit/add - Add new profit/reward record
 router.post('/add', async (req, res) => {
   try {
-    const { date, profitFromRecyclables, rewardsSpent, notes } = req.body;
+    const { profitAmount, expenseAmount, revenue, source, description } = req.body;
 
     // Validation
-    if (!date) {
+    if (profitAmount === undefined || profitAmount < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Date is required'
+        message: 'Profit amount must be a non-negative number'
       });
     }
 
-    if (profitFromRecyclables === undefined || profitFromRecyclables < 0) {
+    if (expenseAmount === undefined || expenseAmount < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Profit from recyclables must be a non-negative number'
+        message: 'Expense amount must be a non-negative number'
       });
     }
 
-    if (rewardsSpent === undefined || rewardsSpent < 0) {
+    if (profitAmount === 0 && expenseAmount === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Rewards spent must be a non-negative number'
+        message: 'At least one amount must be greater than zero'
       });
     }
 
-    const netProfit = profitFromRecyclables - rewardsSpent;
+    const netProfit = profitAmount - expenseAmount;
 
     const record = await retryOperation(async () => {
       return await prisma.profitReward.create({
         data: {
-          date: new Date(date),
-          profitFromRecyclables: parseFloat(profitFromRecyclables),
-          rewardsSpent: parseFloat(rewardsSpent),
+          date: new Date(),
+          profitFromRecyclables: parseFloat(profitAmount),
+          rewardsSpent: parseFloat(expenseAmount),
           netProfit: parseFloat(netProfit),
-          notes
+          notes: description || source || null
         }
       });
     });
