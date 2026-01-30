@@ -11,6 +11,8 @@ import Dashboard from './components/Dashboard';
 import WasteTable from './components/WasteTable';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Settings from './components/Settings';
+import CouponRecords from './components/CouponRecords';
+import ProfitRewards from './components/ProfitRewards';
 import NotificationTest from './components/NotificationTest';
 import DashboardSkeleton from './components/DashboardSkeleton';
 import DevPage from './components/DevPage';
@@ -88,6 +90,28 @@ const AppContent = () => {
                 <ProtectedRoute>
                   <Dashboard user={user} onLogout={logout}>
                     <WasteTable />
+                  </Dashboard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/coupons" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard user={user} onLogout={logout}>
+                    <CouponRecords />
+                  </Dashboard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/profit" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard user={user} onLogout={logout}>
+                    <ProfitRewards />
                   </Dashboard>
                 </ProtectedRoute>
               } 

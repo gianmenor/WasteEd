@@ -29,4 +29,13 @@ router.use('/accounts/role', roleRouter);
 import binRouter from './bin/index.js';
 router.use('/bin', binRouter);
 
+import couponRouter from './coupon/index.js';
+router.use('/coupon', couponRouter);
+
+import profitRouter from './profit/index.js';
+router.use('/profit', profitRouter);
+
+import videoRouter from './video/index.js';
+router.use('/video', videoRouter);
+
 export default router;

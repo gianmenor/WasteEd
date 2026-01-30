@@ -4,8 +4,9 @@ import { usePreferences } from '../contexts/PreferencesContext';
 import { useBinNotifications } from '../contexts/BinNotificationContext';
 import './Dashboard.css';
 
-// Lazy load BinFullModal for code splitting
+// Lazy load BinFullModal and WasteNotificationModal for code splitting
 const BinFullModal = lazy(() => import('./BinFullModal'));
+const WasteNotificationModal = lazy(() => import('./WasteNotificationModal'));
 
 // Theme Context
 const ThemeContext = createContext();
@@ -20,6 +21,8 @@ export const useSettings = () => useContext(SettingsContext);
 const MENU_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard' },
   { id: 'waste', label: 'Waste Management', icon: '♻️', path: '/waste' },
+  { id: 'coupons', label: 'Coupon Records', icon: '💳', path: '/coupons' },
+  { id: 'profit', label: 'Profit & Rewards', icon: '💰', path: '/profit' },
   { id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings' },
 ];
 
@@ -101,7 +104,10 @@ const Dashboard = ({ user, onLogout, children }) => {
     markAsRead, 
     markAllAsRead, 
     clearAllNotifications,
-    forceRefresh
+    forceRefresh,
+    showWasteModal,
+    latestWasteNotification,
+    closeWasteModal
   } = useBinNotifications();
   
   const navigate = useNavigate();
@@ -121,11 +127,6 @@ const Dashboard = ({ user, onLogout, children }) => {
   const toggleSidebar = useCallback(() => {
     setMobileOpen(prev => !prev);
   }, []);
-
-  const handleDarkModeToggle = useCallback(async () => {
-    const newTheme = preferences.theme === 'dark' ? 'light' : 'dark';
-    await updatePreference('theme', newTheme);
-  }, [preferences.theme, updatePreference]);
 
   const toggleNotificationMenu = useCallback(() => {
     setNotificationMenuOpen(prev => !prev);
@@ -169,8 +170,8 @@ const Dashboard = ({ user, onLogout, children }) => {
 
   // Memoize computed values
   const themeClasses = useMemo(() => 
-    preferences.theme === 'dark' ? 'dark-theme' : 'light-theme',
-    [preferences.theme]
+    'light-theme', // Fixed to light theme per PRD
+    []
   );
 
   const fontSizeClass = useMemo(() => 
@@ -192,7 +193,7 @@ const Dashboard = ({ user, onLogout, children }) => {
   // Memoize settings object
   const settingsValue = useMemo(() => ({
     settings: {
-      darkMode: preferences.theme === 'dark',
+      darkMode: false, // Fixed to light mode per PRD
       fontSize: preferences.uiSize,
       uiScale: 'normal',
       notifications: preferences.notifications,
@@ -202,12 +203,12 @@ const Dashboard = ({ user, onLogout, children }) => {
       autoSave: preferences.autoRefresh
     },
     updateSettings: () => {}
-  }), [preferences.theme, preferences.uiSize, preferences.notifications, preferences.autoRefresh]);
+  }), [preferences.uiSize, preferences.notifications, preferences.autoRefresh]);
 
   const themeValue = useMemo(() => ({
-    darkMode: preferences.theme === 'dark',
-    toggleDarkMode: handleDarkModeToggle
-  }), [preferences.theme, handleDarkModeToggle]);
+    darkMode: false, // Fixed to light mode per PRD
+    toggleDarkMode: () => {} // No-op function
+  }), []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -256,20 +257,7 @@ const Dashboard = ({ user, onLogout, children }) => {
               onItemClick={handleMenuClick}
             />
 
-            <div className="sidebar-footer">
-              <div className="quick-settings">
-                <button
-                  className="setting-toggle"
-                  onClick={handleDarkModeToggle}
-                  title="Toggle Dark Mode"
-                >
-                  <span className="setting-icon">{preferences.theme === 'dark' ? '☀️' : '🌙'}</span>
-                  <span className="setting-label">
-                    {preferences.theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                  </span>
-                </button>
-              </div>
-            </div>
+            {/* Dark mode toggle removed as per PRD requirements */}
           </aside>
 
           {/* Main Content */}
@@ -396,6 +384,16 @@ const Dashboard = ({ user, onLogout, children }) => {
         {/* Bin Full Modal - Lazy loaded */}
         <Suspense fallback={null}>
           <BinFullModal />
+        </Suspense>
+
+        {/* Waste Notification Modal - Lazy loaded */}
+        <Suspense fallback={null}>
+          {showWasteModal && latestWasteNotification && (
+            <WasteNotificationModal 
+              notification={latestWasteNotification}
+              onClose={closeWasteModal}
+            />
+          )}
         </Suspense>
       </ThemeContext.Provider>
     </SettingsContext.Provider>

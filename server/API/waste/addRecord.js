@@ -1,8 +1,11 @@
 import { prisma, retryOperation } from '../../utils/database.js';
+import { consumeCoupons } from '../coupon/index.js';
+import { broadcastBinNotification } from '../bin/notifications.js';
 
 // POST /api/waste/add
 // Expected body: { recyclable: number, biodegradable: number, nonBiodegradable: number }
 // Date is automatically set to today's date on the server
+// Now supports multiple entries per day with different timestamps
 export const addWasteRecord = async (req, res) => {
   try {
     const { recyclable, biodegradable, nonBiodegradable } = req.body;
@@ -41,27 +44,70 @@ export const addWasteRecord = async (req, res) => {
                            String(today.getMonth() + 1).padStart(2, '0') + '-' + 
                            String(today.getDate()).padStart(2, '0');
     const todayDate = new Date(todayDateString);
+    const recordedAt = new Date(); // Exact timestamp for multiple entries per day
 
     try {
-      // Try to create the record directly with retry logic
+      // Create the record with timestamp (allows multiple entries per day)
       const result = await retryOperation(async () => {
         return await prisma.waste_items.create({
           data: {
             recyclable,
             biodegradable,
             nonBiodegradable,
-            date: todayDate
+            date: todayDate,
+            recordedAt: recordedAt
           }
         });
       });
 
+      // Consume coupons if recyclable waste is processed
+      const couponRate = parseInt(process.env.COUPON_CONSUMPTION_RATE || '1');
+      if (recyclable > 0) {
+        try {
+          await consumeCoupons(result.id, recyclable * couponRate);
+          console.log(`✓ Consumed ${recyclable * couponRate} coupons for waste record ${result.id}`.green);
+        } catch (error) {
+          console.warn('Could not consume coupons:', error.message);
+          // Don't fail the request if coupon consumption fails
+        }
+      }
+
+      // Broadcast real-time update to connected clients
+      try {
+        broadcastBinNotification({
+          type: 'WASTE_INSERTED',
+          data: result,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.warn('Could not broadcast update:', error.message);
+      }
+
+      // Create waste notification (for the notification system)
+      try {
+        await retryOperation(async () => {
+          return await prisma.wasteNotification.create({
+            data: {
+              type: 'WASTE_INSERTED',
+              wasteType: recyclable > 0 ? 'RECYCLABLE' : (biodegradable > 0 ? 'WET' : 'DRY'),
+              wasteRecordId: result.id,
+              quantity: recyclable + biodegradable + nonBiodegradable,
+              isRead: false
+            }
+          });
+        });
+      } catch (error) {
+        console.warn('Could not create notification:', error.message);
+      }
+
       return res.status(201).json({
         success: true,
-        message: 'Daily waste record created successfully',
+        message: 'Waste record created successfully',
         action: 'created',
         data: {
           id: result.id,
           date: result.date,
+          recordedAt: result.recordedAt,
           recyclable: result.recyclable,
           biodegradable: result.biodegradable,
           nonBiodegradable: result.nonBiodegradable,
@@ -71,41 +117,13 @@ export const addWasteRecord = async (req, res) => {
       });
 
     } catch (createError) {
-      // If we get unique constraint violation, fetch the existing record and return 409
-      if (createError.code === 'P2002') {
-        try {
-          const existingRecord = await retryOperation(async () => {
-            return await prisma.waste_items.findUnique({
-              where: { date: todayDate }
-            });
-          });
-
-          return res.status(409).json({
-            success: false,
-            message: 'A waste record for today already exists. Records cannot be updated once created.',
-            error: 'RECORD_ALREADY_EXISTS',
-            existingRecord: existingRecord ? {
-              id: existingRecord.id,
-              date: existingRecord.date,
-              recyclable: existingRecord.recyclable,
-              biodegradable: existingRecord.biodegradable,
-              nonBiodegradable: existingRecord.nonBiodegradable,
-              total: existingRecord.recyclable + existingRecord.biodegradable + existingRecord.nonBiodegradable,
-              createdAt: existingRecord.createdAt
-            } : null
-          });
-        } catch (findError) {
-          // If we can't find the existing record, just return conflict without details
-          return res.status(409).json({
-            success: false,
-            message: 'A waste record for today already exists. Records cannot be updated once created.',
-            error: 'RECORD_ALREADY_EXISTS'
-          });
-        }
-      }
-      
-      // Re-throw other errors to be handled by main catch block
-      throw createError;
+      // Handle any database errors
+      console.error('Error creating waste record:', createError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create waste record',
+        error: createError.message
+      });
     }
 
   } catch (error) {

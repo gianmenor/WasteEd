@@ -44,11 +44,13 @@ model waste_items {
   id               Int      @id @default(autoincrement())
   createdAt        DateTime @default(now())
   biodegradable    Int      @default(0)
-  date             DateTime @unique @db.Date
+  date             DateTime @db.Date
   nonBiodegradable Int      @default(0)
   recyclable       Int      @default(0)
   updatedAt        DateTime @updatedAt
+  recordedAt       DateTime @default(now())
 
+  @@unique([date, recordedAt])
   @@map("waste_items")
 }
 
@@ -59,6 +61,69 @@ model Bin {
   createdAt DateTime @default(now())
 
   @@map("bin_records")
+}
+
+model Coupon {
+  id        Int      @id @default(autoincrement())
+  balance   Int      @default(0)
+  used      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("coupons")
+}
+
+model CouponTransaction {
+  id            Int      @id @default(autoincrement())
+  type          String
+  amount        Int
+  balance       Int
+  reason        String?
+  wasteRecordId Int?
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  @@map("coupon_transactions")
+}
+
+model ProfitReward {
+  id                    Int      @id @default(autoincrement())
+  date                  DateTime
+  profitFromRecyclables Float
+  rewardsSpent          Float
+  netProfit             Float
+  notes                 String?  @db.Text
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("profit_rewards")
+}
+
+model WasteNotification {
+  id            Int      @id @default(autoincrement())
+  type          String
+  wasteType     String
+  wasteRecordId Int?
+  quantity      Int?
+  videoUrl      String?
+  isRead        Boolean  @default(false)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@map("waste_notifications")
+}
+
+model VideoMapping {
+  id        Int      @id @default(autoincrement())
+  wasteType String   @unique
+  videoUrl  String
+  videoPath String
+  thumbnail String?
+  duration  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("video_mappings")
 }
 
 enum accounts_role {

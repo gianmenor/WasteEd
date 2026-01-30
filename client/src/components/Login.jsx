@@ -113,16 +113,12 @@ const Login = () => {
     <div className={`login-page ${uiSizeClass}`}>
       <div className="login-container">
         <div className="login-card">
-          {/* Header */}
+          {/* Header - Now inside the form container */}
           <div className="login-header">
+            <h1 className="main-title">WASTE-ED</h1>
             <div className="brand-section">
               <div className="brand-icon">♻️</div>
-              <div className="brand-info">
-                <h1 className="brand-name">
-                  Wast<span className="brand-accent">E</span>d
-                </h1>
-                <p className="brand-tagline">Smart Waste Management</p>
-              </div>
+              <p className="brand-tagline">Smart Waste Management</p>
             </div>
             <p className="welcome-text">Sign in to your account</p>
           </div>

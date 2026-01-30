@@ -12,7 +12,12 @@ async function main() {
     await prisma.waste_items.deleteMany();
     await prisma.bin.deleteMany();
     await prisma.account.deleteMany();
-    console.log('🗑️  Cleared existing accounts, preferences, waste items, and bin records');
+    await prisma.videoMapping.deleteMany();
+    await prisma.coupon.deleteMany();
+    await prisma.couponTransaction.deleteMany();
+    await prisma.profitReward.deleteMany();
+    await prisma.wasteNotification.deleteMany();
+    console.log('🗑️  Cleared existing data from all tables');
 
     // Read account data from JSON file
     const accountJsonPath = path.join(process.cwd(), 'prisma', 'Data', 'account.json');
@@ -303,6 +308,83 @@ async function main() {
         });
       }
     }
+
+    // Create video mappings for existing Firebase Storage videos
+    console.log('\n📹 Creating video mappings for existing Firebase videos...');
+    const bucketName = 'wasted-599ad.firebasestorage.app';
+    await prisma.videoMapping.createMany({
+      data: [
+        {
+          wasteType: 'RECYCLABLE',
+          videoUrl: `https://storage.googleapis.com/${bucketName}/videos/recyclable-wastes/Recyclable.mp4`,
+          videoPath: 'videos/recyclable-wastes/Recyclable.mp4',
+          thumbnail: null,
+          duration: null
+        },
+        {
+          wasteType: 'WET',
+          videoUrl: `https://storage.googleapis.com/${bucketName}/videos/wet-wastes/WetWaste.mp4`,
+          videoPath: 'videos/wet-wastes/WetWaste.mp4',
+          thumbnail: null,
+          duration: null
+        },
+        {
+          wasteType: 'DRY',
+          videoUrl: `https://storage.googleapis.com/${bucketName}/videos/dry-wastes/DryWaste.mp4`,
+          videoPath: 'videos/dry-wastes/DryWaste.mp4',
+          thumbnail: null,
+          duration: null
+        }
+      ]
+    });
+    console.log('✅ Created 3 video mappings for existing Firebase Storage videos');
+    console.log('   - Recyclable.mp4 → RECYCLABLE waste type');
+    console.log('   - WetWaste.mp4 → WET waste type');
+    console.log('   - DryWaste.mp4 → DRY waste type');
+
+    // Initialize coupon balance
+    console.log('\n💳 Initializing coupon system...');
+    await prisma.coupon.create({
+      data: {
+        balance: 1000,
+        used: 0
+      }
+    });
+    
+    await prisma.couponTransaction.create({
+      data: {
+        type: 'ADD',
+        amount: 1000,
+        balance: 1000,
+        reason: 'Initial seed balance',
+        notes: 'Starting balance for testing'
+      }
+    });
+    console.log('✅ Initialized coupon balance: 1000 coupons');
+
+    // Create sample profit/reward records
+    console.log('\n💰 Creating sample profit and reward records...');
+    const profitRewards = [];
+    const profitStartDate = new Date(2025, 0, 1); // January 1, 2025
+    
+    for (let i = 0; i < 12; i++) {
+      const monthDate = new Date(2025, i, 15);
+      const profitAmount = Math.floor(Math.random() * 5000) + 2000;
+      const rewardAmount = Math.floor(Math.random() * 2000) + 500;
+      
+      profitRewards.push({
+        date: monthDate,
+        profitFromRecyclables: profitAmount,
+        rewardsSpent: rewardAmount,
+        netProfit: profitAmount - rewardAmount,
+        notes: `Monthly record for ${monthDate.toLocaleString('default', { month: 'long', year: 'numeric' })}`
+      });
+    }
+    
+    await prisma.profitReward.createMany({
+      data: profitRewards
+    });
+    console.log(`✅ Created ${profitRewards.length} profit/reward records for 2025`);
 
     console.log('🎉 Database seeding completed successfully!');
   } catch (error) {

@@ -17,9 +17,9 @@ export const useBinNotifications = () => {
 // Helper function to map bin type to display name
 const getBinName = (binType) => {
   const binTypes = {
-    1: 'Recyclable',
-    2: 'Biodegradable',
-    3: 'Non-Biodegradable'
+    1: 'Recyclable Wastes',
+    2: 'Wet Wastes',
+    3: 'Dry Wastes'
   };
   return binTypes[binType] || 'Unknown';
 };
@@ -33,6 +33,8 @@ export const BinNotificationProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [latestNotification, setLatestNotification] = useState(null);
+  const [showWasteModal, setShowWasteModal] = useState(false);
+  const [latestWasteNotification, setLatestWasteNotification] = useState(null);
   
   // Use refs to store current values without causing re-renders
   const userRef = useRef(user);
@@ -151,6 +153,12 @@ export const BinNotificationProvider = ({ children }) => {
     }
   }, [latestNotification, markAsRead]);
 
+  // Close waste notification modal
+  const closeWasteModal = useCallback(() => {
+    setShowWasteModal(false);
+    setLatestWasteNotification(null);
+  }, []);
+
   // Clear all notifications
   const clearAllNotifications = useCallback(() => {
     setNotifications([]);
@@ -208,6 +216,28 @@ export const BinNotificationProvider = ({ children }) => {
         // Handle connection confirmation message
         if (data.type === 'connected') {
           console.log('SSE connection confirmed:', data.message);
+          return;
+        }
+        
+        // Handle WASTE_INSERTED events
+        if (data.type === 'WASTE_INSERTED') {
+          console.log('Waste insertion notification received:', data);
+          
+          const wasteNotification = {
+            type: 'WASTE_INSERTED',
+            wasteType: data.data.recyclable > 0 ? 'RECYCLABLE' : (data.data.biodegradable > 0 ? 'WET' : 'DRY'),
+            quantity: (data.data.recyclable || 0) + (data.data.biodegradable || 0) + (data.data.nonBiodegradable || 0),
+            wasteRecordId: data.data.id,
+            timestamp: data.timestamp || new Date().toISOString()
+          };
+          
+          // Show waste modal if binFullAlert is enabled (reusing preference for simplicity)
+          if (preferences.binFullAlert) {
+            setLatestWasteNotification(wasteNotification);
+            setShowWasteModal(true);
+            console.log('Showing waste notification modal:', wasteNotification);
+          }
+          
           return;
         }
         
@@ -308,6 +338,8 @@ export const BinNotificationProvider = ({ children }) => {
     isLoading,
     showModal,
     latestNotification,
+    showWasteModal,
+    latestWasteNotification,
     fetchBinNotifications,
     forceRefresh,
     clearSeenNotifications,
@@ -315,6 +347,7 @@ export const BinNotificationProvider = ({ children }) => {
     markAllAsRead,
     clearAllNotifications,
     closeModal,
+    closeWasteModal,
     getLatestBinFull
   };
 

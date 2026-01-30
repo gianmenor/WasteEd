@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSettings } from './Dashboard';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import './AnalyticsDashboard.css';
@@ -93,7 +92,6 @@ const fetchAllBinData = async () => {
 };
 
 const AnalyticsDashboard = () => {
-  const { settings } = useSettings();
   const [period, setPeriod] = useState('all');
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState(null);
@@ -117,6 +115,44 @@ const AnalyticsDashboard = () => {
 
   const loading = wasteLoading || binLoading;
   const error = wasteError || binError;
+
+  // Real-time updates via SSE
+  useEffect(() => {
+    const eventSource = new EventSource(API_ENDPOINTS.BIN_NOTIFICATIONS_STREAM);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Handle WASTE_INSERTED events to refresh dashboard
+        if (data.type === 'WASTE_INSERTED') {
+          console.log('Real-time waste update received, refreshing dashboard...');
+          
+          // Refetch waste data
+          refetchWaste();
+          
+          // Show toast notification
+          setToast({
+            type: 'success',
+            message: 'Dashboard updated with new waste record'
+          });
+          
+          // Auto-hide toast after 3 seconds
+          setTimeout(() => setToast(null), 3000);
+        }
+      } catch (error) {
+        console.error('Error parsing SSE event:', error);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+    };
+    
+    return () => {
+      eventSource.close();
+    };
+  }, [refetchWaste]);
 
   const handleRefresh = useCallback(() => {
     refetchWaste();
@@ -195,7 +231,7 @@ const AnalyticsDashboard = () => {
         }
         
         csvContent += `Sheet: ${monthData.name}\n`;
-        csvContent += 'Date,Recyclable (kg),Biodegradable (kg),Non-Biodegradable (kg),Total (kg)\n';
+        csvContent += 'Date,Recyclable Wastes (kg),Wet Wastes (kg),Dry Wastes (kg),Total (kg)\n';
         
         monthData.records.forEach(record => {
           const date = new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
@@ -452,11 +488,8 @@ const AnalyticsDashboard = () => {
     return { total: filtered.length, dailyTrends, monthlyData, dailyAverage, monthlyAverage };
   }, [binData, period]);
 
-  // Memoize theme class
-  const themeClass = useMemo(() => 
-    settings?.darkMode ? 'dark-theme' : 'light-theme',
-    [settings?.darkMode]
-  );
+  // Fixed to light theme per PRD
+  const themeClass = 'light-theme';
 
   // Show skeleton while loading
   if (loading) {
@@ -583,7 +616,7 @@ const AnalyticsDashboard = () => {
                 <span className="metric-percentage">{analyticsData.percentages.recyclable}%</span>
               </div>
               <div className="metric-value">{analyticsData.totals.recyclable.toLocaleString()}</div>
-              <div className="metric-label">Recyclable Items</div>
+              <div className="metric-label">Recyclable Wastes</div>
               <div className="metric-subtitle">Most sustainable</div>
             </div>
 
@@ -593,7 +626,7 @@ const AnalyticsDashboard = () => {
                 <span className="metric-percentage">{analyticsData.percentages.biodegradable}%</span>
               </div>
               <div className="metric-value">{analyticsData.totals.biodegradable.toLocaleString()}</div>
-              <div className="metric-label">Biodegradable Items</div>
+              <div className="metric-label">Wet Wastes</div>
               <div className="metric-subtitle">Compostable waste</div>
             </div>
 
@@ -642,15 +675,15 @@ const AnalyticsDashboard = () => {
                   <div className="chart-legend">
                     <div className="legend-item">
                       <span className="legend-color recyclable"></span>
-                      <span>Recyclable</span>
+                      <span>Recyclable Wastes</span>
                     </div>
                     <div className="legend-item">
                       <span className="legend-color biodegradable"></span>
-                      <span>Biodegradable</span>
+                      <span>Wet Wastes</span>
                     </div>
                     <div className="legend-item">
                       <span className="legend-color non-biodegradable"></span>
-                      <span>Non-biodegradable</span>
+                      <span>Dry Wastes</span>
                     </div>
                   </div>
                 </div>
@@ -850,9 +883,9 @@ const AnalyticsDashboard = () => {
                     <span>Top category: {(() => {
                       const totals = analyticsData.totals;
                       const categories = [
-                        { name: 'Recyclable', value: totals.recyclable },
-                        { name: 'Biodegradable', value: totals.biodegradable },
-                        { name: 'Non-biodegradable', value: totals.nonBiodegradable }
+                        { name: 'Recyclable Wastes', value: totals.recyclable },
+                        { name: 'Wet Wastes', value: totals.biodegradable },
+                        { name: 'Dry Wastes', value: totals.nonBiodegradable }
                       ];
                       const top = categories.reduce((max, cat) => cat.value > max.value ? cat : max);
                       return `${top.name} (${top.value} items)`;

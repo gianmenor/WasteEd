@@ -47,6 +47,30 @@ export const API_ENDPOINTS = {
   BIN_ANALYTICS_SUMMARY: `${API_BASE_URL}/api/bin/analytics/summary`,
   BIN_ANALYTICS_NOTIFICATIONS: `${API_BASE_URL}/api/bin/analytics/notifications`,
   
+  // Coupon endpoints
+  COUPON_BALANCE: `${API_BASE_URL}/api/coupon/balance`,
+  COUPON_TRANSACTIONS: `${API_BASE_URL}/api/coupon/transactions`,
+  COUPON_ADD: `${API_BASE_URL}/api/coupon/add`,
+  COUPON_ADJUST: `${API_BASE_URL}/api/coupon/adjust`,
+  COUPON_SUMMARY: `${API_BASE_URL}/api/coupon/summary`,
+  
+  // Profit & Rewards endpoints
+  PROFIT_RECORDS: `${API_BASE_URL}/api/profit/records`,
+  PROFIT_ADD: `${API_BASE_URL}/api/profit/add`,
+  PROFIT_UPDATE: (id) => `${API_BASE_URL}/api/profit/update/${id}`,
+  PROFIT_DELETE: (id) => `${API_BASE_URL}/api/profit/delete/${id}`,
+  PROFIT_SUMMARY: `${API_BASE_URL}/api/profit/summary`,
+  PROFIT_NET_PROFIT: `${API_BASE_URL}/api/profit/net-profit`,
+  
+  // Video endpoints
+  VIDEO_MAPPING: `${API_BASE_URL}/api/video/mapping`,
+  VIDEO_MAPPING_BY_TYPE: (wasteType) => `${API_BASE_URL}/api/video/mapping/${wasteType}`,
+  VIDEO_UPLOAD: `${API_BASE_URL}/api/video/upload`,
+  VIDEO_UPDATE: (wasteType) => `${API_BASE_URL}/api/video/update/${wasteType}`,
+  VIDEO_DELETE: (wasteType) => `${API_BASE_URL}/api/video/delete/${wasteType}`,
+  VIDEO_LIST: (wasteType) => `${API_BASE_URL}/api/video/list/${wasteType}`,
+  VIDEO_SIGNED_URL: (wasteType) => `${API_BASE_URL}/api/video/signed-url/${wasteType}`,
+  
   // Account analytics
   ACCOUNTS_ANALYTICS: `${API_BASE_URL}/api/accounts/analytics`,
 };

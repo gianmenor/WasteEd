@@ -125,6 +125,30 @@
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
 }
 
+/* MUI DatePicker styling */
+.date-picker-input {
+  min-width: 180px;
+}
+
+.date-picker-input .MuiInputBase-root {
+  font-size: 0.875rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.date-picker-input .MuiOutlinedInput-root {
+  border-color: var(--border-color);
+}
+
+.date-picker-input .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: var(--primary-color);
+}
+
+.date-picker-input .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+}
+
 .view-toggle {
   display: flex;
   background: var(--bg-tertiary);
@@ -152,6 +176,78 @@
   background: var(--bg-secondary);
   color: var(--primary-color);
   box-shadow: var(--shadow-sm);
+}
+
+/* Type Filter */
+.type-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.type-filter label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.type-filter-select {
+  padding: var(--spacing-xs) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 200px;
+}
+
+.type-filter-select:hover {
+  border-color: var(--primary-color);
+}
+
+.type-filter-select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+}
+
+/* Export PDF Button */
+.export-pdf-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--error-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  margin-left: auto;
+}
+
+.export-pdf-btn:hover:not(:disabled) {
+  background: #dc2626;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.export-pdf-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.export-pdf-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-pdf-btn svg {
+  flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
@@ -837,6 +933,20 @@
   justify-content: flex-start;
 }
 
+.column-header.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s;
+}
+
+.column-header.sortable:hover {
+  color: var(--primary-color);
+}
+
+.column-header.sortable:active {
+  transform: scale(0.98);
+}
+
 .column-icon {
   font-size: 1rem;
   opacity: 0.7;
@@ -850,6 +960,19 @@
   font-size: 0.875rem;
   color: var(--primary-color);
   margin-left: auto;
+  font-weight: bold;
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .waste-table tbody tr {

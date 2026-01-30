@@ -1,33 +1,12 @@
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
-import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import './Settings.css';
-
-// Fetch accounts function
-const fetchAccounts = async () => {
-  const token = localStorage.getItem('token');
-  const response = await fetch('/api/accounts/manage/list', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch accounts');
-  }
-
-  const data = await response.json();
-  return data.accounts || [];
-};
 
 const Settings = () => {
   const { user } = useAuth();
   const { preferences, updatePreference, isLoading: prefsLoading } = usePreferences();
-  const queryClient = useQueryClient();
   
   const [activeTab, setActiveTab] = useState('system');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,22 +17,6 @@ const Settings = () => {
     username: user?.username || '',
     password: '',
     confirmPassword: ''
-  });
-
-  const [newAccount, setNewAccount] = useState({
-    username: '',
-    password: '',
-    confirmPassword: '',
-    role: 'user'
-  });
-
-  // Use React Query for accounts data
-  const { data: accounts = [], refetch: refetchAccounts } = useQuery({
-    queryKey: ['accounts'],
-    queryFn: fetchAccounts,
-    enabled: activeTab === 'accounts',
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    cacheTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Memoize message handler
@@ -80,18 +43,6 @@ const Settings = () => {
       showMessage('Failed to update setting', 'error');
     }
   }, [preferences, updatePreference, showMessage]);
-
-  const handleThemeChange = useCallback(async (theme) => {
-    const previousTheme = preferences.theme;
-    
-    try {
-      await updatePreference('theme', theme);
-      showMessage('Theme updated successfully');
-    } catch (error) {
-      await updatePreference('theme', previousTheme);
-      showMessage('Failed to update theme', 'error');
-    }
-  }, [preferences.theme, updatePreference, showMessage]);
 
   const handleProfileSave = useCallback(async () => {
     if (profile.password && profile.password !== profile.confirmPassword) {
@@ -131,81 +82,10 @@ const Settings = () => {
     }
   }, [profile, user.id, showMessage]);
 
-  const handleCreateAccount = useCallback(async () => {
-    if (!newAccount.username || !newAccount.password) {
-      showMessage('Username and password are required', 'error');
-      return;
-    }
-
-    if (newAccount.password !== newAccount.confirmPassword) {
-      showMessage('Passwords do not match', 'error');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/accounts/manage/create', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          username: newAccount.username,
-          password: newAccount.password,
-          role: newAccount.role
-        })
-      });
-
-      if (response.ok) {
-        showMessage('Account created successfully');
-        setNewAccount({ username: '', password: '', confirmPassword: '', role: 'user' });
-        refetchAccounts();
-      } else {
-        const error = await response.json();
-        showMessage(error.message || 'Failed to create account', 'error');
-      }
-    } catch (error) {
-      showMessage('Failed to create account', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [newAccount, refetchAccounts, showMessage]);
-
-  const handleDeleteAccount = useCallback(async (accountId) => {
-    if (!confirm('Are you sure you want to delete this account?')) return;
-
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/accounts/manage/${accountId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        showMessage('Account deleted successfully');
-        refetchAccounts();
-      } else {
-        const error = await response.json();
-        showMessage(error.message || 'Failed to delete account', 'error');
-      }
-    } catch (error) {
-      showMessage('Failed to delete account', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [refetchAccounts, showMessage]);
-
-  // Memoize tabs array
+  // Memoize tabs array - removed accounts tab per PRD (single admin user)
   const tabs = useMemo(() => [
     { id: 'system', label: 'System', icon: '⚙️' },
-    { id: 'profile', label: 'Profile', icon: '👤' },
-    { id: 'accounts', label: 'Account Management', icon: '👥' }
+    { id: 'profile', label: 'Profile', icon: '👤' }
   ], []);
 
   // Memoize UI size class
@@ -255,25 +135,8 @@ const Settings = () => {
                 </p>
               </div>
               <div className="settings-section-body">
-                <div className="setting-item">
-                  <div className="setting-info">
-                    <label className="setting-label">Theme</label>
-                    <p className="setting-description">
-                      Choose between light and dark theme
-                    </p>
-                  </div>
-                  <div className="setting-control">
-                    <select
-                      className="form-select"
-                      value={preferences.theme}
-                      onChange={(e) => handleThemeChange(e.target.value)}
-                    >
-                      <option value="light">Light</option>
-                      <option value="dark">Dark</option>
-                    </select>
-                  </div>
-                </div>
-
+                {/* Theme setting removed - using single theme as per PRD */}
+                
                 <div className="setting-item">
                   <div className="setting-info">
                     <label className="setting-label">Bin Full Alert</label>
@@ -287,27 +150,6 @@ const Settings = () => {
                       onClick={() => handleSettingChange('binFullAlert', !preferences.binFullAlert)}
                     >
                     </button>
-                  </div>
-                </div>
-
-                <div className="setting-item">
-                  <div className="setting-info">
-                    <label className="setting-label">Records per page</label>
-                    <p className="setting-description">
-                      Number of records to display per page
-                    </p>
-                  </div>
-                  <div className="setting-control">
-                    <select
-                      className="form-select"
-                      value={preferences.recordsPerPage}
-                      onChange={(e) => handleSettingChange('recordsPerPage', parseInt(e.target.value))}
-                    >
-                      <option value={5}>5</option>
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                      <option value={50}>50</option>
-                    </select>
                   </div>
                 </div>
 
@@ -333,8 +175,7 @@ const Settings = () => {
 
                 
 
-                <div className="setting-item">
-                  <div className="setting-info">
+                <div className="setting-item">\n                  <div className="setting-info">
                     <label className="setting-label">Auto refresh</label>
                     <p className="setting-description">
                       Automatically refresh data
@@ -404,109 +245,6 @@ const Settings = () => {
                 </div>
               </div>
             </div>
-          )}
-
-          {activeTab === 'accounts' && (
-            <>
-              <div className="settings-section">
-                <div className="settings-section-header">
-                  <h2 className="settings-section-title">Account Management</h2>
-                  <p className="settings-section-description">
-                    Manage user accounts and permissions.
-                  </p>
-                </div>
-                <div className="settings-section-body">
-                  <ul className="account-list">
-                    {accounts.map(account => (
-                      <li key={account.id} className="account-item">
-                        <div className="account-info">
-                          <div className="account-avatar">
-                            {account.username.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="account-details">
-                            <h4>{account.username}</h4>
-                            <p>'Admin'</p>
-                          </div>
-                        </div>
-                        <div className="account-actions">
-                          {account.id !== user?.id && (
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleDeleteAccount(account.id)}
-                              disabled={isLoading}
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              <div className="settings-section">
-                <div className="settings-section-header">
-                  <h2 className="settings-section-title">Create New Account</h2>
-                  <p className="settings-section-description">
-                    Add a new user account to the system.
-                  </p>
-                </div>
-                <div className="settings-section-body">
-                  <div style={{ padding: '20px' }}>
-                    <div className="form-group">
-                      <label className="form-label">Username</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={newAccount.username}
-                        onChange={(e) => setNewAccount(prev => ({ ...prev, username: e.target.value }))}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Password</label>
-                      <input
-                        type="password"
-                        className="form-input"
-                        value={newAccount.password}
-                        onChange={(e) => setNewAccount(prev => ({ ...prev, password: e.target.value }))}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Confirm Password</label>
-                      <input
-                        type="password"
-                        className="form-input"
-                        value={newAccount.confirmPassword}
-                        onChange={(e) => setNewAccount(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Role</label>
-                      <select
-                        className="form-select"
-                        value={newAccount.role}
-                        onChange={(e) => setNewAccount(prev => ({ ...prev, role: e.target.value }))}
-                      >
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-
-                    <button
-                      className="btn btn-primary"
-                      onClick={handleCreateAccount}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Creating...' : 'Create Account'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </>
           )}
         </div>
       </div>

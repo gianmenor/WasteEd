@@ -3,7 +3,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
 import './DevPage.css';
 
-const DEV_PASSWORD = '123123DevAccessKey';
+const DEV_PASSWORD = '123456';
 const DEV_AUTH_KEY = 'devPageAuthorized';
 
 export default function DevPage() {

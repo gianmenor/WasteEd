@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import colors from 'colors';
+import { initializeFirebase } from './utils/firebase.js';
 
 // Configure
 dotenv.config();
@@ -13,6 +14,15 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Firebase (with error handling to not block server start)
+try {
+  initializeFirebase();
+  console.log('✓ Firebase initialized'.green);
+} catch (error) {
+  console.log('⚠ Firebase initialization skipped (credentials not configured)'.yellow);
+  console.log('  Video features will be unavailable until Firebase is configured.'.yellow);
+}
 
 // Middleware
 app.use(cors());

@@ -3,7 +3,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
 import './DevPage.css';
 
-const DEV_PASSWORD = '123123DevAccessKey';
+const DEV_PASSWORD = '123456';
 const DEV_AUTH_KEY = 'devPageAuthorized';
 
 export default function DevPage() {
@@ -18,6 +18,9 @@ export default function DevPage() {
 
   const [lastRequest, setLastRequest] = useState(null);
   const [form, setForm] = useState({ recyclable: 20, biodegradable: 4, nonBiodegradable: 8 });
+  const [recyclableForm, setRecyclableForm] = useState({ recyclable: 20 });
+  const [wetForm, setWetForm] = useState({ biodegradable: 15 });
+  const [dryForm, setDryForm] = useState({ nonBiodegradable: 10 });
   const [binType, setBinType] = useState(1);
 
   const total = useMemo(() => (Number(form.recyclable)||0) + (Number(form.biodegradable)||0) + (Number(form.nonBiodegradable)||0), [form]);
@@ -179,9 +182,9 @@ export default function DevPage() {
                 onChange={(e) => setBinType(Number(e.target.value))}
                 className="dev-select"
               >
-                <option value={1}>1 - Recyclable</option>
-                <option value={2}>2 - Biodegradable</option>
-                <option value={3}>3 - Non-Biodegradable</option>
+                <option value={1}>1 - Recyclable Wastes</option>
+                <option value={2}>2 - Wet Wastes</option>
+                <option value={3}>3 - Dry Wastes</option>
               </select>
             </div>
             
@@ -218,14 +221,167 @@ export default function DevPage() {
           </div>
         </section>
 
-        <section className="dev-section full-width">
+        <section className="dev-section">
           <div className="dev-section-header">
-            <h2 className="dev-section-title">Waste: Add Daily Record</h2>
+            <h2 className="dev-section-title">Add Recyclable Wastes</h2>
             <span className="dev-endpoint-badge post">POST /api/waste/add</span>
           </div>
           <div className="dev-section-body">
             <p className="dev-section-description">
-              Creates a record for today. If a record already exists, the API returns a 409 with the existing entry.
+              Add recyclable waste record. Triggers recyclable waste video notification.
+            </p>
+            
+            <div className="dev-form-group">
+              <label className="dev-form-label">Recyclable Wastes Count</label>
+              <div className="dev-input-wrapper">
+                <button 
+                  type="button" 
+                  className="dev-step-btn" 
+                  onClick={() => setRecyclableForm(f => ({ recyclable: Math.max(0, (f.recyclable || 0) - 1) }))}
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={0}
+                  className="dev-input"
+                  value={recyclableForm.recyclable}
+                  onChange={(e) => setRecyclableForm({ recyclable: clampNum(e.target.value) })}
+                />
+                <button 
+                  type="button" 
+                  className="dev-step-btn" 
+                  onClick={() => setRecyclableForm(f => ({ recyclable: (f.recyclable || 0) + 1 }))}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            
+            <button
+              className="dev-btn dev-btn-success"
+              disabled={loading}
+              onClick={() => callApi({ 
+                url: API_ENDPOINTS.WASTE_ADD, 
+                method: 'POST', 
+                body: { recyclable: recyclableForm.recyclable, biodegradable: 0, nonBiodegradable: 0 }
+              })}
+            >
+              ♻️ Add Recyclable Waste
+            </button>
+          </div>
+        </section>
+
+        <section className="dev-section">
+          <div className="dev-section-header">
+            <h2 className="dev-section-title">Add Wet Wastes</h2>
+            <span className="dev-endpoint-badge post">POST /api/waste/add</span>
+          </div>
+          <div className="dev-section-body">
+            <p className="dev-section-description">
+              Add wet/biodegradable waste record. Triggers wet waste video notification.
+            </p>
+            
+            <div className="dev-form-group">
+              <label className="dev-form-label">Wet Wastes Count</label>
+              <div className="dev-input-wrapper">
+                <button 
+                  type="button" 
+                  className="dev-step-btn" 
+                  onClick={() => setWetForm(f => ({ biodegradable: Math.max(0, (f.biodegradable || 0) - 1) }))}
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={0}
+                  className="dev-input"
+                  value={wetForm.biodegradable}
+                  onChange={(e) => setWetForm({ biodegradable: clampNum(e.target.value) })}
+                />
+                <button 
+                  type="button" 
+                  className="dev-step-btn" 
+                  onClick={() => setWetForm(f => ({ biodegradable: (f.biodegradable || 0) + 1 }))}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            
+            <button
+              className="dev-btn dev-btn-success"
+              disabled={loading}
+              onClick={() => callApi({ 
+                url: API_ENDPOINTS.WASTE_ADD, 
+                method: 'POST', 
+                body: { recyclable: 0, biodegradable: wetForm.biodegradable, nonBiodegradable: 0 }
+              })}
+            >
+              🍎 Add Wet Waste
+            </button>
+          </div>
+        </section>
+
+        <section className="dev-section">
+          <div className="dev-section-header">
+            <h2 className="dev-section-title">Add Dry Wastes</h2>
+            <span className="dev-endpoint-badge post">POST /api/waste/add</span>
+          </div>
+          <div className="dev-section-body">
+            <p className="dev-section-description">
+              Add dry/non-biodegradable waste record. Triggers dry waste video notification.
+            </p>
+            
+            <div className="dev-form-group">
+              <label className="dev-form-label">Dry Wastes Count</label>
+              <div className="dev-input-wrapper">
+                <button 
+                  type="button" 
+                  className="dev-step-btn" 
+                  onClick={() => setDryForm(f => ({ nonBiodegradable: Math.max(0, (f.nonBiodegradable || 0) - 1) }))}
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={0}
+                  className="dev-input"
+                  value={dryForm.nonBiodegradable}
+                  onChange={(e) => setDryForm({ nonBiodegradable: clampNum(e.target.value) })}
+                />
+                <button 
+                  type="button" 
+                  className="dev-step-btn" 
+                  onClick={() => setDryForm(f => ({ nonBiodegradable: (f.nonBiodegradable || 0) + 1 }))}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            
+            <button
+              className="dev-btn dev-btn-success"
+              disabled={loading}
+              onClick={() => callApi({ 
+                url: API_ENDPOINTS.WASTE_ADD, 
+                method: 'POST', 
+                body: { recyclable: 0, biodegradable: 0, nonBiodegradable: dryForm.nonBiodegradable }
+              })}
+            >
+              🗑️ Add Dry Waste
+            </button>
+          </div>
+        </section>
+
+        <section className="dev-section full-width">
+          <div className="dev-section-header">
+            <h2 className="dev-section-title">Add Mixed Waste Record</h2>
+            <span className="dev-endpoint-badge post">POST /api/waste/add</span>
+          </div>
+          <div className="dev-section-body">
+            <p className="dev-section-description">
+              Add a mixed waste record with all types. Video notification shows the predominant waste type.
             </p>
 
             <div className="dev-presets">
@@ -247,36 +403,43 @@ export default function DevPage() {
             </div>
 
             <div className="dev-input-grid">
-              {(['recyclable','biodegradable','nonBiodegradable']).map((key) => (
-                <div key={key} className="dev-form-group">
-                  <label className="dev-form-label">
-                    {key.replace('nonBiodegradable','Non-Biodegradable').replace(/([A-Z])/g, ' $1').trim()}
-                  </label>
-                  <div className="dev-input-wrapper">
-                    <button 
-                      type="button" 
-                      className="dev-step-btn" 
-                      onClick={() => step(key, -1)}
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      min={0}
-                      className="dev-input"
-                      value={form[key]}
-                      onChange={(e) => setForm((f) => ({ ...f, [key]: clampNum(e.target.value) }))}
-                    />
-                    <button 
-                      type="button" 
-                      className="dev-step-btn" 
-                      onClick={() => step(key, 1)}
-                    >
-                      +
-                    </button>
+              {(['recyclable','biodegradable','nonBiodegradable']).map((key) => {
+                const labels = {
+                  recyclable: 'Recyclable Wastes',
+                  biodegradable: 'Wet Wastes',
+                  nonBiodegradable: 'Dry Wastes'
+                };
+                return (
+                  <div key={key} className="dev-form-group">
+                    <label className="dev-form-label">
+                      {labels[key]}
+                    </label>
+                    <div className="dev-input-wrapper">
+                      <button 
+                        type="button" 
+                        className="dev-step-btn" 
+                        onClick={() => step(key, -1)}
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        className="dev-input"
+                        value={form[key]}
+                        onChange={(e) => setForm((f) => ({ ...f, [key]: clampNum(e.target.value) }))}
+                      />
+                      <button 
+                        type="button" 
+                        className="dev-step-btn" 
+                        onClick={() => step(key, 1)}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="dev-summary-row">

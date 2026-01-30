@@ -1,5 +1,11 @@
 ﻿import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { TextField } from '@mui/material';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
@@ -56,11 +62,25 @@ const WasteTable = () => {
   const { preferences } = usePreferences();
   const tableRef = useRef(null);
   const [viewMode, setViewMode] = useState('daily');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFromObj, setDateFromObj] = useState(null);
+  const [dateToObj, setDateToObj] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [typeFilter, setTypeFilter] = useState('all'); // all, recyclable, biodegradable, nonBiodegradable
   
-  const itemsPerPage = preferences?.recordsPerPage || 10;
+  // Convert Date objects to strings for API
+  const dateFrom = useMemo(() => 
+    dateFromObj ? dateFromObj.toISOString().split('T')[0] : '',
+    [dateFromObj]
+  );
+  const dateTo = useMemo(() => 
+    dateToObj ? dateToObj.toISOString().split('T')[0] : '',
+    [dateToObj]
+  );
+  
+  // Fixed to 10 records per page as per PRD requirement
+  const itemsPerPage = 10;
 
   // Use React Query for data fetching with caching
   const { data: wasteData = [], isLoading: loading, error: queryError, refetch } = useQuery({
@@ -109,10 +129,50 @@ const WasteTable = () => {
   }, []);
 
   // Process data based on view mode (memoized)
-  const processedData = useMemo(() => 
-    viewMode === 'monthly' ? aggregateByMonth(wasteData) : wasteData,
-    [viewMode, wasteData, aggregateByMonth]
-  );
+  const processedData = useMemo(() => {
+    let data = viewMode === 'monthly' ? aggregateByMonth(wasteData) : wasteData;
+    
+    // Apply type filtering (only for daily view)
+    if (viewMode === 'daily' && typeFilter !== 'all') {
+      data = data.filter(record => record[typeFilter] > 0);
+    }
+    
+    // Apply sorting
+    if (sortBy && data.length > 0) {
+      data = [...data].sort((a, b) => {
+        let aVal, bVal;
+        
+        switch (sortBy) {
+          case 'date':
+            aVal = new Date(a.date).getTime();
+            bVal = new Date(b.date).getTime();
+            break;
+          case 'recyclable':
+            aVal = a.recyclable || 0;
+            bVal = b.recyclable || 0;
+            break;
+          case 'biodegradable':
+            aVal = a.biodegradable || 0;
+            bVal = b.biodegradable || 0;
+            break;
+          case 'nonBiodegradable':
+            aVal = a.nonBiodegradable || 0;
+            bVal = b.nonBiodegradable || 0;
+            break;
+          case 'total':
+            aVal = (a.recyclable || 0) + (a.biodegradable || 0) + (a.nonBiodegradable || 0);
+            bVal = (b.recyclable || 0) + (b.biodegradable || 0) + (b.nonBiodegradable || 0);
+            break;
+          default:
+            return 0;
+        }
+        
+        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
+    
+    return data;
+  }, [viewMode, wasteData, aggregateByMonth, sortBy, sortOrder, typeFilter]);
 
   // Calculate pagination (memoized)
   const { totalItems, totalPages, startIndex, endIndex, paginatedData } = useMemo(() => {
@@ -139,7 +199,118 @@ const WasteTable = () => {
   // Reset to first page when data changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [viewMode, dateFrom, dateTo]);
+  }, [viewMode, dateFrom, dateTo, sortBy, sortOrder]);
+
+  // Handler for sorting
+  const handleSort = useCallback((column) => {
+    if (sortBy === column) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('desc');
+    }
+  }, [sortBy]);
+
+  const formatDate = useCallback((dateString) => {
+    const date = new Date(dateString);
+    if (viewMode === 'monthly') {
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long'
+      });
+    }
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }, [viewMode]);
+
+  const formatCount = useCallback((count) => {
+    if (count == null) return '0';
+    return parseInt(count).toString();
+  }, []);
+
+  // PDF Export handler
+  const handlePDFExport = useCallback(() => {
+    const doc = new jsPDF();
+    
+    // Title
+    doc.setFontSize(18);
+    doc.setTextColor(22, 163, 74); // Primary green
+    doc.text('WASTE-ED Waste Collection Report', 14, 22);
+    
+    // Metadata
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128);
+    const dateRange = dateFrom && dateTo 
+      ? `Period: ${dateFrom} to ${dateTo}`
+      : dateFrom
+        ? `From: ${dateFrom}`
+        : dateTo
+          ? `Until: ${dateTo}`
+          : `View: ${viewMode === 'daily' ? 'Daily Records' : 'Monthly Summary'}`;
+    doc.text(dateRange, 14, 30);
+    
+    const filterLabel = typeFilter === 'all' ? 'All Waste Types' 
+      : typeFilter === 'recyclable' ? 'Recyclable Wastes Only'
+      : typeFilter === 'biodegradable' ? 'Wet Wastes Only'
+      : 'Dry Wastes Only';
+    doc.text(`Filter: ${filterLabel}`, 14, 36);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 42);
+    
+    // Prepare table data
+    const tableData = processedData.map(record => [
+      formatDate(record.date),
+      formatCount(record.recyclable),
+      formatCount(record.biodegradable),
+      formatCount(record.nonBiodegradable),
+      formatCount((record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0))
+    ]);
+    
+    // Add totals row
+    tableData.push([
+      'TOTAL',
+      formatCount(statistics.recyclable),
+      formatCount(statistics.biodegradable),
+      formatCount(statistics.nonBiodegradable),
+      formatCount(statistics.total)
+    ]);
+    
+    // Generate table
+    doc.autoTable({
+      head: [['Date', 'Recyclable', 'Wet Wastes', 'Dry Wastes', 'Total']],
+      body: tableData,
+      startY: 50,
+      headStyles: {
+        fillColor: [22, 163, 74],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        textColor: [31, 41, 55]
+      },
+      alternateRowStyles: {
+        fillColor: [243, 244, 246]
+      },
+      footStyles: {
+        fillColor: [220, 252, 231],
+        textColor: [22, 163, 74],
+        fontStyle: 'bold'
+      },
+      foot: [[
+        `Total Records: ${totalItems}`,
+        '',
+        '',
+        '',
+        ''
+      ]]
+    });
+    
+    // Save PDF
+    const fileName = `waste-report-${viewMode}-${typeFilter}-${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+  }, [processedData, formatDate, formatCount, statistics, dateFrom, dateTo, viewMode, typeFilter, totalItems]);
 
   // Pagination handlers (memoized)
   const scrollToTop = useCallback(() => {
@@ -163,27 +334,6 @@ const WasteTable = () => {
     scrollToTop();
   }, [totalPages, scrollToTop]);
 
-  // Format helpers (memoized)
-  const formatDate = useCallback((dateString) => {
-    const date = new Date(dateString);
-    if (viewMode === 'monthly') {
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long'
-      });
-    }
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  }, [viewMode]);
-
-  const formatCount = useCallback((count) => {
-    if (count == null) return '0';
-    return parseInt(count).toString();
-  }, []);
-
   // Memoize UI size class
   const uiSizeClass = useMemo(() => 
     `ui-size-${preferences?.uiSize || 'medium'}`,
@@ -196,28 +346,44 @@ const WasteTable = () => {
       {/* Filter Controls */}
       <div className="filter-controls">
         <div className="filter-row">
-          <div className="date-filters">
-            <div className="date-input-group">
-              <label htmlFor="dateFrom">From:</label>
-              <input
-                id="dateFrom"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="date-input"
-              />
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <div className="date-filters">
+              <div className="date-input-group">
+                <label htmlFor="dateFrom">From:</label>
+                <DatePicker
+                  value={dateFromObj}
+                  onChange={(newValue) => setDateFromObj(newValue)}
+                  enableAccessibleFieldDOMStructure={false}
+                  slots={{
+                    textField: TextField
+                  }}
+                  slotProps={{
+                    textField: {
+                      size: 'small',
+                      className: 'date-picker-input'
+                    }
+                  }}
+                />
+              </div>
+              <div className="date-input-group">
+                <label htmlFor="dateTo">To:</label>
+                <DatePicker
+                  value={dateToObj}
+                  onChange={(newValue) => setDateToObj(newValue)}
+                  enableAccessibleFieldDOMStructure={false}
+                  slots={{
+                    textField: TextField
+                  }}
+                  slotProps={{
+                    textField: {
+                      size: 'small',
+                      className: 'date-picker-input'
+                    }
+                  }}
+                />
+              </div>
             </div>
-            <div className="date-input-group">
-              <label htmlFor="dateTo">To:</label>
-              <input
-                id="dateTo"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="date-input"
-              />
-            </div>
-          </div>
+          </LocalizationProvider>
           <div className="view-toggle">
             <button
               className={`toggle-btn ${viewMode === 'daily' ? 'active' : ''}`}
@@ -233,6 +399,39 @@ const WasteTable = () => {
             </button>
           </div>
         </div>
+        
+        {/* Type Filter (only for daily view) */}
+        {viewMode === 'daily' && (
+          <div className="filter-row" style={{ marginTop: '1rem' }}>
+            <div className="type-filter">
+              <label htmlFor="typeFilter">Filter by Type:</label>
+              <select 
+                id="typeFilter"
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="type-filter-select"
+              >
+                <option value="all">All Waste Types</option>
+                <option value="recyclable">Recyclable Wastes Only</option>
+                <option value="biodegradable">Wet Wastes Only</option>
+                <option value="nonBiodegradable">Dry Wastes Only</option>
+              </select>
+            </div>
+            <button
+              className="export-pdf-btn"
+              onClick={handlePDFExport}
+              disabled={loading || processedData.length === 0}
+              title="Export to PDF"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>Export PDF</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error Display */}
@@ -281,7 +480,7 @@ const WasteTable = () => {
               <div className="stat-value">
                 <span className="cell-number">{statistics.recyclable}</span>
               </div>
-              <div className="stat-label">Recyclable Waste</div>
+              <div className="stat-label">Recyclable Wastes</div>
 
             </div>
           </div>
@@ -295,7 +494,7 @@ const WasteTable = () => {
               <div className="stat-value">
                 <span className="cell-number">{statistics.biodegradable}</span>
               </div>
-              <div className="stat-label">Biodegradable Waste</div>
+              <div className="stat-label">Wet Wastes</div>
 
             </div>
           </div>
@@ -309,7 +508,7 @@ const WasteTable = () => {
               <div className="stat-value">
                 <span className="cell-number">{statistics.nonBiodegradable}</span>
               </div>
-              <div className="stat-label">Non-Biodegradable</div>
+              <div className="stat-label">Dry Wastes</div>
 
             </div>
           </div>
@@ -385,33 +584,48 @@ const WasteTable = () => {
                 <thead>
                   <tr role="row">
                     <th role="columnheader">
-                      <div className="column-header">
+                      <div className="column-header sortable" onClick={() => handleSort('date')} title="Click to sort">
                         <span className="column-icon" aria-hidden="true">📅</span>
                         <span className="column-text">Date Collected</span>
+                        {sortBy === 'date' && (
+                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                        )}
                       </div>
                     </th>
                     <th role="columnheader">
-                      <div className="column-header">
+                      <div className="column-header sortable" onClick={() => handleSort('recyclable')} title="Click to sort">
                         <span className="column-icon" aria-hidden="true">♻️</span>
-                        <span className="column-text">Recyclable</span>
+                        <span className="column-text">Recyclable Wastes</span>
+                        {sortBy === 'recyclable' && (
+                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                        )}
                       </div>
                     </th>
                     <th role="columnheader">
-                      <div className="column-header">
+                      <div className="column-header sortable" onClick={() => handleSort('biodegradable')} title="Click to sort">
                         <span className="column-icon" aria-hidden="true">🍃</span>
-                        <span className="column-text">Biodegradable</span>
+                        <span className="column-text">Wet Wastes</span>
+                        {sortBy === 'biodegradable' && (
+                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                        )}
                       </div>
                     </th>
                     <th role="columnheader">
-                      <div className="column-header">
+                      <div className="column-header sortable" onClick={() => handleSort('nonBiodegradable')} title="Click to sort">
                         <span className="column-icon" aria-hidden="true">🗑️</span>
-                        <span className="column-text">Non-Biodegradable</span>
+                        <span className="column-text">Dry Wastes</span>
+                        {sortBy === 'nonBiodegradable' && (
+                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                        )}
                       </div>
                     </th>
                     <th role="columnheader">
-                      <div className="column-header">
+                      <div className="column-header sortable" onClick={() => handleSort('total')} title="Click to sort">
                         <span className="column-icon" aria-hidden="true">📊</span>
                         <span className="column-text">Total</span>
+                        {sortBy === 'total' && (
+                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                        )}
                       </div>
                     </th>
                   </tr>

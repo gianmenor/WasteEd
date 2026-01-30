@@ -1,0 +1,52 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules for WASTE-ED Video Storage
+// Deploy these rules to your Firebase Storage via Firebase Console
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Videos folder - Public read access for all users, admin-only write
+    match /videos/{wasteType}/{videoFile} {
+      // Allow anyone to read/download videos (for notifications)
+      allow read: if true;
+      
+      // Only allow authenticated admin users to upload/delete videos
+      // Note: For now, videos should be uploaded via backend API with Firebase Admin SDK
+      allow write: if false; // Disabled for security - use backend API instead
+    }
+    
+    // Thumbnails folder (if you add thumbnail support later)
+    match /thumbnails/{wasteType}/{thumbnailFile} {
+      allow read: if true;
+      allow write: if false; // Use backend API
+    }
+    
+    // Deny all other paths by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+/*
+ALTERNATIVE RULES - If you want authenticated-only access to videos:
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /videos/{wasteType}/{videoFile} {
+      // Only authenticated users can read videos
+      allow read: if request.auth != null;
+      
+      // Only admin users can write
+      allow write: if request.auth != null && 
+                      request.auth.token.admin == true;
+    }
+  }
+}
+
+To use authenticated access:
+1. Enable Firebase Authentication in your project
+2. Set custom claims for admin users
+3. Update the frontend to authenticate users before accessing videos
+*/
