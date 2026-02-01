@@ -452,3 +452,100 @@
   cursor: not-allowed;
   transform: none;
 }
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .coupon-records-container {
+    padding: 0.75rem;
+    padding-bottom: 80px;
+  }
+  
+  .coupon-title {
+    font-size: 1.5rem;
+  }
+  
+  .balance-section {
+    padding: 1rem;
+  }
+  
+  .balance-value {
+    font-size: 2rem;
+  }
+  
+  .balance-actions {
+    flex-direction: column;
+  }
+  
+  .balance-actions button {
+    width: 100%;
+  }
+  
+  .records-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .records-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  
+  .records-actions button {
+    flex: 1;
+  }
+  
+  .filter-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-controls label {
+    font-weight: 600;
+  }
+  
+  .filter-select {
+    width: 100%;
+  }
+  
+  .records-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -0.75rem;
+    padding: 0 0.75rem;
+  }
+  
+  .records-table {
+    min-width: 600px;
+    font-size: 0.875rem;
+  }
+  
+  .records-table th,
+  .records-table td {
+    padding: 0.5rem;
+  }
+  
+  .modal-content {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .coupon-records-container {
+    padding: 0.5rem;
+  }
+  
+  .coupon-title {
+    font-size: 1.25rem;
+  }
+  
+  .balance-value {
+    font-size: 1.75rem;
+  }
+  
+  .records-table {
+    min-width: 500px;
+    font-size: 0.8rem;
+  }
+}

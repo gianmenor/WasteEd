@@ -84,8 +84,8 @@ const Settings = () => {
 
   // Memoize tabs array - removed accounts tab per PRD (single admin user)
   const tabs = useMemo(() => [
-    { id: 'system', label: 'System', icon: '⚙️' },
-    { id: 'profile', label: 'Profile', icon: '👤' }
+    { id: 'system', label: 'System', icon: '' },
+    { id: 'profile', label: 'Profile', icon: '' },
   ], []);
 
   // Memoize UI size class
@@ -117,7 +117,7 @@ const Settings = () => {
                   className={`settings-nav-link ${activeTab === tab.id ? 'active' : ''}`}
                   onClick={() => setActiveTab(tab.id)}
                 >
-                  <span>{tab.icon}</span> {tab.label}
+                  {tab.label}
                 </button>
               </li>
             ))}
@@ -152,28 +152,6 @@ const Settings = () => {
                     </button>
                   </div>
                 </div>
-
-                <div className="setting-item">
-                  <div className="setting-info">
-                    <label className="setting-label">UI Size</label>
-                    <p className="setting-description">
-                      Adjust the interface size
-                    </p>
-                  </div>
-                  <div className="setting-control">
-                    <select
-                      className="form-select"
-                      value={preferences.uiSize}
-                      onChange={(e) => handleSettingChange('uiSize', e.target.value)}
-                    >
-                      <option value="small">Small</option>
-                      <option value="medium">Medium</option>
-                      <option value="large">Large</option>
-                    </select>
-                  </div>
-                </div>
-
-                
 
                 <div className="setting-item">              
                   <div className="setting-info">

@@ -516,3 +516,72 @@
   padding: 0.75rem 1rem;
   font-size: 1.125rem;
 }
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .settings-page {
+    padding: 0.75rem;
+    padding-bottom: 80px;
+  }
+  
+  .settings-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .settings-sidebar {
+    order: 2;
+  }
+  
+  .settings-content {
+    order: 1;
+  }
+  
+  .settings-nav {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding-bottom: 8px;
+  }
+  
+  .settings-nav-item {
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+  
+  .settings-nav-link {
+    white-space: nowrap;
+  }
+  
+  .setting-group {
+    padding: 1rem;
+  }
+  
+  .setting-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .setting-info {
+    margin-bottom: 0.75rem;
+  }
+  
+  .setting-control {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-page {
+    padding: 0.5rem;
+  }
+  
+  .settings-title {
+    font-size: 1.25rem;
+  }
+  
+  .setting-group {
+    padding: 0.75rem;
+  }
+}

@@ -2,6 +2,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { useBinNotifications } from '../contexts/BinNotificationContext';
+import brandLogo from '../assets/brandName.png';
 import './Dashboard.css';
 
 // Lazy load BinFullModal and WasteNotificationModal for code splitting
@@ -19,11 +20,11 @@ export const useSettings = () => useContext(SettingsContext);
 
 // Memoized menu items to prevent re-creation on every render
 const MENU_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard' },
-  { id: 'waste', label: 'Waste Management', icon: '♻️', path: '/waste' },
-  { id: 'coupons', label: 'Coupon Records', icon: '💳', path: '/coupons' },
-  { id: 'profit', label: 'Profit & Rewards', icon: '💰', path: '/profit' },
-  { id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings' },
+  { id: 'dashboard', label: 'Dashboard', icon: '', path: '/dashboard' },
+  { id: 'waste', label: 'Waste Management', icon: '', path: '/waste' },
+  { id: 'coupons', label: 'Coupon Records', icon: '', path: '/coupons' },
+  { id: 'profit', label: 'Profit & Rewards', icon: '', path: '/profit' },
+  { id: 'settings', label: 'Settings', icon: '', path: '/settings' },
 ];
 
 // Memoized notification item component
@@ -242,13 +243,7 @@ const Dashboard = ({ user, onLogout, children }) => {
           {/* Sidebar */}
           <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
             <div className="sidebar-header">
-              <div className="logo-container">
-                <div className="logo"></div>
-                <h1 className="brand-name">
-                  Wast<span className="brand-accent">E</span>d
-                </h1>
-              </div>
-              <p className="tagline">Smart Waste Management</p>
+              <img src={brandLogo} alt="Waste-Ed" className="sidebar-brand-logo" />
             </div>
 
             <SidebarNav 
@@ -259,6 +254,32 @@ const Dashboard = ({ user, onLogout, children }) => {
 
             {/* Dark mode toggle removed as per PRD requirements */}
           </aside>
+
+          {/* Mobile Bottom Navigation */}
+          <nav className="bottom-nav">
+            {menuItems.map((item) => (
+              <button
+                key={item.id}
+                className={`bottom-nav-item ${location.pathname === item.path ? 'active' : ''}`}
+                onClick={() => handleMenuClick(item.path)}
+              >
+                <span className="bottom-nav-icon">
+                  {item.id === 'dashboard' && '📊'}
+                  {item.id === 'waste' && '♻️'}
+                  {item.id === 'coupons' && '🎫'}
+                  {item.id === 'profit' && '💰'}
+                  {item.id === 'settings' && '⚙️'}
+                </span>
+                <span className="bottom-nav-label">
+                  {item.id === 'dashboard' && 'Home'}
+                  {item.id === 'waste' && 'Waste'}
+                  {item.id === 'coupons' && 'Coupons'}
+                  {item.id === 'profit' && 'Profit'}
+                  {item.id === 'settings' && 'Settings'}
+                </span>
+              </button>
+            ))}
+          </nav>
 
           {/* Main Content */}
           <div className="main-content">
@@ -281,38 +302,12 @@ const Dashboard = ({ user, onLogout, children }) => {
                     onClick={toggleNotificationMenu}
                   >
                     <span className="notification-icon">🔔</span>
-                    {unreadCount > 0 && (
-                      <span className="notification-badge">{unreadCount}</span>
-                    )}
                   </button>
 
                   {notificationMenuOpen && (
                     <div className="notification-dropdown">
                       <div className="notification-header">
                         <h3>Notifications</h3>
-                        {notifications.length > 0 && (
-                          <div className="notification-actions">
-                            <button 
-                              className="btn-text"
-                              onClick={forceRefresh}
-                              title="Refresh notifications"
-                            >
-                              🔄 Refresh
-                            </button>
-                            <button 
-                              className="btn-text"
-                              onClick={markAllAsRead}
-                            >
-                              Mark all read
-                            </button>
-                            <button 
-                              className="btn-text"
-                              onClick={clearAllNotifications}
-                            >
-                              Clear all
-                            </button>
-                          </div>
-                        )}
                       </div>
                       
                       <div className="notification-list">
@@ -332,14 +327,6 @@ const Dashboard = ({ user, onLogout, children }) => {
                           ))
                         )}
                       </div>
-                      
-                      {notifications.length > 10 && (
-                        <div className="notification-footer">
-                          <button className="btn-text">
-                            View all notifications
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>

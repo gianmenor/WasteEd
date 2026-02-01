@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
 import DashboardSkeleton from './DashboardSkeleton';
+import brandLogo from '../assets/brandName.png';
 import './Login.css';
 
 const Login = () => {
@@ -111,18 +112,12 @@ const Login = () => {
 
   return (
     <div className={`login-page ${uiSizeClass}`}>
-      {/* Brand Header - Outside the card */}
-      <div className="login-brand-header">
-        <h1 className="brand-title">WASTE-ED</h1>
-        <div className="brand-icon-large">♻️</div>
-        <p className="brand-tagline-large">Smart Waste Management System</p>
-      </div>
-
       <div className="login-container">
         <div className="login-card">
           {/* Welcome Section */}
           <div className="login-header">
-            <p className="welcome-text">Sign in to your account</p>
+            <img src={brandLogo} alt="Waste-Ed Logo" className="login-brand-logo" />
+            <p className="login-subtitle">Smart Waste Management System</p>
           </div>
 
           {/* Error Alert */}

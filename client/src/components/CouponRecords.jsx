@@ -158,11 +158,6 @@ const CouponRecords = () => {
   return (
     <div className={`coupon-records-container ${uiSizeClass}`}>
       {loading && <LoadingSpinner fullscreen message="Loading..." />}
-      
-      <div className="coupon-header">
-        <h1 className="coupon-title">💳 Coupon Management</h1>
-        <p className="coupon-subtitle">Track and manage recycling rewards</p>
-      </div>
 
       {message && (
         <div className={`alert ${messageType === 'error' ? 'alert-error' : 'alert-success'}`}>

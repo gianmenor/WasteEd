@@ -22,15 +22,16 @@ router.get('/records', async (req, res) => {
     const dateFilter = {};
     const now = new Date();
 
-    if (period === 'year' || year) {
-      const targetYear = year ? parseInt(year) : now.getFullYear();
-      dateFilter.gte = new Date(targetYear, 0, 1);
-      dateFilter.lt = new Date(targetYear + 1, 0, 1);
-    } else if (period === 'month' || month) {
+    // Check month first (more specific than year)
+    if (period === 'month' || month) {
       const targetMonth = month ? parseInt(month) - 1 : now.getMonth();
       const targetYear = year ? parseInt(year) : now.getFullYear();
       dateFilter.gte = new Date(targetYear, targetMonth, 1);
       dateFilter.lt = new Date(targetYear, targetMonth + 1, 1);
+    } else if (period === 'year' || year) {
+      const targetYear = year ? parseInt(year) : now.getFullYear();
+      dateFilter.gte = new Date(targetYear, 0, 1);
+      dateFilter.lt = new Date(targetYear + 1, 0, 1);
     } else if (period === 'week') {
       const weekAgo = new Date(now);
       weekAgo.setDate(weekAgo.getDate() - 7);
@@ -241,15 +242,16 @@ router.get('/summary', async (req, res) => {
     const dateFilter = {};
     const now = new Date();
 
-    if (period === 'year' || year) {
-      const targetYear = year ? parseInt(year) : now.getFullYear();
-      dateFilter.gte = new Date(targetYear, 0, 1);
-      dateFilter.lt = new Date(targetYear + 1, 0, 1);
-    } else if (period === 'month' || month) {
+    // Check month first (more specific than year)
+    if (period === 'month' || month) {
       const targetMonth = month ? parseInt(month) - 1 : now.getMonth();
       const targetYear = year ? parseInt(year) : now.getFullYear();
       dateFilter.gte = new Date(targetYear, targetMonth, 1);
       dateFilter.lt = new Date(targetYear, targetMonth + 1, 1);
+    } else if (period === 'year' || year) {
+      const targetYear = year ? parseInt(year) : now.getFullYear();
+      dateFilter.gte = new Date(targetYear, 0, 1);
+      dateFilter.lt = new Date(targetYear + 1, 0, 1);
     } else if (period === 'week') {
       const weekAgo = new Date(now);
       weekAgo.setDate(weekAgo.getDate() - 7);

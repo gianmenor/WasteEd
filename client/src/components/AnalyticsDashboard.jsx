@@ -176,7 +176,7 @@ const AnalyticsDashboard = () => {
 
   // Unified export handler
   const handleExport = useCallback(async (options) => {
-    const { format, includeTypes, dateRange } = options;
+    const { format, includeTypes, dateRange, customDateFrom, customDateTo } = options;
     
     // Update selected types based on modal selection
     const typesToExport = {
@@ -187,19 +187,22 @@ const AnalyticsDashboard = () => {
     
     setSelectedTypes(typesToExport);
     
+    // Store date filters for export functions
+    const dateFilters = { dateRange, customDateFrom, customDateTo };
+    
     // Call appropriate export function based on format
     if (format === 'excel') {
-      await exportToExcel();
+      await exportToExcel(dateFilters);
     } else if (format === 'pdf') {
-      await exportToPDF();
+      await exportToPDF(dateFilters);
     } else if (format === 'csv') {
       // CSV export can use same logic as Excel but simpler
-      await exportToExcel();
+      await exportToExcel(dateFilters);
     }
   }, []);
 
   // Export to Excel function with separate sheets per waste type
-  const exportToExcel = useCallback(async () => {
+  const exportToExcel = useCallback(async (dateFilters = {}) => {
     setExporting(true);
     try {
       let allData = [];
@@ -211,6 +214,12 @@ const AnalyticsDashboard = () => {
           pageSize: '100',
           page: currentPage.toString()
         });
+        
+        // Add date filters if custom range is selected
+        if (dateFilters.dateRange === 'custom') {
+          if (dateFilters.customDateFrom) params.append('dateFrom', dateFilters.customDateFrom);
+          if (dateFilters.customDateTo) params.append('dateTo', dateFilters.customDateTo);
+        }
         
         const response = await fetch(`${API_ENDPOINTS.WASTE_RECORDS}?${params.toString()}`);
         
@@ -226,6 +235,31 @@ const AnalyticsDashboard = () => {
           currentPage++;
         } else {
           throw new Error('Invalid data format received');
+        }
+      }
+
+      // Apply date range filtering for non-custom ranges
+      if (dateFilters.dateRange && dateFilters.dateRange !== 'all' && dateFilters.dateRange !== 'custom') {
+        const now = new Date();
+        let filterDate;
+        
+        switch (dateFilters.dateRange) {
+          case 'today':
+            filterDate = new Date(now.setHours(0, 0, 0, 0));
+            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            break;
+          case 'week':
+            filterDate = new Date(now.setDate(now.getDate() - 7));
+            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            break;
+          case 'month':
+            filterDate = new Date(now.setMonth(now.getMonth() - 1));
+            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            break;
+          case 'year':
+            filterDate = new Date(now.setFullYear(now.getFullYear() - 1));
+            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            break;
         }
       }
 
@@ -246,7 +280,7 @@ const AnalyticsDashboard = () => {
       if (selectedTypes.RECYCLABLE) {
         const recyclableData = allData.map(record => ({
           'Date': new Date(record.date).toLocaleDateString(),
-          'Recyclable Wastes (kg)': record.recyclable || 0,
+          'Recyclable Wastes (pcs)': record.recyclable || 0,
           'Total': record.recyclable || 0
         }));
         const ws = XLSX.utils.json_to_sheet(recyclableData);
@@ -256,7 +290,7 @@ const AnalyticsDashboard = () => {
       if (selectedTypes.WET) {
         const wetData = allData.map(record => ({
           'Date': new Date(record.date).toLocaleDateString(),
-          'Wet Wastes (kg)': record.biodegradable || 0,
+          'Wet Wastes (pcs)': record.biodegradable || 0,
           'Total': record.biodegradable || 0
         }));
         const ws = XLSX.utils.json_to_sheet(wetData);
@@ -266,7 +300,7 @@ const AnalyticsDashboard = () => {
       if (selectedTypes.DRY) {
         const dryData = allData.map(record => ({
           'Date': new Date(record.date).toLocaleDateString(),
-          'Dry Wastes (kg)': record.nonBiodegradable || 0,
+          'Dry Wastes (pcs)': record.nonBiodegradable || 0,
           'Total': record.nonBiodegradable || 0
         }));
         const ws = XLSX.utils.json_to_sheet(dryData);
@@ -276,10 +310,10 @@ const AnalyticsDashboard = () => {
       // Add summary sheet
       const summaryData = allData.map(record => ({
         'Date': new Date(record.date).toLocaleDateString(),
-        'Recyclable (kg)': record.recyclable || 0,
-        'Wet (kg)': record.biodegradable || 0,
-        'Dry (kg)': record.nonBiodegradable || 0,
-        'Total (kg)': (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0)
+        'Recyclable (pcs)': record.recyclable || 0,
+        'Wet (pcs)': record.biodegradable || 0,
+        'Dry (pcs)': record.nonBiodegradable || 0,
+        'Total (pcs)': (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0)
       }));
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, 'All Waste Types');
@@ -306,7 +340,7 @@ const AnalyticsDashboard = () => {
   }, [selectedTypes]);
 
   // PDF Export function
-  const exportToPDF = useCallback(async () => {
+  const exportToPDF = useCallback(async (dateFilters = {}) => {
     setExporting(true);
     try {
       let allData = [];
@@ -318,6 +352,12 @@ const AnalyticsDashboard = () => {
           pageSize: '100',
           page: currentPage.toString()
         });
+        
+        // Add date filters if custom range is selected
+        if (dateFilters.dateRange === 'custom') {
+          if (dateFilters.customDateFrom) params.append('dateFrom', dateFilters.customDateFrom);
+          if (dateFilters.customDateTo) params.append('dateTo', dateFilters.customDateTo);
+        }
         
         const response = await fetch(`${API_ENDPOINTS.WASTE_RECORDS}?${params.toString()}`);
         
@@ -333,6 +373,31 @@ const AnalyticsDashboard = () => {
           currentPage++;
         } else {
           throw new Error('Invalid data format received');
+        }
+      }
+
+      // Apply date range filtering for non-custom ranges
+      if (dateFilters.dateRange && dateFilters.dateRange !== 'all' && dateFilters.dateRange !== 'custom') {
+        const now = new Date();
+        let filterDate;
+        
+        switch (dateFilters.dateRange) {
+          case 'today':
+            filterDate = new Date(now.setHours(0, 0, 0, 0));
+            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            break;
+          case 'week':
+            filterDate = new Date(now.setDate(now.getDate() - 7));
+            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            break;
+          case 'month':
+            filterDate = new Date(now.setMonth(now.getMonth() - 1));
+            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            break;
+          case 'year':
+            filterDate = new Date(now.setFullYear(now.getFullYear() - 1));
+            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            break;
         }
       }
 
@@ -372,7 +437,7 @@ const AnalyticsDashboard = () => {
           doc.text('Recyclable Wastes', 14, startY);
           
           autoTable(doc, {
-            head: [['Date', 'Amount (kg)']],
+            head: [['Date', 'Amount (pcs)']],
             body: recyclableData,
             startY: startY + 5,
             headStyles: { fillColor: [34, 197, 94] },
@@ -395,7 +460,7 @@ const AnalyticsDashboard = () => {
           doc.text('Wet Wastes', 14, startY);
           
           autoTable(doc, {
-            head: [['Date', 'Amount (kg)']],
+            head: [['Date', 'Amount (pcs)']],
             body: wetData,
             startY: startY + 5,
             headStyles: { fillColor: [132, 204, 22] },
@@ -418,7 +483,7 @@ const AnalyticsDashboard = () => {
           doc.text('Dry Wastes', 14, startY);
           
           autoTable(doc, {
-            head: [['Date', 'Amount (kg)']],
+            head: [['Date', 'Amount (pcs)']],
             body: dryData,
             startY: startY + 5,
             headStyles: { fillColor: [249, 115, 22] },
@@ -881,70 +946,6 @@ const AnalyticsDashboard = () => {
                 </div>
               </div>
 
-              {/* Daily Bin Events - Bottom Left */}
-              <div className="chart-wrapper daily-bin">
-                <h3>Daily Bin Events {binAnalytics && <span className="chart-meta">(Avg {binAnalytics.dailyAverage}/day)</span>}</h3>
-                <div className="line-graph" style={{ '--bar-color': '#3b82f6' }}>
-                  {(binAnalytics?.dailyTrends?.length ?? 0) > 0 ? (
-                    <>
-                      <div className="grid-lines">
-                        {[0, 1, 2, 3, 4].map((_, i) => <span key={i}></span>)}
-                      </div>
-                      <div className="y-axis-labels">
-                        {(() => {
-                          const maxValue = Math.max(...(binAnalytics?.dailyTrends ?? []).map(d => d.count || 1));
-                          return (binAnalytics?.dailyTrends ?? []).map((item, i) => (
-                            <span key={i}>{item.count}</span>
-                          ));
-                        })()}
-                      </div>
-                      <div className="line-bars">
-                        {(binAnalytics?.dailyTrends ?? []).map((item, i) => (
-                          <div key={i} className="line-bar" style={{ height: `${(item.count || 0) * 10}px` }}></div>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="no-data">No data available</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Monthly Bin Events - Bottom Right */}
-              <div className="chart-wrapper monthly-bin">
-                <h3>Monthly Bin Events {binAnalytics && <span className="chart-meta">(Avg {binAnalytics.monthlyAverage}/mo)</span>}</h3>
-                <div className="horizontal-line-graph" style={{ '--line-color': '#3b82f6' }}>
-                  {(binAnalytics?.monthlyData?.length ?? 0) > 0 ? (
-                    <div className="chart-area">
-                      <div className="y-labels">
-                        {[...(binAnalytics?.monthlyData ?? [])].reverse().map((item, i) => (
-                          <span key={i}>{item.month}</span>
-                        ))}
-                      </div>
-                      <div className="horizontal-bars">
-                        {(() => {
-                          const maxValue = Math.max(...(binAnalytics?.monthlyData ?? []).map(d => d.count || 1));
-                          return [...(binAnalytics?.monthlyData ?? [])].reverse().map((item, i) => {
-                            const width = ((item.count || 0) / maxValue) * 100;
-                            return (
-                              <div key={i} className="horizontal-bar">
-                                <div 
-                                  className="bar-line" 
-                                  style={{ width: `${width}%` }}
-                                >
-                                  <div className="bar-value">{item.count || 0}</div>
-                                </div>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="no-data">No bin data available</div>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
 
@@ -970,9 +971,8 @@ const AnalyticsDashboard = () => {
                   )}
                 </div>
               </div>
-
               <div className="insight-card">
-                <h3 className="insight-title">� Activity Analytics</h3>
+                <h3 className="insight-title"> Activity Analytics</h3>
                 <div className="recommendation-list">
                   <div className="recommendation-item">
                     <span className="rec-icon">🏆</span>
@@ -1006,7 +1006,7 @@ const AnalyticsDashboard = () => {
                     </div>
                   )}
                   <div className="recommendation-item">
-                    <span className="rec-icon">�</span>
+                    <span className="rec-icon">🔥</span>
                     <span>Collection streak: {(() => {
                       if (!(analyticsData?.dailyTrends?.length > 0)) return '0 days';
                       let streak = 0;

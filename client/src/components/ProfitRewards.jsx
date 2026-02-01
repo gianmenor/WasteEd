@@ -12,7 +12,7 @@ const fetchRecords = async (year, month) => {
   
   const params = new URLSearchParams();
   if (year) params.append('year', year);
-  if (month) params.append('month', month);
+  if (month && month !== '') params.append('month', month);
   
   if (params.toString()) {
     url += `?${params.toString()}`;
@@ -34,9 +34,17 @@ const fetchRecords = async (year, month) => {
 };
 
 // Fetch summary
-const fetchSummary = async (period) => {
+const fetchSummary = async (year, month) => {
   const token = localStorage.getItem('token');
-  const url = `${API_ENDPOINTS.PROFIT_SUMMARY}?period=${period}`;
+  let url = API_ENDPOINTS.PROFIT_SUMMARY;
+  
+  const params = new URLSearchParams();
+  if (year) params.append('year', year);
+  if (month && month !== '') params.append('month', month);
+  
+  if (params.toString()) {
+    url += `?${params.toString()}`;
+  }
   
   const response = await fetch(url, {
     headers: {
@@ -60,7 +68,6 @@ const ProfitRewards = () => {
   
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [period, setPeriod] = useState('month');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,8 +92,8 @@ const ProfitRewards = () => {
 
   // Fetch summary
   const { data: summary = {}, isLoading: summaryLoading, refetch: refetchSummary } = useQuery({
-    queryKey: ['profitSummary', period],
-    queryFn: () => fetchSummary(period),
+    queryKey: ['profitSummary', selectedYear, selectedMonth],
+    queryFn: () => fetchSummary(selectedYear, selectedMonth),
     staleTime: 2 * 60 * 1000,
   });
 
@@ -165,7 +172,7 @@ const ProfitRewards = () => {
         });
 
         if (response.ok) {
-          showMessage(`Record added: Revenue $${revenue.toFixed(2)}`);
+          showMessage(`Record added: Revenue ₱${revenue.toFixed(2)}`);
         } else {
           const error = await response.json();
           showMessage(error.message || 'Failed to add record', 'error');
@@ -250,9 +257,9 @@ const ProfitRewards = () => {
   }, []);
 
   const formatCurrency = useCallback((amount) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PH', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'PHP'
     }).format(amount);
   }, []);
 
@@ -276,16 +283,6 @@ const ProfitRewards = () => {
     <div className={`profit-rewards-container ${uiSizeClass}`}>
       {loading && <LoadingSpinner fullscreen message="Loading data..." />}
 
-      {/* Header */}
-      <div className="profit-header">
-        <h1 className="profit-title">
-          <span>💰</span> Profit & Rewards
-        </h1>
-        <p className="profit-subtitle">
-          Track earnings from recyclables and rewards given out
-        </p>
-      </div>
-
       {/* Alert Messages */}
       {message && (
         <div className={`alert ${messageType === 'error' ? 'alert-error' : 'alert-success'}`}>
@@ -295,23 +292,8 @@ const ProfitRewards = () => {
 
       {/* Summary Cards */}
       <div className="summary-section">
-        <div className="period-selector">
-          <label>Summary Period:</label>
-          <select
-            className="period-select"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-          >
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="year">This Year</option>
-          </select>
-        </div>
-
         <div className="summary-cards">
           <div className="summary-card profit">
-            <div className="summary-icon">💵</div>
             <div className="summary-content">
               <div className="summary-label">Total Profit</div>
               <div className="summary-value">{formatCurrency(summary.totalProfit || 0)}</div>
@@ -320,7 +302,6 @@ const ProfitRewards = () => {
           </div>
 
           <div className="summary-card rewards">
-            <div className="summary-icon">🎁</div>
             <div className="summary-content">
               <div className="summary-label">Total Rewards</div>
               <div className="summary-value">{formatCurrency(summary.totalRewardsSpent || summary.totalRewards || 0)}</div>
@@ -329,7 +310,6 @@ const ProfitRewards = () => {
           </div>
 
           <div className="summary-card net">
-            <div className="summary-icon">📊</div>
             <div className="summary-content">
               <div className="summary-label">Net Profit</div>
               <div className="summary-value">{formatCurrency(summary.totalNetProfit || summary.netProfit || 0)}</div>
@@ -348,7 +328,7 @@ const ProfitRewards = () => {
               className="btn btn-primary btn-add-record"
               onClick={() => setShowModal(true)}
             >
-              ➕ Add Record
+              Add Record
             </button>
           </div>
         </div>
@@ -369,7 +349,7 @@ const ProfitRewards = () => {
             <select
               className="filter-select"
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              onChange={(e) => setSelectedMonth(e.target.value === '' ? '' : parseInt(e.target.value))}
             >
               <option value="">All</option>
               <option value="1">January</option>
@@ -477,7 +457,7 @@ const ProfitRewards = () => {
                 {/* Amount Inputs Section */}
                 <div className="amounts-grid">
                   <div className="form-group">
-                    <label htmlFor="profitAmount">💵 Profit ($)</label>
+                    <label htmlFor="profitAmount">💵 Profit (₱)</label>
                     <input
                       id="profitAmount"
                       type="number"
@@ -493,7 +473,7 @@ const ProfitRewards = () => {
                   </div>
 
                   <div className="form-group">
-                    <label htmlFor="expenseAmount">🎁 Expense ($)</label>
+                    <label htmlFor="expenseAmount">🎁 Expense (₱)</label>
                     <input
                       id="expenseAmount"
                       type="number"
@@ -516,7 +496,7 @@ const ProfitRewards = () => {
                     <span>Total Revenue</span>
                   </div>
                   <div className="revenue-value">
-                    ${(parseFloat(formData.profitAmount || 0) - parseFloat(formData.expenseAmount || 0)).toFixed(2)}
+                    ₱{(parseFloat(formData.profitAmount || 0) - parseFloat(formData.expenseAmount || 0)).toFixed(2)}
                   </div>
                 </div>
 

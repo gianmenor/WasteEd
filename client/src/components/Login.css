@@ -63,6 +63,22 @@
   margin-bottom: 32px;
 }
 
+.login-brand-logo {
+  width: 180px;
+  height: auto;
+  margin-bottom: 16px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.login-subtitle {
+  color: #6b7280;
+  font-size: 1rem;
+  margin: 8px 0 0 0;
+  font-weight: 500;
+}
+
 .welcome-text {
   color: #6b7280;
   font-size: 1rem;
@@ -207,6 +223,7 @@
 
 .checkbox-label {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 12px;
   cursor: pointer;
@@ -221,13 +238,17 @@
 }
 
 .checkbox-custom {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border: 2px solid var(--border-color, #e5e7eb);
   border-radius: 4px;
   background: var(--bg-secondary, #ffffff);
   position: relative;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .checkbox-input:checked + .checkbox-custom {
@@ -237,13 +258,10 @@
 
 .checkbox-input:checked + .checkbox-custom::after {
   content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   color: white;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: bold;
+  line-height: 1;
 }
 
 .checkbox-input:focus + .checkbox-custom {

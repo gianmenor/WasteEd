@@ -57,8 +57,8 @@ export const API_ENDPOINTS = {
   // Profit & Rewards endpoints
   PROFIT_RECORDS: `${API_BASE_URL}/api/profit/records`,
   PROFIT_ADD: `${API_BASE_URL}/api/profit/add`,
-  PROFIT_UPDATE: (id) => `${API_BASE_URL}/api/profit/update/${id}`,
-  PROFIT_DELETE: (id) => `${API_BASE_URL}/api/profit/delete/${id}`,
+  PROFIT_UPDATE: `${API_BASE_URL}/api/profit/update`,
+  PROFIT_DELETE: `${API_BASE_URL}/api/profit/delete`,
   PROFIT_SUMMARY: `${API_BASE_URL}/api/profit/summary`,
   PROFIT_NET_PROFIT: `${API_BASE_URL}/api/profit/net-profit`,
   

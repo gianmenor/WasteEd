@@ -20,7 +20,6 @@ const SkeletonRow = memo(() => (
     <td><div className="skeleton-cell skeleton-pulse"></div></td>
     <td><div className="skeleton-cell skeleton-pulse"></div></td>
     <td><div className="skeleton-cell skeleton-pulse"></div></td>
-    <td><div className="skeleton-cell skeleton-pulse"></div></td>
   </tr>
 ));
 
@@ -89,9 +88,9 @@ const WasteTable = () => {
   const { data: wasteData = [], isLoading: loading, error: queryError, refetch } = useQuery({
     queryKey: ['wasteData', dateFrom, dateTo],
     queryFn: () => fetchAllWasteData({ dateFrom, dateTo }),
-    staleTime: 3 * 60 * 1000, // 3 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
-    refetchOnWindowFocus: false,
+    staleTime: 30 * 1000, // 30 seconds - shorter to show latest records
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: true, // Enable to show latest records when user returns
   });
 
   const error = useMemo(() => {
@@ -133,11 +132,53 @@ const WasteTable = () => {
 
   // Process data based on view mode (memoized)
   const processedData = useMemo(() => {
-    let data = viewMode === 'monthly' ? aggregateByMonth(wasteData) : wasteData;
+    let data;
     
-    // Apply type filtering (only for daily view)
+    if (viewMode === 'monthly') {
+      data = aggregateByMonth(wasteData);
+    } else {
+      // Transform each record into individual rows per waste type
+      data = [];
+      wasteData.forEach(record => {
+        // Add recyclable row if quantity > 0
+        if (record.recyclable > 0) {
+          data.push({
+            id: `${record.id}-recyclable`,
+            date: record.date,
+            type: 'Recyclable',
+            quantityInPcs: record.recyclable,
+            couponTaken: Math.floor(record.recyclable * 0.5), // Example calculation
+            originalType: 'recyclable'
+          });
+        }
+        // Add biodegradable row if quantity > 0
+        if (record.biodegradable > 0) {
+          data.push({
+            id: `${record.id}-biodegradable`,
+            date: record.date,
+            type: 'Wet Wastes',
+            quantityInPcs: record.biodegradable,
+            couponTaken: 0,
+            originalType: 'biodegradable'
+          });
+        }
+        // Add non-biodegradable row if quantity > 0
+        if (record.nonBiodegradable > 0) {
+          data.push({
+            id: `${record.id}-nonBiodegradable`,
+            date: record.date,
+            type: 'Dry Wastes',
+            quantityInPcs: record.nonBiodegradable,
+            couponTaken: 0,
+            originalType: 'nonBiodegradable'
+          });
+        }
+      });
+    }
+    
+    // Apply type filtering
     if (viewMode === 'daily' && typeFilter !== 'all') {
-      data = data.filter(record => record[typeFilter] > 0);
+      data = data.filter(record => record.originalType === typeFilter);
     }
     
     // Apply sorting
@@ -149,7 +190,8 @@ const WasteTable = () => {
           case 'date':
             aVal = new Date(a.date).getTime();
             bVal = new Date(b.date).getTime();
-            break;
+            // Explicitly handle date sorting to show newest first when desc
+            return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
           case 'recyclable':
             aVal = a.recyclable || 0;
             bVal = b.recyclable || 0;
@@ -189,15 +231,32 @@ const WasteTable = () => {
 
   // Calculate statistics (memoized)
   const statistics = useMemo(() => {
-    const stats = { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0, totalDays: totalItems };
-    processedData.forEach(record => {
-      stats.recyclable += record.recyclable || 0;
-      stats.biodegradable += record.biodegradable || 0;
-      stats.nonBiodegradable += record.nonBiodegradable || 0;
-      stats.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
-    });
-    return stats;
-  }, [processedData, totalItems]);
+    if (viewMode === 'monthly') {
+      // For monthly view, use aggregated data
+      const stats = { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0, totalDays: totalItems };
+      processedData.forEach(record => {
+        stats.recyclable += record.recyclable || 0;
+        stats.biodegradable += record.biodegradable || 0;
+        stats.nonBiodegradable += record.nonBiodegradable || 0;
+        stats.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
+      });
+      return stats;
+    } else {
+      // For daily view with individual records per type
+      const stats = { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0, totalDays: totalItems };
+      processedData.forEach(record => {
+        if (record.originalType === 'recyclable') {
+          stats.recyclable += record.quantityInPcs || 0;
+        } else if (record.originalType === 'biodegradable') {
+          stats.biodegradable += record.quantityInPcs || 0;
+        } else if (record.originalType === 'nonBiodegradable') {
+          stats.nonBiodegradable += record.quantityInPcs || 0;
+        }
+        stats.total += record.quantityInPcs || 0;
+      });
+      return stats;
+    }
+  }, [processedData, totalItems, viewMode]);
 
   // Reset to first page when data changes
   useEffect(() => {
@@ -300,7 +359,7 @@ const WasteTable = () => {
     
     // Generate table
     autoTable(doc, {
-      head: [['Date', 'Recyclable', 'Wet Wastes', 'Dry Wastes', 'Total']],
+      head: [['Date', 'Recyclable (pcs)', 'Wet Wastes (pcs)', 'Dry Wastes (pcs)', 'Total (pcs)']],
       body: tableData,
       startY: 50,
       headStyles: {
@@ -340,20 +399,58 @@ const WasteTable = () => {
       return;
     }
 
-    // Filter data based on selected waste types
+    // For daily view with individual records
+    if (viewMode === 'daily') {
+      const filteredData = processedData.map(record => {
+        if (!record) return null;
+        
+        const filtered = {
+          Date: formatDate(record.date),
+          Type: record.type || '',
+          'Quantity (pcs)': record.quantityInPcs || 0,
+          'Coupon Taken': record.couponTaken || 0
+        };
+        
+        return filtered;
+      }).filter(Boolean);
+
+      // Add totals row
+      const totalsRow = {
+        Date: 'TOTAL',
+        Type: '',
+        'Quantity (pcs)': statistics.total,
+        'Coupon Taken': ''
+      };
+      
+      filteredData.push(totalsRow);
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(filteredData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Waste Data');
+
+      // Generate filename
+      const fileName = `waste-report-${viewMode}-${typeFilter}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      // Download
+      XLSX.writeFile(wb, fileName);
+      return;
+    }
+
+    // For monthly view with aggregated data
     const filteredData = processedData.map(record => {
       if (!record) return null;
       
       const filtered = { date: formatDate(record.date) };
       
       if (wasteTypes.recyclable) {
-        filtered['Recyclable (kg)'] = formatCount(record.recyclable);
+        filtered['Recyclable (pcs)'] = formatCount(record.recyclable);
       }
       if (wasteTypes.biodegradable) {
-        filtered['Wet Wastes (kg)'] = formatCount(record.biodegradable);
+        filtered['Wet Wastes (pcs)'] = formatCount(record.biodegradable);
       }
       if (wasteTypes.nonBiodegradable) {
-        filtered['Dry Wastes (kg)'] = formatCount(record.nonBiodegradable);
+        filtered['Dry Wastes (pcs)'] = formatCount(record.nonBiodegradable);
       }
       
       return filtered;
@@ -361,9 +458,9 @@ const WasteTable = () => {
 
     // Add totals row
     const totalsRow = { date: 'TOTAL' };
-    if (wasteTypes.recyclable) totalsRow['Recyclable (kg)'] = formatCount(statistics.recyclable);
-    if (wasteTypes.biodegradable) totalsRow['Wet Wastes (kg)'] = formatCount(statistics.biodegradable);
-    if (wasteTypes.nonBiodegradable) totalsRow['Dry Wastes (kg)'] = formatCount(statistics.nonBiodegradable);
+    if (wasteTypes.recyclable) totalsRow['Recyclable (pcs)'] = formatCount(statistics.recyclable);
+    if (wasteTypes.biodegradable) totalsRow['Wet Wastes (pcs)'] = formatCount(statistics.biodegradable);
+    if (wasteTypes.nonBiodegradable) totalsRow['Dry Wastes (pcs)'] = formatCount(statistics.nonBiodegradable);
     
     filteredData.push(totalsRow);
 
@@ -620,8 +717,8 @@ const WasteTable = () => {
                 title="Refresh data"
               >
                 <svg
-                  width="16"
-                  height="16"
+                  width="20"
+                  height="20"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -659,47 +756,38 @@ const WasteTable = () => {
                   <tr role="row">
                     <th role="columnheader">
                       <div className="column-header sortable" onClick={() => handleSort('date')} title="Click to sort">
-                        <span className="column-icon" aria-hidden="true">📅</span>
-                        <span className="column-text">Date Collected</span>
                         {sortBy === 'date' && (
                           <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                         )}
+                        <span className="column-icon" aria-hidden="true">📅</span>
+                        <span className="column-text">Date</span>
                       </div>
                     </th>
                     <th role="columnheader">
-                      <div className="column-header sortable" onClick={() => handleSort('recyclable')} title="Click to sort">
-                        <span className="column-icon" aria-hidden="true">♻️</span>
-                        <span className="column-text">Recyclable Wastes</span>
-                        {sortBy === 'recyclable' && (
+                      <div className="column-header sortable" onClick={() => handleSort('type')} title="Click to sort">
+                        <span className="column-icon" aria-hidden="true">🗂️</span>
+                        <span className="column-text">Type</span>
+                        {sortBy === 'type' && (
                           <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                         )}
                       </div>
                     </th>
                     <th role="columnheader">
-                      <div className="column-header sortable" onClick={() => handleSort('biodegradable')} title="Click to sort">
-                        <span className="column-icon" aria-hidden="true">🍃</span>
-                        <span className="column-text">Wet Wastes</span>
-                        {sortBy === 'biodegradable' && (
+                      <div className="column-header sortable" onClick={() => handleSort('quantity')} title="Click to sort">
+                        {sortBy === 'quantity' && (
                           <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                         )}
+                        <span className="column-icon" aria-hidden="true">📦</span>
+                        <span className="column-text">Quantity (pcs)</span>
                       </div>
                     </th>
                     <th role="columnheader">
-                      <div className="column-header sortable" onClick={() => handleSort('nonBiodegradable')} title="Click to sort">
-                        <span className="column-icon" aria-hidden="true">🗑️</span>
-                        <span className="column-text">Dry Wastes</span>
-                        {sortBy === 'nonBiodegradable' && (
+                      <div className="column-header sortable" onClick={() => handleSort('coupon')} title="Click to sort">
+                        {sortBy === 'coupon' && (
                           <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                         )}
-                      </div>
-                    </th>
-                    <th role="columnheader">
-                      <div className="column-header sortable" onClick={() => handleSort('total')} title="Click to sort">
-                        <span className="column-icon" aria-hidden="true">📊</span>
-                        <span className="column-text">Total</span>
-                        {sortBy === 'total' && (
-                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
-                        )}
+                        <span className="column-icon" aria-hidden="true">🎟️</span>
+                        <span className="column-text">Coupon Taken</span>
                       </div>
                     </th>
                   </tr>
@@ -711,10 +799,45 @@ const WasteTable = () => {
                   ) : (
                     paginatedData.map((record, index) => {
                     const globalIndex = startIndex + index;
-                    const totalCount = (record.recyclable || 0) +
-                                       (record.biodegradable || 0) +
-                                       (record.nonBiodegradable || 0);
-
+                    const isMonthly = viewMode === 'monthly';
+                    
+                    // For monthly view, show aggregated data
+                    if (isMonthly) {
+                      const totalCount = (record.recyclable || 0) +
+                                         (record.biodegradable || 0) +
+                                         (record.nonBiodegradable || 0);
+                      return (
+                        <tr
+                          key={record.id || globalIndex}
+                          role="row"
+                          className={globalIndex % 2 === 0 ? 'even' : 'odd'}
+                        >
+                          <td role="gridcell">
+                            <div className="cell-content">
+                              <span className="cell-icon" aria-hidden="true">📅</span>
+                              <span className="cell-text">{formatDate(record.date)}</span>
+                            </div>
+                          </td>
+                          <td role="gridcell">
+                            <div className="cell-content">
+                              <span className="cell-text">Monthly Total</span>
+                            </div>
+                          </td>
+                          <td role="gridcell">
+                            <div className="cell-content number-cell">
+                              <span className="cell-number">{formatCount(totalCount)}</span>
+                            </div>
+                          </td>
+                          <td role="gridcell">
+                            <div className="cell-content number-cell">
+                              <span className="cell-number">-</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    
+                    // For daily view, show individual type records
                     return (
                       <tr
                         key={record.id || globalIndex}
@@ -728,27 +851,20 @@ const WasteTable = () => {
                           </div>
                         </td>
                         <td role="gridcell">
-                          <div className="cell-content number-cell recyclable">
-                            <span className="cell-icon" aria-hidden="true">♻️</span>
-                            <span className="cell-number">{formatCount(record.recyclable)}</span>
+                          <div className="cell-content">
+                            <span className="cell-text">{record.type}</span>
                           </div>
                         </td>
                         <td role="gridcell">
-                          <div className="cell-content number-cell biodegradable">
-                            <span className="cell-icon" aria-hidden="true">🍃</span>
-                            <span className="cell-number">{formatCount(record.biodegradable)}</span>
+                          <div className="cell-content number-cell">
+                            <span className="cell-icon" aria-hidden="true">📦</span>
+                            <span className="cell-number">{record.quantityInPcs || 0} pcs</span>
                           </div>
                         </td>
                         <td role="gridcell">
-                          <div className="cell-content number-cell non-biodegradable">
-                            <span className="cell-icon" aria-hidden="true">🗑️</span>
-                            <span className="cell-number">{formatCount(record.nonBiodegradable)}</span>
-                          </div>
-                        </td>
-                        <td role="gridcell" className="total-cell">
-                          <div className="cell-content total">
-                            <span className="cell-icon" aria-hidden="true">📊</span>
-                            <span className="cell-number">{formatCount(totalCount)}</span>
+                          <div className="cell-content number-cell">
+                            <span className="cell-icon" aria-hidden="true">🎟️</span>
+                            <span className="cell-number">{record.couponTaken || 0}</span>
                           </div>
                         </td>
                       </tr>
