@@ -60,7 +60,7 @@
 .filters-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 2rem;
   align-items: end;
 }
 
@@ -731,7 +731,7 @@
   
   .filters-controls {
     flex-direction: column;
-    gap: 1rem;
+    gap: 2rem;
   }
   
   .filters-left {
@@ -1632,8 +1632,8 @@
   }
   
   .filters-controls {
-    flex-direction: column;
-    gap: 0.75rem;
+    flex-direction: flex;
+    gap: 2.75rem;
   }
   
   .filter-group {

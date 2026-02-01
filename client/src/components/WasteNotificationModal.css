@@ -6,7 +6,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(248, 253, 248, 0.9);
   backdrop-filter: blur(4px);
   z-index: 9998;
   animation: fadeIn 0.2s ease-out;
@@ -118,20 +118,20 @@
   margin-bottom: 1.5rem;
   border-radius: 8px;
   overflow: hidden;
-  background: #000;
+  background: #f3f4f6;
 }
 
 .waste-video {
   width: 100%;
   max-height: 400px;
   display: block;
-  background: #000;
+  background: #f3f4f6;
 }
 
 .waste-video-caption {
   padding: 0.75rem;
-  background: #1f2937;
-  color: white;
+  background: #e0f2fe;
+  color: #111827;
   font-size: 0.875rem;
   margin: 0;
   text-align: center;

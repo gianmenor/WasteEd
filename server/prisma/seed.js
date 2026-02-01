@@ -17,6 +17,8 @@ async function main() {
     await prisma.couponTransaction.deleteMany();
     await prisma.profitReward.deleteMany();
     await prisma.wasteNotification.deleteMany();
+    await prisma.inventoryRedemption.deleteMany();
+    await prisma.inventoryItem.deleteMany();
     console.log('🗑️  Cleared existing data from all tables');
 
     // Read account data from JSON file
@@ -385,6 +387,21 @@ async function main() {
       data: profitRewards
     });
     console.log(`✅ Created ${profitRewards.length} profit/reward records for 2025`);
+
+    // Create initial inventory items
+    const inventoryItems = [
+      { name: 'Eraser', description: 'Standard white eraser', cost: 1, stock: 50 },
+      { name: 'Pen', description: 'Ballpoint pen, black ink', cost: 2, stock: 40 },
+      { name: 'Sticker', description: 'Colorful sticker sheets', cost: 1, stock: 100 },
+      { name: 'Colored Paper', description: 'Pack of assorted colored paper', cost: 3, stock: 30 },
+      { name: 'Scratch Paintings', description: 'Rainbow scratch art sheets', cost: 4, stock: 25 },
+      { name: 'Pencil', description: 'HB pencil', cost: 1, stock: 60 }
+    ];
+
+    await prisma.inventoryItem.createMany({
+      data: inventoryItems
+    });
+    console.log(`✅ Created ${inventoryItems.length} inventory items`);
 
     console.log('🎉 Database seeding completed successfully!');
   } catch (error) {

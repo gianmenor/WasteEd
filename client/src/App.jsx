@@ -17,6 +17,7 @@ import NotificationTest from './components/NotificationTest';
 import DashboardSkeleton from './components/DashboardSkeleton';
 import DevPage from './components/DevPage';
 import LandingPage from './components/LandingPage';
+import InventoryManagement from './components/InventoryManagement';
 import './App.css';
 
 // Create query client
@@ -129,6 +130,17 @@ const AppContent = () => {
                 <ProtectedRoute>
                   <Dashboard user={user} onLogout={logout}>
                     <Settings />
+                  </Dashboard>
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/inventory" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard user={user} onLogout={logout}>
+                    <InventoryManagement />
                   </Dashboard>
                 </ProtectedRoute>
               } 

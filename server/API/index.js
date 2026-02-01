@@ -38,4 +38,7 @@ router.use('/profit', profitRouter);
 import videoRouter from './video/index.js';
 router.use('/video', videoRouter);
 
+import inventoryRouter from './inventory/index.js';
+router.use('/inventory', inventoryRouter);
+
 export default router;

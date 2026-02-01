@@ -126,6 +126,32 @@ model VideoMapping {
   @@map("video_mappings")
 }
 
+model InventoryItem {
+  id          Int                     @id @default(autoincrement())
+  name        String                  @unique
+  description String?
+  cost        Int                     @default(1)
+  stock       Int                     @default(0)
+  isActive    Boolean                 @default(true)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  redemptions InventoryRedemption[]
+
+  @@map("inventory_items")
+}
+
+model InventoryRedemption {
+  id        Int           @id @default(autoincrement())
+  itemId    Int
+  quantity  Int           @default(1)
+  totalCost Int
+  notes     String?       @db.Text
+  createdAt DateTime      @default(now())
+  item      InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_redemptions")
+}
+
 enum accounts_role {
   user
   admin

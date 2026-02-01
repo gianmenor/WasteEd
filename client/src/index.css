@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global CSS Variables for Light Theme */
+/* Global CSS Variables for Light Theme (only) */
 :root {
   --bg-primary: #f8fdf8;
   --bg-secondary: #ffffff;
@@ -21,30 +21,4 @@
   --background-secondary: #ffffff;
   --primary-color: #16a34a;
 }
-
-/* Dark Theme Variables */
-.dark-theme,
-[data-theme="dark"] {
-  --bg-primary: #0f0f0f;
-  --bg-secondary: #1a1a1a;
-  --bg-tertiary: #262626;
-  --bg-hover: #1e40af;
-  --text-primary: #f9fafb;
-  --text-secondary: #d1d5db;
-  --text-accent: #22c55e;
-  --border-color: #374151;
-  --sidebar-bg: #1a1a1a;
-  --sidebar-border: #374151;
-  --accent-primary: #22c55e;
-  --accent-secondary: #16a34a;
-  --shadow: rgba(0, 0, 0, 0.3);
-  --background-color: #0f0f0f;
-  --background-secondary: #1a1a1a;
-  --primary-color: #22c55e;
-}
-
-/* Apply theme to the entire body/html */
-body.dark-theme {
-  background-color: var(--background-color);
-  color: var(--text-primary);
-}
+/* Single light theme is applied globally via CSS variables above. */

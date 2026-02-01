@@ -73,4 +73,114 @@ export const API_ENDPOINTS = {
   
   // Account analytics
   ACCOUNTS_ANALYTICS: `${API_BASE_URL}/api/accounts/analytics`,
+  
+  // Inventory endpoints
+  INVENTORY_ITEMS: `${API_BASE_URL}/api/inventory`,
+  INVENTORY_ITEM: (id) => `${API_BASE_URL}/api/inventory/${id}`,
+  INVENTORY_STOCK: (id) => `${API_BASE_URL}/api/inventory/${id}/stock`,
+  INVENTORY_REDEEM: (id) => `${API_BASE_URL}/api/inventory/${id}/redeem`,
+  INVENTORY_REDEMPTION_HISTORY: `${API_BASE_URL}/api/inventory/redemptions/history`,
+};
+
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
+
+// Inventory API functions
+export const getInventoryItems = async (activeOnly = true) => {
+  const response = await fetch(`${API_ENDPOINTS.INVENTORY_ITEMS}?activeOnly=${activeOnly}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to fetch inventory items');
+  }
+  return await response.json();
+};
+
+export const getInventoryItem = async (id) => {
+  const response = await fetch(API_ENDPOINTS.INVENTORY_ITEM(id));
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to fetch inventory item');
+  }
+  return await response.json();
+};
+
+export const createInventoryItem = async (itemData) => {
+  const response = await fetch(API_ENDPOINTS.INVENTORY_ITEMS, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(itemData)
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to create inventory item');
+  }
+  return await response.json();
+};
+
+export const updateInventoryItem = async (id, itemData) => {
+  const response = await fetch(API_ENDPOINTS.INVENTORY_ITEM(id), {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(itemData)
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update inventory item');
+  }
+  return await response.json();
+};
+
+export const updateItemStock = async (id, adjustment) => {
+  const response = await fetch(API_ENDPOINTS.INVENTORY_STOCK(id), {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ adjustment })
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update stock');
+  }
+  return await response.json();
+};
+
+export const deleteInventoryItem = async (id) => {
+  const response = await fetch(API_ENDPOINTS.INVENTORY_ITEM(id), {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to delete inventory item');
+  }
+  return await response.json();
+};
+
+export const redeemInventoryItem = async (id, quantity, notes = null) => {
+  const response = await fetch(API_ENDPOINTS.INVENTORY_REDEEM(id), {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ quantity, notes })
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to redeem item');
+  }
+  return await response.json();
+};
+
+export const getRedemptionHistory = async (page = 1, limit = 20) => {
+  const response = await fetch(`${API_ENDPOINTS.INVENTORY_REDEMPTION_HISTORY}?page=${page}&limit=${limit}`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to fetch redemption history');
+  }
+  return await response.json();
 };

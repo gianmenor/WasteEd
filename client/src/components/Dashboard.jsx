@@ -21,9 +21,14 @@ export const useSettings = () => useContext(SettingsContext);
 // Memoized menu items to prevent re-creation on every render
 const MENU_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: '', path: '/dashboard' },
-  { id: 'waste', label: 'Waste Management', icon: '', path: '/waste' },
   { id: 'coupons', label: 'Coupon Records', icon: '', path: '/coupons' },
   { id: 'profit', label: 'Profit & Rewards', icon: '', path: '/profit' },
+  { id: 'waste', label: 'Waste Management', icon: '', path: '/waste' },
+];
+
+// Admin-only menu items
+const ADMIN_MENU_ITEMS = [
+  { id: 'inventory', label: 'Inventory Management', icon: '', path: '/inventory' },
   { id: 'settings', label: 'Settings', icon: '', path: '/settings' },
 ];
 
@@ -114,8 +119,14 @@ const Dashboard = ({ user, onLogout, children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Memoize menu items
-  const menuItems = useMemo(() => MENU_ITEMS, []);
+  // Memoize menu items - include admin items if user is admin
+  const menuItems = useMemo(() => {
+    const items = [...MENU_ITEMS];
+    if (user?.role === 'admin') {
+      return [...items, ...ADMIN_MENU_ITEMS];
+    }
+    return items;
+  }, [user?.role]);
 
   // Memoize callbacks to prevent re-renders
   const handleMenuClick = useCallback((path) => {
