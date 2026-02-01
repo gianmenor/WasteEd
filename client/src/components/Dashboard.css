@@ -692,6 +692,12 @@
   line-height: 1;
 }
 
+.bottom-nav-icon > svg {
+  font-size: inherit;
+  color: currentColor;
+  display: block;
+}
+
 .bottom-nav-label {
   margin-top: 2px;
   white-space: nowrap;

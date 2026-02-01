@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
@@ -388,42 +391,42 @@ const ProfitRewards = () => {
               <tbody>
                 {records.map((record) => (
                   <tr key={record.id}>
-                    <td>{formatDate(record.date)}</td>
-                    <td>
+                    <td data-label="Date">{formatDate(record.date)}</td>
+                    <td data-label="Profit">
                       <span className="record-amount profit">
                         {formatCurrency(record.profitFromRecyclables || 0)}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Expense">
                       <span className="record-amount reward">
                         {formatCurrency(record.rewardsSpent || 0)}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Revenue">
                       <span className={`record-amount ${record.netProfit >= 0 ? 'profit' : 'reward'}`}>
                         {formatCurrency(record.netProfit || 0)}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Notes">
                       <span className="record-description" title={record.notes}>
                         {record.notes || '-'}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Actions">
                       <div className="action-buttons">
                         <button
                           className="btn-action btn-edit"
                           onClick={() => handleEdit(record)}
                           title="Edit"
                         >
-                          ✏️
+                          <EditOutlinedIcon fontSize="small" />
                         </button>
                         <button
                           className="btn-action btn-delete"
                           onClick={() => handleDelete(record.id)}
                           title="Delete"
                         >
-                          🗑️
+                          <DeleteOutlineIcon fontSize="small" />
                         </button>
                       </div>
                     </td>
@@ -441,7 +444,7 @@ const ProfitRewards = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">
-                {editingId ? '✏️ Edit Record' : '➕ Add New Record'}
+                {editingId ? 'Edit Record' : 'Add New Record'}
               </h2>
               <button 
                 className="modal-close" 
@@ -457,7 +460,7 @@ const ProfitRewards = () => {
                 {/* Amount Inputs Section */}
                 <div className="amounts-grid">
                   <div className="form-group">
-                    <label htmlFor="profitAmount">💵 Profit (₱)</label>
+                    <label htmlFor="profitAmount">Profit (₱)</label>
                     <input
                       id="profitAmount"
                       type="number"
@@ -473,7 +476,7 @@ const ProfitRewards = () => {
                   </div>
 
                   <div className="form-group">
-                    <label htmlFor="expenseAmount">🎁 Expense (₱)</label>
+                    <label htmlFor="expenseAmount">Expense (₱)</label>
                     <input
                       id="expenseAmount"
                       type="number"
@@ -492,7 +495,7 @@ const ProfitRewards = () => {
                 {/* Revenue Display */}
                 <div className="revenue-display">
                   <div className="revenue-label">
-                    <span className="revenue-icon">📊</span>
+                    <span className="revenue-icon" aria-hidden="true"><QueryStatsIcon fontSize="small" /></span>
                     <span>Total Revenue</span>
                   </div>
                   <div className="revenue-value">

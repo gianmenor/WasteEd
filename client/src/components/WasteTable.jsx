@@ -66,10 +66,31 @@ const WasteTable = () => {
   const [dateFromObj, setDateFromObj] = useState(null);
   const [dateToObj, setDateToObj] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isCompactPagination, setIsCompactPagination] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(max-width: 480px)').matches;
+  });
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
   const [typeFilter, setTypeFilter] = useState('all'); // all, recyclable, biodegradable, nonBiodegradable
   const [showExportModal, setShowExportModal] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+
+    const mediaQueryList = window.matchMedia('(max-width: 480px)');
+    const handleChange = (event) => setIsCompactPagination(event.matches);
+
+    setIsCompactPagination(mediaQueryList.matches);
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', handleChange);
+      return () => mediaQueryList.removeEventListener('change', handleChange);
+    }
+
+    // Safari fallback
+    mediaQueryList.addListener(handleChange);
+    return () => mediaQueryList.removeListener(handleChange);
+  }, []);
   
   // Convert Date objects to strings for API
   const dateFrom = useMemo(() => 
@@ -812,23 +833,23 @@ const WasteTable = () => {
                           role="row"
                           className={globalIndex % 2 === 0 ? 'even' : 'odd'}
                         >
-                          <td role="gridcell">
+                          <td role="gridcell" data-label="Date">
                             <div className="cell-content">
                               <span className="cell-icon" aria-hidden="true">📅</span>
                               <span className="cell-text">{formatDate(record.date)}</span>
                             </div>
                           </td>
-                          <td role="gridcell">
+                          <td role="gridcell" data-label="Type">
                             <div className="cell-content">
                               <span className="cell-text">Monthly Total</span>
                             </div>
                           </td>
-                          <td role="gridcell">
+                          <td role="gridcell" data-label="Quantity">
                             <div className="cell-content number-cell">
                               <span className="cell-number">{formatCount(totalCount)}</span>
                             </div>
                           </td>
-                          <td role="gridcell">
+                          <td role="gridcell" data-label="Coupons">
                             <div className="cell-content number-cell">
                               <span className="cell-number">-</span>
                             </div>
@@ -844,24 +865,24 @@ const WasteTable = () => {
                         role="row"
                         className={globalIndex % 2 === 0 ? 'even' : 'odd'}
                       >
-                        <td role="gridcell">
+                        <td role="gridcell" data-label="Date">
                           <div className="cell-content">
                             <span className="cell-icon" aria-hidden="true">📅</span>
                             <span className="cell-text">{formatDate(record.date)}</span>
                           </div>
                         </td>
-                        <td role="gridcell">
+                        <td role="gridcell" data-label="Type">
                           <div className="cell-content">
                             <span className="cell-text">{record.type}</span>
                           </div>
                         </td>
-                        <td role="gridcell">
+                        <td role="gridcell" data-label="Quantity">
                           <div className="cell-content number-cell">
                             <span className="cell-icon" aria-hidden="true">📦</span>
                             <span className="cell-number">{record.quantityInPcs || 0} pcs</span>
                           </div>
                         </td>
-                        <td role="gridcell">
+                        <td role="gridcell" data-label="Coupons">
                           <div className="cell-content number-cell">
                             <span className="cell-icon" aria-hidden="true">🎟️</span>
                             <span className="cell-number">{record.couponTaken || 0}</span>
@@ -881,66 +902,92 @@ const WasteTable = () => {
                 <div className="pagination-info">
                   Page {currentPage} of {totalPages}
                 </div>
-                <div className="pagination-controls">
-                  <button
-                    className="pagination-btn"
-                    onClick={() => goToPage(1)}
-                    disabled={currentPage === 1}
-                    aria-label="Go to first page"
-                  >
-                    ⏮️
-                  </button>
-                  <button
-                    className="pagination-btn"
-                    onClick={goToPrevPage}
-                    disabled={currentPage === 1}
-                    aria-label="Go to previous page"
-                  >
-                    ⬅️
-                  </button>
-                  
-                  {/* Page numbers */}
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    
-                    return (
+                <div className={`pagination-controls ${isCompactPagination ? 'compact' : ''}`}>
+                  {isCompactPagination ? (
+                    <>
                       <button
-                        key={pageNum}
-                        className={`pagination-btn ${currentPage === pageNum ? 'active' : ''}`}
-                        onClick={() => goToPage(pageNum)}
-                        aria-label={`Go to page ${pageNum}`}
-                        aria-current={currentPage === pageNum ? 'page' : undefined}
+                        className="pagination-btn"
+                        onClick={goToPrevPage}
+                        disabled={currentPage === 1}
+                        aria-label="Go to previous page"
                       >
-                        {pageNum}
+                        Prev
                       </button>
-                    );
-                  })}
-                  
-                  <button
-                    className="pagination-btn"
-                    onClick={goToNextPage}
-                    disabled={currentPage === totalPages}
-                    aria-label="Go to next page"
-                  >
-                    ➡️
-                  </button>
-                  <button
-                    className="pagination-btn"
-                    onClick={() => goToPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    aria-label="Go to last page"
-                  >
-                    ⏭️
-                  </button>
+                      <div className="pagination-compact-status" aria-live="polite">
+                        {currentPage} / {totalPages}
+                      </div>
+                      <button
+                        className="pagination-btn"
+                        onClick={goToNextPage}
+                        disabled={currentPage === totalPages}
+                        aria-label="Go to next page"
+                      >
+                        Next
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        className="pagination-btn"
+                        onClick={() => goToPage(1)}
+                        disabled={currentPage === 1}
+                        aria-label="Go to first page"
+                      >
+                        ⏮️
+                      </button>
+                      <button
+                        className="pagination-btn"
+                        onClick={goToPrevPage}
+                        disabled={currentPage === 1}
+                        aria-label="Go to previous page"
+                      >
+                        ⬅️
+                      </button>
+
+                      {/* Page numbers */}
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+
+                        return (
+                          <button
+                            key={pageNum}
+                            className={`pagination-btn ${currentPage === pageNum ? 'active' : ''}`}
+                            onClick={() => goToPage(pageNum)}
+                            aria-label={`Go to page ${pageNum}`}
+                            aria-current={currentPage === pageNum ? 'page' : undefined}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        className="pagination-btn"
+                        onClick={goToNextPage}
+                        disabled={currentPage === totalPages}
+                        aria-label="Go to next page"
+                      >
+                        ➡️
+                      </button>
+                      <button
+                        className="pagination-btn"
+                        onClick={() => goToPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        aria-label="Go to last page"
+                      >
+                        ⏭️
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}

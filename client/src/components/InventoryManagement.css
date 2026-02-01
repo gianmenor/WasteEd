@@ -485,3 +485,96 @@
     width: 100%;
   }
 }
+
+/* Mobile-first table readability (no horizontal scrolling) */
+@media (max-width: 640px) {
+  .inventory-management {
+    padding: 12px;
+  }
+
+  .filters-section {
+    padding: 14px;
+  }
+
+  .table-container {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .inventory-table {
+    display: block;
+    width: 100%;
+  }
+
+  .inventory-table thead {
+    display: none;
+  }
+
+  .inventory-table tbody {
+    display: block;
+  }
+
+  .inventory-table tbody tr {
+    display: block;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 12px;
+    background: var(--card-bg, #ffffff);
+    overflow: hidden;
+  }
+
+  .inventory-table tbody tr:hover {
+    background: var(--card-bg, #ffffff);
+  }
+
+  .inventory-table tbody tr.inactive-row {
+    background: var(--card-bg-disabled, #fafafa);
+  }
+
+  .inventory-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+  }
+
+  .inventory-table td:last-child {
+    border-bottom: none;
+  }
+
+  .inventory-table td::before {
+    content: attr(data-label);
+    flex: 0 0 120px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary, #6b7280);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding-top: 2px;
+  }
+
+  .actions-cell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions-cell::before {
+    margin-bottom: 8px;
+  }
+
+  .btn-action {
+    width: 100%;
+    font-size: 14px;
+    padding: 10px 12px;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+
+  .btn-action:last-child {
+    margin-bottom: 0;
+  }
+}

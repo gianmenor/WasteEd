@@ -1,5 +1,12 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
+import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
+import RedeemOutlinedIcon from '@mui/icons-material/RedeemOutlined';
+import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import { usePreferences } from '../contexts/PreferencesContext';
@@ -134,10 +141,10 @@ const CouponRecords = () => {
 
   const getTransactionIcon = (type) => {
     switch (type) {
-      case 'earn': return '💰';
-      case 'consume': return '🎁';
-      case 'adjust': return '⚙️';
-      default: return '📝';
+      case 'earn': return <SavingsOutlinedIcon fontSize="inherit" />;
+      case 'consume': return <RedeemOutlinedIcon fontSize="inherit" />;
+      case 'adjust': return <TuneOutlinedIcon fontSize="inherit" />;
+      default: return <ReceiptLongOutlinedIcon fontSize="inherit" />;
     }
   };
 
@@ -208,7 +215,8 @@ const CouponRecords = () => {
                   title="Add to balance"
                   style={{ padding: '8px 16px', minWidth: '80px' }}
                 >
-                  ➕ Add
+                  <AddIcon fontSize="small" style={{ marginRight: 6 }} />
+                  Add
                 </button>
                 <button 
                   type="button"
@@ -225,7 +233,8 @@ const CouponRecords = () => {
                   title="Subtract from balance"
                   style={{ padding: '8px 16px', minWidth: '80px' }}
                 >
-                  ➖ Subtract
+                  <RemoveIcon fontSize="small" style={{ marginRight: 6 }} />
+                  Subtract
                 </button>
               </div>
               <small className="form-hint">Enter amount and click Add or Subtract</small>
@@ -257,7 +266,7 @@ const CouponRecords = () => {
 
         {transactions.length === 0 ? (
           <div className="empty-state">
-            <span className="empty-icon">📭</span>
+            <span className="empty-icon" aria-hidden="true"><InboxOutlinedIcon fontSize="inherit" /></span>
             <p>No transactions found for the selected period</p>
           </div>
         ) : (
@@ -275,13 +284,14 @@ const CouponRecords = () => {
               <tbody>
                 {transactions.map((transaction) => (
                   <tr key={transaction.id}>
-                    <td>{formatDate(transaction.createdAt)}</td>
-                    <td>
+                    <td data-label="Date">{formatDate(transaction.createdAt)}</td>
+                    <td data-label="Type">
                       <span className={`transaction-type ${transaction.type}`}>
-                        {getTransactionIcon(transaction.type)} {getTransactionTypeLabel(transaction.type)}
+                        <span className="transaction-type-icon" aria-hidden="true">{getTransactionIcon(transaction.type)}</span>
+                        {getTransactionTypeLabel(transaction.type)}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Amount">
                       <span className={`transaction-amount ${Number(transaction.amount) >= 0 ? 'positive' : 'negative'}`}>
                         {Number(transaction.amount) >= 0 ? '+' : ''}
                         {typeof transaction.amount === 'number' && !isNaN(transaction.amount)
@@ -290,7 +300,7 @@ const CouponRecords = () => {
                       </span>
                     </td>
                     {/* Removed Balance After cell */}
-                    <td className="transaction-details">
+                    <td className="transaction-details" data-label="Details">
                       {transaction.reason || transaction.metadata?.reason || '-'}
                     </td>
                   </tr>

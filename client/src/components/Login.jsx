@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
 import DashboardSkeleton from './DashboardSkeleton';
@@ -34,17 +35,17 @@ const Login = () => {
     
     // Basic validation
     if (!credentials.username.trim()) {
-      setError('❌ Username is required');
+      setError('Username is required');
       return;
     }
     
     if (!credentials.password) {
-      setError('❌ Password is required');
+      setError('Password is required');
       return;
     }
     
     if (credentials.password.length < 3) {
-      setError('❌ Password must be at least 3 characters');
+      setError('Password must be at least 3 characters');
       return;
     }
     
@@ -59,14 +60,14 @@ const Login = () => {
         
         // Check for specific error patterns
         if (errorMsg.toLowerCase().includes('network')) {
-          setError('❌ Network error. Please check your internet connection and try again.');
+          setError('Network error. Please check your internet connection and try again.');
         } else if (errorMsg.toLowerCase().includes('required')) {
-          setError('❌ Username and password are required.');
+          setError('Username and password are required.');
         } else if (errorMsg.toLowerCase().includes('invalid')) {
           // This is the most common error from backend
           setError('Invalid credentials');
         } else {
-          setError(`❌ ${errorMsg}`);
+          setError(errorMsg);
         }
       } else {
         // Only show dashboard skeleton after successful login
@@ -74,7 +75,7 @@ const Login = () => {
       }
     } catch (err) {
       console.error('Login exception:', err);
-      setError('❌ Network error. Please check your internet connection and try again.');
+      setError('Network error. Please check your internet connection and try again.');
     }
   }, [credentials, login]);
 
@@ -123,7 +124,7 @@ const Login = () => {
           {/* Error Alert */}
           {error && (
             <div className="alert alert-error" role="alert">
-              <span className="alert-icon">⚠️</span>
+              <span className="alert-icon" aria-hidden="true"><WarningAmberIcon fontSize="small" /></span>
               <span className="alert-message">{error}</span>
               <button 
                 className="alert-close"

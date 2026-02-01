@@ -1611,17 +1611,8 @@
   }
 }
 
-/* Dark mode skeleton styles */
-@media (prefers-color-scheme: dark) {
-  .skeleton-cell {
-    background: linear-gradient(
-      90deg,
-      #2a2a2a 25%,
-      #333333 50%,
-      #2a2a2a 75%
-    );
-  }
-}
+/* Intentionally no dark-mode styling (light-only UI) */
+
 
 /* Mobile Responsive Styles */
 @media (max-width: 768px) {
@@ -1760,5 +1751,101 @@
   .filter-select {
     font-size: 0.85rem;
     padding: 0.4rem;
+  }
+}
+
+.pagination-controls.compact {
+  gap: 0.5rem;
+}
+
+.pagination-controls.compact .pagination-btn {
+  width: auto;
+  height: auto;
+  padding: 0.5rem 0.75rem;
+}
+
+.pagination-compact-status {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 0.25rem;
+  user-select: none;
+}
+
+/* Mobile: render table rows as stacked cards (no horizontal scroll)
+   Placed at the end of the file to override earlier responsive rules. */
+@media (max-width: 640px) {
+  .table-wrapper {
+    overflow-x: visible;
+    -webkit-overflow-scrolling: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+
+  .waste-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .waste-table thead {
+    display: none;
+  }
+
+  .waste-table tbody {
+    display: block;
+  }
+
+  .waste-table tbody tr {
+    display: block;
+    margin-bottom: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .waste-table tbody tr.even,
+  .waste-table tbody tr.odd {
+    background: var(--bg-secondary);
+  }
+
+  .waste-table th,
+  .waste-table td {
+    white-space: normal;
+  }
+
+  .waste-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .waste-table td:last-child {
+    border-bottom: none;
+  }
+
+  .waste-table td::before {
+    content: attr(data-label);
+    flex: 0 0 92px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding-top: 2px;
+  }
+
+  .cell-content {
+    justify-content: flex-end;
+  }
+
+  .cell-icon {
+    display: none;
   }
 }

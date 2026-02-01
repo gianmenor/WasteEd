@@ -340,22 +340,22 @@ export default function InventoryManagement() {
               const stockStatus = getStockStatus(item.stock);
               return (
                 <tr key={item.id} className={!item.isActive ? 'inactive-row' : ''}>
-                  <td className="item-name">{item.name}</td>
-                  <td className="item-cost">{item.cost} coupon{item.cost !== 1 ? 's' : ''}</td>
-                  <td className="item-stock">
+                  <td className="item-name" data-label="Name">{item.name}</td>
+                  <td className="item-cost" data-label="Cost">{item.cost} coupon{item.cost !== 1 ? 's' : ''}</td>
+                  <td className="item-stock" data-label="Stock">
                     <span className={stockStatus.class}>{item.stock}</span>
                   </td>
-                  <td>
+                  <td data-label="Stock Status">
                     <span className={`stock-badge ${stockStatus.class}`}>
                       {stockStatus.label}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span className={`status-badge ${item.isActive ? 'active' : 'inactive'}`}>
                       {item.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="actions-cell">
+                  <td className="actions-cell" data-label="Actions">
                     <button className="btn-action btn-stock" onClick={() => openStockModal(item)} title="Adjust stock">
                       Stock
                     </button>

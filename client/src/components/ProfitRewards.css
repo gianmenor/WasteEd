@@ -652,6 +652,10 @@
   font-size: 1.5rem;
 }
 
+.revenue-icon svg {
+  vertical-align: middle;
+}
+
 .revenue-value {
   font-size: clamp(1.25rem, 5vw, 1.75rem);
   font-weight: 700;
@@ -816,6 +820,75 @@
   .records-table {
     min-width: 500px;
     font-size: 0.8rem;
+  }
+}
+
+/* Mobile: convert records table into stacked cards (no horizontal scrolling) */
+@media (max-width: 640px) {
+  .records-table-wrapper {
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+
+  .records-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .records-table thead {
+    display: none;
+  }
+
+  .records-table tbody {
+    display: block;
+  }
+
+  .records-table tbody tr {
+    display: block;
+    margin-bottom: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .records-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+    white-space: normal;
+  }
+
+  .records-table td:last-child {
+    border-bottom: none;
+  }
+
+  .records-table td::before {
+    content: attr(data-label);
+    flex: 0 0 110px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding-top: 2px;
+  }
+
+  .record-description {
+    max-width: none;
+    white-space: normal;
+  }
+
+  .action-buttons {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 }
 

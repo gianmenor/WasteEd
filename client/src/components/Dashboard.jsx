@@ -2,6 +2,12 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { useBinNotifications } from '../contexts/BinNotificationContext';
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import RecyclingOutlinedIcon from '@mui/icons-material/RecyclingOutlined';
+import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
+import MonetizationOnOutlinedIcon from '@mui/icons-material/MonetizationOnOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import brandLogo from '../assets/brandName.png';
 import './Dashboard.css';
 
@@ -31,6 +37,15 @@ const ADMIN_MENU_ITEMS = [
   { id: 'inventory', label: 'Inventory Management', icon: '', path: '/inventory' },
   { id: 'settings', label: 'Settings', icon: '', path: '/settings' },
 ];
+
+const BOTTOM_NAV_META = {
+  dashboard: { label: 'Home', icon: <DashboardOutlinedIcon fontSize="inherit" /> },
+  waste: { label: 'Waste', icon: <RecyclingOutlinedIcon fontSize="inherit" /> },
+  coupons: { label: 'Coupons', icon: <ConfirmationNumberOutlinedIcon fontSize="inherit" /> },
+  profit: { label: 'Profit', icon: <MonetizationOnOutlinedIcon fontSize="inherit" /> },
+  inventory: { label: 'Inventory', icon: <Inventory2OutlinedIcon fontSize="inherit" /> },
+  settings: { label: 'Settings', icon: <SettingsOutlinedIcon fontSize="inherit" /> },
+};
 
 // Memoized notification item component
 const NotificationItem = memo(({ notification, onClick, formatTime }) => {
@@ -275,18 +290,10 @@ const Dashboard = ({ user, onLogout, children }) => {
                 onClick={() => handleMenuClick(item.path)}
               >
                 <span className="bottom-nav-icon">
-                  {item.id === 'dashboard' && '📊'}
-                  {item.id === 'waste' && '♻️'}
-                  {item.id === 'coupons' && '🎫'}
-                  {item.id === 'profit' && '💰'}
-                  {item.id === 'settings' && '⚙️'}
+                  {BOTTOM_NAV_META[item.id]?.icon || null}
                 </span>
                 <span className="bottom-nav-label">
-                  {item.id === 'dashboard' && 'Home'}
-                  {item.id === 'waste' && 'Waste'}
-                  {item.id === 'coupons' && 'Coupons'}
-                  {item.id === 'profit' && 'Profit'}
-                  {item.id === 'settings' && 'Settings'}
+                  {BOTTOM_NAV_META[item.id]?.label || item.label}
                 </span>
               </button>
             ))}
