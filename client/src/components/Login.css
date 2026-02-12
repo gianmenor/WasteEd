@@ -219,13 +219,18 @@
 /* Remember Me Checkbox */
 .remember-me-group {
   margin: 0;
-}
-
-.checkbox-label {
   display: flex;
   flex-direction: row;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+/* More specific selector to override global .form-group label styles */
+.remember-me-group .checkbox-label,
+.form-group .checkbox-label {
+  display: flex !important;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   cursor: pointer;
   font-size: 0.875rem;
   color: var(--text-secondary, #6b7280);

@@ -28,7 +28,7 @@ export const useSettings = () => useContext(SettingsContext);
 const MENU_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: '', path: '/dashboard' },
   { id: 'coupons', label: 'Coupon Records', icon: '', path: '/coupons' },
-  { id: 'profit', label: 'Profit & Rewards', icon: '', path: '/profit' },
+  { id: 'profit', label: 'Rewards', icon: '', path: '/profit' },
   { id: 'waste', label: 'Waste Management', icon: '', path: '/waste' },
 ];
 
@@ -362,7 +362,7 @@ const Dashboard = ({ user, onLogout, children }) => {
                   {userMenuOpen && (
                     <div className="user-dropdown">
                       <div className="dropdown-header">
-                        <p className="user-email">{user?.email || 'user@example.com'}</p>
+                        <p className="user-email">{user?.email || 'admin@wasted.com'}</p>
                       </div>
                       <div className="dropdown-divider"></div>
                       <button className="dropdown-item" onClick={handleSettingsClick}>
@@ -370,7 +370,7 @@ const Dashboard = ({ user, onLogout, children }) => {
                         Settings
                       </button>
                       <button className="dropdown-item" onClick={handleLogout}>
-                        <span className="dropdown-icon">🚪</span>
+                        <span className="dropdown-icon">⏻</span>
                         Logout
                       </button>
                     </div>

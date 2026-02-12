@@ -298,7 +298,7 @@ const ProfitRewards = () => {
         <div className="summary-cards">
           <div className="summary-card profit">
             <div className="summary-content">
-              <div className="summary-label">Total Profit</div>
+              <div className="summary-label">Total amount collected</div>
               <div className="summary-value">{formatCurrency(summary.totalProfit || 0)}</div>
               <div className="summary-hint">From recyclables</div>
             </div>
@@ -312,13 +312,6 @@ const ProfitRewards = () => {
             </div>
           </div>
 
-          <div className="summary-card net">
-            <div className="summary-content">
-              <div className="summary-label">Net Profit</div>
-              <div className="summary-value">{formatCurrency(summary.totalNetProfit || summary.netProfit || 0)}</div>
-              <div className="summary-hint">Profit - Rewards</div>
-            </div>
-          </div>
         </div>
       </div>
 

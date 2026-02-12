@@ -14,6 +14,7 @@ export default function InventoryManagement() {
     name: '',
     description: '',
     cost: 1,
+    price: '',
     stock: 0,
     isActive: true
   });
@@ -108,6 +109,7 @@ export default function InventoryManagement() {
       name: item.name,
       description: item.description || '',
       cost: item.cost,
+      price: item.price || '',
       stock: item.stock,
       isActive: item.isActive
     });
@@ -125,6 +127,7 @@ export default function InventoryManagement() {
       name: '',
       description: '',
       cost: 1,
+      price: '',
       stock: 0,
       isActive: true
     });
@@ -329,6 +332,7 @@ export default function InventoryManagement() {
             <tr>
               <th>Name</th>
               <th>Cost</th>
+              <th>Price</th>
               <th>Stock</th>
               <th>Stock Status</th>
               <th>Status</th>
@@ -342,6 +346,9 @@ export default function InventoryManagement() {
                 <tr key={item.id} className={!item.isActive ? 'inactive-row' : ''}>
                   <td className="item-name" data-label="Name">{item.name}</td>
                   <td className="item-cost" data-label="Cost">{item.cost} coupon{item.cost !== 1 ? 's' : ''}</td>
+                  <td className="item-price" data-label="Price">
+                    {item.price !== null && item.price !== undefined ? `₱${parseFloat(item.price).toFixed(2)}` : 'N/A'}
+                  </td>
                   <td className="item-stock" data-label="Stock">
                     <span className={stockStatus.class}>{item.stock}</span>
                   </td>
@@ -422,14 +429,26 @@ export default function InventoryManagement() {
                 </div>
                 
                 <div className="form-group">
-                  <label>Initial Stock</label>
+                  <label>Price (₱)</label>
                   <input
                     type="number"
                     min="0"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) })}
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="Optional"
                   />
                 </div>
+              </div>
+              
+              <div className="form-group">
+                <label>Initial Stock</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) })}
+                />
               </div>
               
               <div className="form-group checkbox">
@@ -494,14 +513,26 @@ export default function InventoryManagement() {
                 </div>
                 
                 <div className="form-group">
-                  <label>Current Stock</label>
+                  <label>Price (₱)</label>
                   <input
                     type="number"
                     min="0"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) })}
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="Optional"
                   />
                 </div>
+              </div>
+              
+              <div className="form-group">
+                <label>Current Stock</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) })}
+                />
               </div>
               
               <div className="form-group checkbox">

@@ -117,7 +117,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/inventory - Create new inventory item (admin only)
 router.post('/', verifyToken, isAdmin, async (req, res) => {
   try {
-    const { name, description, cost, stock, isActive } = req.body;
+    const { name, description, cost, price, stock, isActive } = req.body;
 
     if (!name || cost === undefined) {
       return res.status(400).json({
@@ -139,6 +139,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
           name,
           description: description || null,
           cost: parseInt(cost),
+          price: price !== undefined && price !== null && price !== '' ? parseFloat(price) : null,
           stock: stock !== undefined ? parseInt(stock) : 0,
           isActive: isActive !== undefined ? isActive : true
         }
@@ -172,7 +173,7 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
 router.patch('/:id', verifyToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, cost, stock, isActive } = req.body;
+    const { name, description, cost, price, stock, isActive } = req.body;
 
     const updateData = {};
     if (name !== undefined) updateData.name = name;
@@ -185,6 +186,9 @@ router.patch('/:id', verifyToken, isAdmin, async (req, res) => {
         });
       }
       updateData.cost = parseInt(cost);
+    }
+    if (price !== undefined) {
+      updateData.price = price !== null && price !== '' ? parseFloat(price) : null;
     }
     if (stock !== undefined) updateData.stock = parseInt(stock);
     if (isActive !== undefined) updateData.isActive = isActive;

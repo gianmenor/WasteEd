@@ -131,6 +131,7 @@ model InventoryItem {
   name        String                  @unique
   description String?
   cost        Int                     @default(1)
+  price       Float?
   stock       Int                     @default(0)
   isActive    Boolean                 @default(true)
   createdAt   DateTime                @default(now())

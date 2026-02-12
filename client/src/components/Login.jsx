@@ -113,14 +113,14 @@ const Login = () => {
 
   return (
     <div className={`login-page ${uiSizeClass}`}>
+      {/* Logo Section - Outside the card */}
+      <div className="login-brand-header">
+        <img src={brandLogo} alt="Waste-Ed Logo" className="login-brand-logo" />
+        <p className="login-subtitle">Smart Waste Management System</p>
+      </div>
+
       <div className="login-container">
         <div className="login-card">
-          {/* Welcome Section */}
-          <div className="login-header">
-            <img src={brandLogo} alt="Waste-Ed Logo" className="login-brand-logo" />
-            <p className="login-subtitle">Smart Waste Management System</p>
-          </div>
-
           {/* Error Alert */}
           {error && (
             <div className="alert alert-error" role="alert">
@@ -192,7 +192,7 @@ const Login = () => {
                   className="checkbox-input"
                 />
                 <span className="checkbox-custom"></span>
-                <span className="checkbox-text">Remember me for 30 days</span>
+                <span className="checkbox-text">Remember me</span>
               </label>
             </div>
 

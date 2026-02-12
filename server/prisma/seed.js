@@ -30,7 +30,7 @@ async function main() {
       accountData = JSON.parse(accountJsonData);
     } catch (error) {
       console.warn('⚠️  Could not read account.json, using default data');
-      accountData = { username: 'admin', password: '123456' };
+      accountData = { username: 'admin', password: '123456', email: 'admin@wasted.com' };
     }
 
     // Hash passwords
@@ -45,6 +45,7 @@ async function main() {
         {
           username: accountData.username,
           password: hashedPasswordFromJson,
+          email: accountData.email || 'admin@wasted.com',
           role: 'admin', // Make the first account admin
         },
         {
@@ -390,12 +391,12 @@ async function main() {
 
     // Create initial inventory items
     const inventoryItems = [
-      { name: 'Eraser', description: 'Standard white eraser', cost: 1, stock: 50 },
-      { name: 'Pen', description: 'Ballpoint pen, black ink', cost: 2, stock: 40 },
-      { name: 'Sticker', description: 'Colorful sticker sheets', cost: 1, stock: 100 },
-      { name: 'Colored Paper', description: 'Pack of assorted colored paper', cost: 3, stock: 30 },
-      { name: 'Scratch Paintings', description: 'Rainbow scratch art sheets', cost: 4, stock: 25 },
-      { name: 'Pencil', description: 'HB pencil', cost: 1, stock: 60 }
+      { name: 'Eraser', description: 'Standard white eraser', cost: 1, price: 5.00, stock: 50 },
+      { name: 'Pen', description: 'Ballpoint pen, black ink', cost: 2, price: 10.00, stock: 40 },
+      { name: 'Sticker', description: 'Colorful sticker sheets', cost: 1, price: 8.00, stock: 100 },
+      { name: 'Colored Paper', description: 'Pack of assorted colored paper', cost: 3, price: 25.00, stock: 30 },
+      { name: 'Scratch Paintings', description: 'Rainbow scratch art sheets', cost: 4, price: 35.00, stock: 25 },
+      { name: 'Pencil', description: 'HB pencil', cost: 1, price: 6.00, stock: 60 }
     ];
 
     await prisma.inventoryItem.createMany({
