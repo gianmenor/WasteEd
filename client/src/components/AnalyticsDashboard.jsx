@@ -174,35 +174,10 @@ const AnalyticsDashboard = () => {
     refetchBin();
   }, [refetchWaste, refetchBin]);
 
-  // Unified export handler
-  const handleExport = useCallback(async (options) => {
-    const { format, includeTypes, dateRange, customDateFrom, customDateTo } = options;
-    
-    // Update selected types based on modal selection
-    const typesToExport = {
-      RECYCLABLE: includeTypes.recyclable,
-      WET: includeTypes.wet,
-      DRY: includeTypes.dry
-    };
-    
-    setSelectedTypes(typesToExport);
-    
-    // Store date filters for export functions
-    const dateFilters = { dateRange, customDateFrom, customDateTo };
-    
-    // Call appropriate export function based on format
-    if (format === 'excel') {
-      await exportToExcel(dateFilters);
-    } else if (format === 'pdf') {
-      await exportToPDF(dateFilters);
-    } else if (format === 'csv') {
-      // CSV export can use same logic as Excel but simpler
-      await exportToExcel(dateFilters);
-    }
-  }, []);
-
   // Export to Excel function with separate sheets per waste type
-  const exportToExcel = useCallback(async (dateFilters = {}) => {
+  const exportToExcel = useCallback(async (dateFilters = {}, typesToExport = null) => {
+    // Use passed types or fall back to current state
+    const types = typesToExport || selectedTypes;
     setExporting(true);
     try {
       let allData = [];
@@ -277,7 +252,7 @@ const AnalyticsDashboard = () => {
       const wb = XLSX.utils.book_new();
       
       // Create sheet for each waste type if selected
-      if (selectedTypes.RECYCLABLE) {
+      if (types.RECYCLABLE) {
         const recyclableData = allData.map(record => ({
           'Date': new Date(record.date).toLocaleDateString(),
           'Recyclable Wastes (pcs)': record.recyclable || 0,
@@ -287,7 +262,7 @@ const AnalyticsDashboard = () => {
         XLSX.utils.book_append_sheet(wb, ws, 'Recyclable Wastes');
       }
       
-      if (selectedTypes.WET) {
+      if (types.WET) {
         const wetData = allData.map(record => ({
           'Date': new Date(record.date).toLocaleDateString(),
           'Wet Wastes (pcs)': record.biodegradable || 0,
@@ -297,7 +272,7 @@ const AnalyticsDashboard = () => {
         XLSX.utils.book_append_sheet(wb, ws, 'Wet Wastes');
       }
       
-      if (selectedTypes.DRY) {
+      if (types.DRY) {
         const dryData = allData.map(record => ({
           'Date': new Date(record.date).toLocaleDateString(),
           'Dry Wastes (pcs)': record.nonBiodegradable || 0,
@@ -307,16 +282,25 @@ const AnalyticsDashboard = () => {
         XLSX.utils.book_append_sheet(wb, ws, 'Dry Wastes');
       }
       
-      // Add summary sheet
-      const summaryData = allData.map(record => ({
-        'Date': new Date(record.date).toLocaleDateString(),
-        'Recyclable (pcs)': record.recyclable || 0,
-        'Wet (pcs)': record.biodegradable || 0,
-        'Dry (pcs)': record.nonBiodegradable || 0,
-        'Total (pcs)': (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0)
-      }));
+      // Add summary sheet with only selected types
+      const summaryData = allData.map(record => {
+        const row = {
+          'Date': new Date(record.date).toLocaleDateString()
+        };
+        if (types.RECYCLABLE) row['Recyclable (pcs)'] = record.recyclable || 0;
+        if (types.WET) row['Wet (pcs)'] = record.biodegradable || 0;
+        if (types.DRY) row['Dry (pcs)'] = record.nonBiodegradable || 0;
+        
+        // Calculate total from selected types only
+        row['Total (pcs)'] = 
+          (types.RECYCLABLE ? (record.recyclable || 0) : 0) +
+          (types.WET ? (record.biodegradable || 0) : 0) +
+          (types.DRY ? (record.nonBiodegradable || 0) : 0);
+        
+        return row;
+      });
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'All Waste Types');
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
 
       // Download file
       XLSX.writeFile(wb, `waste_analytics_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -340,7 +324,9 @@ const AnalyticsDashboard = () => {
   }, [selectedTypes]);
 
   // PDF Export function
-  const exportToPDF = useCallback(async (dateFilters = {}) => {
+  const exportToPDF = useCallback(async (dateFilters = {}, typesToExport = null) => {
+    // Use passed types or fall back to current state
+    const types = typesToExport || selectedTypes;
     setExporting(true);
     try {
       let allData = [];
@@ -425,7 +411,7 @@ const AnalyticsDashboard = () => {
       let startY = 35;
       
       // Create tables for each selected waste type
-      if (selectedTypes.RECYCLABLE) {
+      if (types.RECYCLABLE) {
         const recyclableData = allData.filter(r => (r.recyclable || 0) > 0).map(record => [
           new Date(record.date).toLocaleDateString(),
           (record.recyclable || 0).toFixed(2)
@@ -448,7 +434,7 @@ const AnalyticsDashboard = () => {
         }
       }
       
-      if (selectedTypes.WET) {
+      if (types.WET) {
         const wetData = allData.filter(r => (r.biodegradable || 0) > 0).map(record => [
           new Date(record.date).toLocaleDateString(),
           (record.biodegradable || 0).toFixed(2)
@@ -471,7 +457,7 @@ const AnalyticsDashboard = () => {
         }
       }
       
-      if (selectedTypes.DRY) {
+      if (types.DRY) {
         const dryData = allData.filter(r => (r.nonBiodegradable || 0) > 0).map(record => [
           new Date(record.date).toLocaleDateString(),
           (record.nonBiodegradable || 0).toFixed(2)
@@ -511,6 +497,31 @@ const AnalyticsDashboard = () => {
       setExporting(false);
     }
   }, [selectedTypes]);
+
+  // Unified export handler
+  const handleExport = useCallback(async (options) => {
+    const { format, includeTypes, dateRange, customDateFrom, customDateTo } = options;
+    
+    // Map modal types to internal format - handle false values correctly
+    const typesToExport = {
+      RECYCLABLE: includeTypes?.recyclable !== undefined ? includeTypes.recyclable : true,
+      WET: includeTypes?.wet !== undefined ? includeTypes.wet : true,
+      DRY: includeTypes?.dry !== undefined ? includeTypes.dry : true
+    };
+    
+    // Store date filters for export functions
+    const dateFilters = { dateRange, customDateFrom, customDateTo };
+    
+    // Call appropriate export function based on format, passing types directly
+    if (format === 'excel') {
+      await exportToExcel(dateFilters, typesToExport);
+    } else if (format === 'pdf') {
+      await exportToPDF(dateFilters, typesToExport);
+    } else if (format === 'csv') {
+      // CSV export can use same logic as Excel but simpler
+      await exportToExcel(dateFilters, typesToExport);
+    }
+  }, [exportToExcel, exportToPDF]);
 
   // Helper functions for data processing
   const generateDailyTrends = (data) => {

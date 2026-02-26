@@ -3,19 +3,25 @@ import { useQuery } from '@tanstack/react-query';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import './ProfitRewards.css';
 
 // Fetch profit/reward records
-const fetchRecords = async (year, month) => {
+const fetchRecords = async (year, month, dateFrom, dateTo) => {
   const token = localStorage.getItem('token');
   let url = API_ENDPOINTS.PROFIT_RECORDS;
   
   const params = new URLSearchParams();
   if (year) params.append('year', year);
   if (month && month !== '') params.append('month', month);
+  if (dateFrom) params.append('dateFrom', dateFrom);
+  if (dateTo) params.append('dateTo', dateTo);
   
   if (params.toString()) {
     url += `?${params.toString()}`;
@@ -37,13 +43,15 @@ const fetchRecords = async (year, month) => {
 };
 
 // Fetch summary
-const fetchSummary = async (year, month) => {
+const fetchSummary = async (year, month, dateFrom, dateTo) => {
   const token = localStorage.getItem('token');
   let url = API_ENDPOINTS.PROFIT_SUMMARY;
   
   const params = new URLSearchParams();
   if (year) params.append('year', year);
   if (month && month !== '') params.append('month', month);
+  if (dateFrom) params.append('dateFrom', dateFrom);
+  if (dateTo) params.append('dateTo', dateTo);
   
   if (params.toString()) {
     url += `?${params.toString()}`;
@@ -75,6 +83,11 @@ const ProfitRewards = () => {
   const [messageType, setMessageType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState('excel');
+  const [dateRangeMode, setDateRangeMode] = useState('month'); // 'month' | 'custom'
+  const [customDateFrom, setCustomDateFrom] = useState('');
+  const [customDateTo, setCustomDateTo] = useState('');
   
   // Form state
   const [formData, setFormData] = useState({
@@ -88,15 +101,25 @@ const ProfitRewards = () => {
 
   // Fetch records
   const { data: records = [], isLoading: recordsLoading, refetch: refetchRecords } = useQuery({
-    queryKey: ['profitRecords', selectedYear, selectedMonth],
-    queryFn: () => fetchRecords(selectedYear, selectedMonth),
+    queryKey: ['profitRecords', selectedYear, selectedMonth, dateRangeMode, customDateFrom, customDateTo],
+    queryFn: () => fetchRecords(
+      dateRangeMode === 'month' ? selectedYear : null,
+      dateRangeMode === 'month' ? selectedMonth : null,
+      dateRangeMode === 'custom' ? customDateFrom : null,
+      dateRangeMode === 'custom' ? customDateTo : null
+    ),
     staleTime: 2 * 60 * 1000,
   });
 
   // Fetch summary
   const { data: summary = {}, isLoading: summaryLoading, refetch: refetchSummary } = useQuery({
-    queryKey: ['profitSummary', selectedYear, selectedMonth],
-    queryFn: () => fetchSummary(selectedYear, selectedMonth),
+    queryKey: ['profitSummary', selectedYear, selectedMonth, dateRangeMode, customDateFrom, customDateTo],
+    queryFn: () => fetchSummary(
+      dateRangeMode === 'month' ? selectedYear : null,
+      dateRangeMode === 'month' ? selectedMonth : null,
+      dateRangeMode === 'custom' ? customDateFrom : null,
+      dateRangeMode === 'custom' ? customDateTo : null
+    ),
     staleTime: 2 * 60 * 1000,
   });
 
@@ -266,6 +289,56 @@ const ProfitRewards = () => {
     }).format(amount);
   }, []);
 
+  const handleExport = useCallback(() => {
+    if (!records || records.length === 0) {
+      showMessage('No records to export', 'error');
+      return;
+    }
+
+    const periodLabel = dateRangeMode === 'custom'
+      ? `${customDateFrom || 'start'}_to_${customDateTo || 'end'}`
+      : `${selectedYear}${selectedMonth ? '_' + selectedMonth : ''}`;
+
+    const rows = records.map((r) => ({
+      Date: formatDate(r.date),
+      'Total Amount Collected (₱)': (r.profitFromRecyclables || 0).toFixed(2),
+      'Expense (₱)': (r.rewardsSpent || 0).toFixed(2),
+      'Net Revenue (₱)': (r.netProfit || 0).toFixed(2),
+      Notes: r.notes || ''
+    }));
+
+    if (exportFormat === 'excel') {
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Profit & Rewards');
+      XLSX.writeFile(wb, `profit_rewards_${periodLabel}.xlsx`);
+    } else {
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text('Profit & Rewards Report', 14, 18);
+      doc.setFontSize(10);
+      doc.setTextColor(120);
+      doc.text(`Period: ${periodLabel.replace(/_/g, ' ')}`, 14, 26);
+      autoTable(doc, {
+        startY: 32,
+        head: [['Date', 'Total Amount Collected', 'Expense', 'Net Revenue', 'Notes']],
+        body: records.map((r) => [
+          formatDate(r.date),
+          `₱${(r.profitFromRecyclables || 0).toFixed(2)}`,
+          `₱${(r.rewardsSpent || 0).toFixed(2)}`,
+          `₱${(r.netProfit || 0).toFixed(2)}`,
+          r.notes || ''
+        ]),
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [34, 197, 94] }
+      });
+      doc.save(`profit_rewards_${periodLabel}.pdf`);
+    }
+
+    setShowExportModal(false);
+    showMessage('Export successful!');
+  }, [records, exportFormat, dateRangeMode, customDateFrom, customDateTo, selectedYear, selectedMonth, formatDate, showMessage]);
+
   const uiSizeClass = useMemo(() => 
     `ui-size-${preferences?.uiSize || 'medium'}`,
     [preferences?.uiSize]
@@ -298,7 +371,7 @@ const ProfitRewards = () => {
         <div className="summary-cards">
           <div className="summary-card profit">
             <div className="summary-content">
-              <div className="summary-label">Total amount collected</div>
+              <div className="summary-label">Total Amount Collected</div>
               <div className="summary-value">{formatCurrency(summary.totalProfit || 0)}</div>
               <div className="summary-hint">From recyclables</div>
             </div>
@@ -321,6 +394,14 @@ const ProfitRewards = () => {
           <h2 className="records-title">Records</h2>
           <div className="records-header-actions">
             <button 
+              className="btn btn-export"
+              onClick={() => setShowExportModal(true)}
+              title="Export records"
+            >
+              <FileDownloadOutlinedIcon fontSize="small" />
+              <span>Export</span>
+            </button>
+            <button 
               className="btn btn-primary btn-add-record"
               onClick={() => setShowModal(true)}
             >
@@ -329,38 +410,92 @@ const ProfitRewards = () => {
           </div>
         </div>
         
+        {/* Filter Controls */}
         <div className="filter-controls">
-          <label>Year:</label>
-            <select
-              className="filter-select"
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          <div className="filter-mode-toggle">
+            <button
+              className={`filter-mode-btn ${dateRangeMode === 'month' ? 'active' : ''}`}
+              onClick={() => setDateRangeMode('month')}
             >
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-            
-            <label>Month:</label>
-            <select
-              className="filter-select"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value === '' ? '' : parseInt(e.target.value))}
+              By Month
+            </button>
+            <button
+              className={`filter-mode-btn ${dateRangeMode === 'custom' ? 'active' : ''}`}
+              onClick={() => setDateRangeMode('custom')}
             >
-              <option value="">All</option>
-              <option value="1">January</option>
-              <option value="2">February</option>
-              <option value="3">March</option>
-              <option value="4">April</option>
-              <option value="5">May</option>
-              <option value="6">June</option>
-              <option value="7">July</option>
-              <option value="8">August</option>
-              <option value="9">September</option>
-              <option value="10">October</option>
-              <option value="11">November</option>
-              <option value="12">December</option>
-            </select>
+              Custom Range
+            </button>
+          </div>
+
+          {dateRangeMode === 'month' ? (
+            <div className="filter-selects">
+              <div className="filter-field">
+                <label>Year</label>
+                <select
+                  className="filter-select"
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                >
+                  {years.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="filter-field">
+                <label>Month</label>
+                <select
+                  className="filter-select"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value === '' ? '' : parseInt(e.target.value))}
+                >
+                  <option value="">All</option>
+                  <option value="1">January</option>
+                  <option value="2">February</option>
+                  <option value="3">March</option>
+                  <option value="4">April</option>
+                  <option value="5">May</option>
+                  <option value="6">June</option>
+                  <option value="7">July</option>
+                  <option value="8">August</option>
+                  <option value="9">September</option>
+                  <option value="10">October</option>
+                  <option value="11">November</option>
+                  <option value="12">December</option>
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div className="filter-selects">
+              <div className="filter-field">
+                <label>From</label>
+                <input
+                  type="date"
+                  className="filter-select filter-date"
+                  value={customDateFrom}
+                  onChange={(e) => setCustomDateFrom(e.target.value)}
+                  max={customDateTo || undefined}
+                />
+              </div>
+              <div className="filter-field">
+                <label>To</label>
+                <input
+                  type="date"
+                  className="filter-select filter-date"
+                  value={customDateTo}
+                  onChange={(e) => setCustomDateTo(e.target.value)}
+                  min={customDateFrom || undefined}
+                />
+              </div>
+              {(customDateFrom || customDateTo) && (
+                <button
+                  className="btn-clear-dates"
+                  onClick={() => { setCustomDateFrom(''); setCustomDateTo(''); }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {records.length === 0 ? (
@@ -374,9 +509,9 @@ const ProfitRewards = () => {
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Profit</th>
+                  <th>Total Amount Collected</th>
                   <th>Expense</th>
-                  <th>Revenue</th>
+                  <th>Net Revenue</th>
                   <th>Notes</th>
                   <th>Actions</th>
                 </tr>
@@ -385,7 +520,7 @@ const ProfitRewards = () => {
                 {records.map((record) => (
                   <tr key={record.id}>
                     <td data-label="Date">{formatDate(record.date)}</td>
-                    <td data-label="Profit">
+                    <td data-label="Total Amount Collected">
                       <span className="record-amount profit">
                         {formatCurrency(record.profitFromRecyclables || 0)}
                       </span>
@@ -395,7 +530,7 @@ const ProfitRewards = () => {
                         {formatCurrency(record.rewardsSpent || 0)}
                       </span>
                     </td>
-                    <td data-label="Revenue">
+                    <td data-label="Net Revenue">
                       <span className={`record-amount ${record.netProfit >= 0 ? 'profit' : 'reward'}`}>
                         {formatCurrency(record.netProfit || 0)}
                       </span>
@@ -431,6 +566,49 @@ const ProfitRewards = () => {
         )}
       </div>
 
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
+          <div className="modal-content modal-content--export" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Export Records</h2>
+              <button className="modal-close" onClick={() => setShowExportModal(false)}>✕</button>
+            </div>
+            <div className="modal-form-body">
+              <div className="form-group">
+                <label>Format</label>
+                <div className="export-format-toggle">
+                  <button
+                    type="button"
+                    className={`export-fmt-btn ${exportFormat === 'excel' ? 'active' : ''}`}
+                    onClick={() => setExportFormat('excel')}
+                  >
+                    📊 Excel (.xlsx)
+                  </button>
+                  <button
+                    type="button"
+                    className={`export-fmt-btn ${exportFormat === 'pdf' ? 'active' : ''}`}
+                    onClick={() => setExportFormat('pdf')}
+                  >
+                    📄 PDF
+                  </button>
+                </div>
+              </div>
+              <p className="export-info">
+                Exporting <strong>{records.length}</strong> record{records.length !== 1 ? 's' : ''} from the currently selected period.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowExportModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleExport} disabled={records.length === 0}>
+                <FileDownloadOutlinedIcon fontSize="small" style={{ marginRight: 6 }} />
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal for Add/Edit Form */}
       {showModal && (
         <div className="modal-overlay" onClick={() => !isSubmitting && handleCancelEdit()}>
@@ -450,55 +628,64 @@ const ProfitRewards = () => {
             
             <form className="profit-form modal-form" onSubmit={handleSubmit}>
               <div className="modal-form-body">
+
                 {/* Amount Inputs Section */}
+                <div className="form-section-label">Amounts</div>
                 <div className="amounts-grid">
                   <div className="form-group">
-                    <label htmlFor="profitAmount">Profit (₱)</label>
-                    <input
-                      id="profitAmount"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="form-input profit-input"
-                      value={formData.profitAmount}
-                      onChange={(e) => setFormData(prev => ({ ...prev, profitAmount: e.target.value }))}
-                      placeholder="0.00"
-                      disabled={isSubmitting}
-                    />
+                    <label htmlFor="profitAmount">Total Amount Collected (₱)</label>
+                    <div className="input-with-prefix">
+                      <span className="input-prefix input-prefix--green">₱</span>
+                      <input
+                        id="profitAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="form-input profit-input input-with-prefix__field"
+                        value={formData.profitAmount}
+                        onChange={(e) => setFormData(prev => ({ ...prev, profitAmount: e.target.value }))}
+                        placeholder="0.00"
+                        disabled={isSubmitting}
+                      />
+                    </div>
                     <span className="input-hint">Income from recyclables</span>
                   </div>
 
                   <div className="form-group">
                     <label htmlFor="expenseAmount">Expense (₱)</label>
-                    <input
-                      id="expenseAmount"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="form-input expense-input"
-                      value={formData.expenseAmount}
-                      onChange={(e) => setFormData(prev => ({ ...prev, expenseAmount: e.target.value }))}
-                      placeholder="0.00"
-                      disabled={isSubmitting}
-                    />
-                    <span className="input-hint">Rewards/costs paid out</span>
+                    <div className="input-with-prefix">
+                      <span className="input-prefix input-prefix--red">₱</span>
+                      <input
+                        id="expenseAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="form-input expense-input input-with-prefix__field"
+                        value={formData.expenseAmount}
+                        onChange={(e) => setFormData(prev => ({ ...prev, expenseAmount: e.target.value }))}
+                        placeholder="0.00"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <span className="input-hint">Rewards / costs paid out</span>
                   </div>
                 </div>
 
                 {/* Revenue Display */}
                 <div className="revenue-display">
                   <div className="revenue-label">
-                    <span className="revenue-icon" aria-hidden="true"><QueryStatsIcon fontSize="small" /></span>
-                    <span>Total Revenue</span>
+                    <QueryStatsIcon fontSize="small" />
+                    <span>Net Revenue</span>
                   </div>
-                  <div className="revenue-value">
+                  <div className={`revenue-value ${(parseFloat(formData.profitAmount || 0) - parseFloat(formData.expenseAmount || 0)) >= 0 ? 'positive' : 'negative'}`}>
                     ₱{(parseFloat(formData.profitAmount || 0) - parseFloat(formData.expenseAmount || 0)).toFixed(2)}
                   </div>
                 </div>
 
                 {/* Source/Notes Section */}
+                <div className="form-section-label">Details</div>
                 <div className="form-group">
-                  <label htmlFor="source">Source / Description *</label>
+                  <label htmlFor="source">Source / Description <span className="required-mark">*</span></label>
                   <input
                     id="source"
                     type="text"
@@ -512,7 +699,7 @@ const ProfitRewards = () => {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="description">Additional Notes (optional)</label>
+                  <label htmlFor="description">Additional Notes <span className="optional-mark">(optional)</span></label>
                   <textarea
                     id="description"
                     className="form-input form-textarea"
@@ -527,20 +714,19 @@ const ProfitRewards = () => {
 
               <div className="modal-footer">
                 <button 
-                  type="submit" 
-                  className="btn btn-primary"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Processing...' : editingId ? 'Update Record' : 'Add Record'}
-                </button>
-                
-                <button 
                   type="button" 
                   className="btn btn-secondary"
                   onClick={handleCancelEdit}
                   disabled={isSubmitting}
                 >
                   Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Processing...' : editingId ? 'Update Record' : 'Add Record'}
                 </button>
               </div>
             </form>

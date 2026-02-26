@@ -20,6 +20,7 @@ const SkeletonRow = memo(() => (
     <td><div className="skeleton-cell skeleton-pulse"></div></td>
     <td><div className="skeleton-cell skeleton-pulse"></div></td>
     <td><div className="skeleton-cell skeleton-pulse"></div></td>
+    <td><div className="skeleton-cell skeleton-pulse"></div></td>
   </tr>
 ));
 
@@ -74,6 +75,7 @@ const WasteTable = () => {
   const [sortOrder, setSortOrder] = useState('desc');
   const [typeFilter, setTypeFilter] = useState('all'); // all, recyclable, biodegradable, nonBiodegradable
   const [showExportModal, setShowExportModal] = useState(false);
+  const [dismissedError, setDismissedError] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
@@ -116,6 +118,7 @@ const WasteTable = () => {
 
   const error = useMemo(() => {
     if (!queryError) return null;
+    setDismissedError(false); // Reset dismiss state when new error occurs
     return {
       message: 'Unable to load waste collection data',
       details: queryError.message,
@@ -166,6 +169,7 @@ const WasteTable = () => {
           data.push({
             id: `${record.id}-recyclable`,
             date: record.date,
+            time: record.recordedAt || record.createdAt,
             type: 'Recyclable',
             quantityInPcs: record.recyclable,
             couponTaken: Math.floor(record.recyclable * 0.5), // Example calculation
@@ -177,6 +181,7 @@ const WasteTable = () => {
           data.push({
             id: `${record.id}-biodegradable`,
             date: record.date,
+            time: record.recordedAt || record.createdAt,
             type: 'Wet Wastes',
             quantityInPcs: record.biodegradable,
             couponTaken: 0,
@@ -188,6 +193,7 @@ const WasteTable = () => {
           data.push({
             id: `${record.id}-nonBiodegradable`,
             date: record.date,
+            time: record.recordedAt || record.createdAt,
             type: 'Dry Wastes',
             quantityInPcs: record.nonBiodegradable,
             couponTaken: 0,
@@ -212,6 +218,20 @@ const WasteTable = () => {
             aVal = new Date(a.date).getTime();
             bVal = new Date(b.date).getTime();
             // Explicitly handle date sorting to show newest first when desc
+            return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+          case 'time':
+            aVal = a.time ? new Date(a.time).getTime() : 0;
+            bVal = b.time ? new Date(b.time).getTime() : 0;
+            return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+          case 'type':
+            aVal = a.type || '';
+            bVal = b.type || '';
+            return sortOrder === 'asc' 
+              ? aVal.localeCompare(bVal) 
+              : bVal.localeCompare(aVal);
+          case 'quantity':
+            aVal = a.quantityInPcs || a.total || 0;
+            bVal = b.quantityInPcs || b.total || 0;
             return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
           case 'recyclable':
             aVal = a.recyclable || 0;
@@ -314,188 +334,314 @@ const WasteTable = () => {
     return parseInt(count).toString();
   }, []);
 
-  // PDF Export handler
-  // Unified export handler
-  const handleExport = useCallback((options) => {
-    const { format, includeTypes } = options;
-    
-    // Map includeTypes from modal to internal format
-    const wasteTypes = {
-      recyclable: includeTypes?.recyclable ?? true,
-      biodegradable: includeTypes?.wet ?? true,
-      nonBiodegradable: includeTypes?.dry ?? true
-    };
-    
-    if (format === 'excel') {
-      handleExcelExport(wasteTypes);
-    } else if (format === 'pdf') {
-      handlePDFExport();
-    }
-  }, [processedData, formatDate, formatCount, statistics, dateFrom, dateTo, viewMode, typeFilter, totalItems]);
+  // Helper: filter wasteData (raw records) by the export modal date range
+  const applyExportDateFilter = useCallback((rawData, dateRange, customDateFrom, customDateTo) => {
+    if (!rawData || !Array.isArray(rawData)) return [];
 
-  const handlePDFExport = useCallback(() => {
+    const now = new Date();
+    now.setHours(23, 59, 59, 999);
+
+    if (dateRange === 'all') return rawData;
+
+    return rawData.filter(record => {
+      const d = new Date(record.date);
+      if (dateRange === 'today') {
+        const today = new Date();
+        return d.toDateString() === today.toDateString();
+      }
+      if (dateRange === 'week') {
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 6);
+        weekAgo.setHours(0, 0, 0, 0);
+        return d >= weekAgo && d <= now;
+      }
+      if (dateRange === 'month') {
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      }
+      if (dateRange === 'year') {
+        return d.getFullYear() === now.getFullYear();
+      }
+      if (dateRange === 'custom') {
+        const from = customDateFrom ? new Date(customDateFrom + 'T00:00:00') : null;
+        const to = customDateTo ? new Date(customDateTo + 'T23:59:59') : null;
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+      }
+      return true;
+    });
+  }, []);
+
+  // Helper: aggregate raw records by month for export
+  const aggregateForExport = useCallback((rawData) => {
+    const monthlyData = {};
+    rawData.forEach(record => {
+      const date = new Date(record.date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { date: monthKey + '-01', recyclable: 0, biodegradable: 0, nonBiodegradable: 0 };
+      }
+      monthlyData[monthKey].recyclable += record.recyclable || 0;
+      monthlyData[monthKey].biodegradable += record.biodegradable || 0;
+      monthlyData[monthKey].nonBiodegradable += record.nonBiodegradable || 0;
+    });
+    return Object.values(monthlyData).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, []);
+
+  const handlePDFExport = useCallback((wasteTypes, dateFiltered, dateRange, customDateFrom, customDateTo) => {
     const doc = new jsPDF();
-    
+
     // Title
     doc.setFontSize(18);
-    doc.setTextColor(22, 163, 74); // Primary green
+    doc.setTextColor(22, 163, 74);
     doc.text('WASTE-ED Waste Collection Report', 14, 22);
-    
+
     // Metadata
     doc.setFontSize(10);
     doc.setTextColor(107, 114, 128);
-    const dateRange = dateFrom && dateTo 
-      ? `Period: ${dateFrom} to ${dateTo}`
-      : dateFrom
-        ? `From: ${dateFrom}`
-        : dateTo
-          ? `Until: ${dateTo}`
-          : `View: ${viewMode === 'daily' ? 'Daily Records' : 'Monthly Summary'}`;
-    doc.text(dateRange, 14, 30);
-    
-    const filterLabel = typeFilter === 'all' ? 'All Waste Types' 
-      : typeFilter === 'recyclable' ? 'Recyclable Wastes Only'
-      : typeFilter === 'biodegradable' ? 'Wet Wastes Only'
-      : 'Dry Wastes Only';
-    doc.text(`Filter: ${filterLabel}`, 14, 36);
+
+    let dateRangeLabel;
+    if (dateRange === 'custom') {
+      dateRangeLabel = `Period: ${customDateFrom || 'start'} to ${customDateTo || 'end'}`;
+    } else if (dateRange === 'today') dateRangeLabel = 'Period: Today';
+    else if (dateRange === 'week') dateRangeLabel = 'Period: Last 7 days';
+    else if (dateRange === 'month') dateRangeLabel = 'Period: This month';
+    else if (dateRange === 'year') dateRangeLabel = 'Period: This year';
+    else dateRangeLabel = 'Period: All time';
+
+    const typeLabels = [
+      wasteTypes.recyclable && 'Recyclable',
+      wasteTypes.biodegradable && 'Wet Wastes',
+      wasteTypes.nonBiodegradable && 'Dry Wastes'
+    ].filter(Boolean).join(', ');
+
+    doc.text(dateRangeLabel, 14, 30);
+    doc.text(`Types: ${typeLabels}`, 14, 36);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 42);
-    
-    // Prepare table data
-    const tableData = processedData.map(record => [
-      formatDate(record.date),
-      formatCount(record.recyclable),
-      formatCount(record.biodegradable),
-      formatCount(record.nonBiodegradable),
-      formatCount((record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0))
-    ]);
-    
-    // Add totals row
-    tableData.push([
-      'TOTAL',
-      formatCount(statistics.recyclable),
-      formatCount(statistics.biodegradable),
-      formatCount(statistics.nonBiodegradable),
-      formatCount(statistics.total)
-    ]);
-    
-    // Generate table
+
+    // Build columns based on selected types
+    const head = ['Date', 'Time'];
+    if (wasteTypes.recyclable) head.push('Recyclable (pcs)');
+    if (wasteTypes.biodegradable) head.push('Wet Wastes (pcs)');
+    if (wasteTypes.nonBiodegradable) head.push('Dry Wastes (pcs)');
+    head.push('Total (pcs)');
+
+    // Build rows
+    let tableData;
+    let totals = { recyclable: 0, biodegradable: 0, nonBiodegradable: 0 };
+
+    if (viewMode === 'monthly') {
+      const aggregated = aggregateForExport(dateFiltered);
+      tableData = aggregated.map(record => {
+        // Only accumulate totals for selected types
+        if (wasteTypes.recyclable) totals.recyclable += record.recyclable || 0;
+        if (wasteTypes.biodegradable) totals.biodegradable += record.biodegradable || 0;
+        if (wasteTypes.nonBiodegradable) totals.nonBiodegradable += record.nonBiodegradable || 0;
+        
+        const selectedTotal =
+          (wasteTypes.recyclable ? record.recyclable || 0 : 0) +
+          (wasteTypes.biodegradable ? record.biodegradable || 0 : 0) +
+          (wasteTypes.nonBiodegradable ? record.nonBiodegradable || 0 : 0);
+        const row = [formatDate(record.date), '-'];
+        if (wasteTypes.recyclable) row.push(formatCount(record.recyclable));
+        if (wasteTypes.biodegradable) row.push(formatCount(record.biodegradable));
+        if (wasteTypes.nonBiodegradable) row.push(formatCount(record.nonBiodegradable));
+        row.push(formatCount(selectedTotal));
+        return row;
+      });
+    } else {
+      // Daily — expand raw records into per-type rows, then filter
+      tableData = [];
+      dateFiltered.forEach(record => {
+        const timeStr = record.recordedAt || record.createdAt 
+          ? new Date(record.recordedAt || record.createdAt).toLocaleTimeString('en-US', { 
+              hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true 
+            })
+          : '-';
+        
+        if (wasteTypes.recyclable && (record.recyclable || 0) > 0) {
+          totals.recyclable += record.recyclable;
+          tableData.push([
+            new Date(record.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+            timeStr,
+            formatCount(record.recyclable),
+            ...(wasteTypes.biodegradable ? ['-'] : []),
+            ...(wasteTypes.nonBiodegradable ? ['-'] : []),
+            formatCount(record.recyclable)
+          ]);
+        }
+        if (wasteTypes.biodegradable && (record.biodegradable || 0) > 0) {
+          totals.biodegradable += record.biodegradable;
+          tableData.push([
+            new Date(record.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+            timeStr,
+            ...(wasteTypes.recyclable ? ['-'] : []),
+            formatCount(record.biodegradable),
+            ...(wasteTypes.nonBiodegradable ? ['-'] : []),
+            formatCount(record.biodegradable)
+          ]);
+        }
+        if (wasteTypes.nonBiodegradable && (record.nonBiodegradable || 0) > 0) {
+          totals.nonBiodegradable += record.nonBiodegradable;
+          tableData.push([
+            new Date(record.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+            timeStr,
+            ...(wasteTypes.recyclable ? ['-'] : []),
+            ...(wasteTypes.biodegradable ? ['-'] : []),
+            formatCount(record.nonBiodegradable),
+            formatCount(record.nonBiodegradable)
+          ]);
+        }
+      });
+    }
+
+    // Totals row
+    const grandTotal =
+      (wasteTypes.recyclable ? totals.recyclable : 0) +
+      (wasteTypes.biodegradable ? totals.biodegradable : 0) +
+      (wasteTypes.nonBiodegradable ? totals.nonBiodegradable : 0);
+    const totalsRow = ['TOTAL', ''];
+    if (wasteTypes.recyclable) totalsRow.push(formatCount(totals.recyclable));
+    if (wasteTypes.biodegradable) totalsRow.push(formatCount(totals.biodegradable));
+    if (wasteTypes.nonBiodegradable) totalsRow.push(formatCount(totals.nonBiodegradable));
+    totalsRow.push(formatCount(grandTotal));
+    tableData.push(totalsRow);
+
     autoTable(doc, {
-      head: [['Date', 'Recyclable (pcs)', 'Wet Wastes (pcs)', 'Dry Wastes (pcs)', 'Total (pcs)']],
+      head: [head],
       body: tableData,
       startY: 50,
-      headStyles: {
-        fillColor: [22, 163, 74],
-        textColor: 255,
-        fontStyle: 'bold'
-      },
-      bodyStyles: {
-        textColor: [31, 41, 55]
-      },
-      alternateRowStyles: {
-        fillColor: [243, 244, 246]
-      },
-      footStyles: {
-        fillColor: [220, 252, 231],
-        textColor: [22, 163, 74],
-        fontStyle: 'bold'
-      },
-      foot: [[
-        `Total Records: ${totalItems}`,
-        '',
-        '',
-        '',
-        ''
-      ]]
+      headStyles: { fillColor: [22, 163, 74], textColor: 255, fontStyle: 'bold' },
+      bodyStyles: { textColor: [31, 41, 55] },
+      alternateRowStyles: { fillColor: [243, 244, 246] },
     });
-    
-    // Save PDF
-    const fileName = `waste-report-${viewMode}-${typeFilter}-${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
-  }, [processedData, formatDate, formatCount, statistics, dateFrom, dateTo, viewMode, typeFilter, totalItems]);
 
-  const handleExcelExport = useCallback((wasteTypes) => {
-    // Ensure processedData exists and is an array
-    if (!processedData || !Array.isArray(processedData) || processedData.length === 0) {
+    const fileName = `waste-report-${viewMode}-${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+  }, [viewMode, formatDate, formatCount, aggregateForExport]);
+
+  const handleExcelExport = useCallback((wasteTypes, dateFiltered) => {
+    if (!dateFiltered || dateFiltered.length === 0) {
       console.warn('No data available for export');
       return;
     }
 
-    // For daily view with individual records
+    let exportRows = [];
+    let totals = { recyclable: 0, biodegradable: 0, nonBiodegradable: 0 };
+
     if (viewMode === 'daily') {
-      const filteredData = processedData.map(record => {
-        if (!record) return null;
+      // Expand each raw record into individual type rows, filtered by wasteTypes
+      dateFiltered.forEach(record => {
+        const dateStr = new Date(record.date).toLocaleDateString('en-US', {
+          year: 'numeric', month: 'short', day: 'numeric'
+        });
+        const timeStr = record.recordedAt || record.createdAt 
+          ? new Date(record.recordedAt || record.createdAt).toLocaleTimeString('en-US', { 
+              hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true 
+            })
+          : '-';
         
-        const filtered = {
-          Date: formatDate(record.date),
-          Type: record.type || '',
-          'Quantity (pcs)': record.quantityInPcs || 0,
-          'Coupon Taken': record.couponTaken || 0
-        };
-        
-        return filtered;
-      }).filter(Boolean);
+        if (wasteTypes.recyclable && (record.recyclable || 0) > 0) {
+          totals.recyclable += record.recyclable;
+          exportRows.push({
+            Date: dateStr,
+            Time: timeStr,
+            Type: 'Recyclable',
+            'Quantity (pcs)': record.recyclable,
+            'Coupon Taken': Math.floor(record.recyclable * 0.5)
+          });
+        }
+        if (wasteTypes.biodegradable && (record.biodegradable || 0) > 0) {
+          totals.biodegradable += record.biodegradable;
+          exportRows.push({
+            Date: dateStr,
+            Time: timeStr,
+            Type: 'Wet Wastes',
+            'Quantity (pcs)': record.biodegradable,
+            'Coupon Taken': 0
+          });
+        }
+        if (wasteTypes.nonBiodegradable && (record.nonBiodegradable || 0) > 0) {
+          totals.nonBiodegradable += record.nonBiodegradable;
+          exportRows.push({
+            Date: dateStr,
+            Time: timeStr,
+            Type: 'Dry Wastes',
+            'Quantity (pcs)': record.nonBiodegradable,
+            'Coupon Taken': 0
+          });
+        }
+      });
 
-      // Add totals row
-      const totalsRow = {
-        Date: 'TOTAL',
-        Type: '',
-        'Quantity (pcs)': statistics.total,
-        'Coupon Taken': ''
-      };
-      
-      filteredData.push(totalsRow);
+      const grandTotal =
+        (wasteTypes.recyclable ? totals.recyclable : 0) +
+        (wasteTypes.biodegradable ? totals.biodegradable : 0) +
+        (wasteTypes.nonBiodegradable ? totals.nonBiodegradable : 0);
 
-      // Create worksheet
-      const ws = XLSX.utils.json_to_sheet(filteredData);
+      exportRows.push({ Date: 'TOTAL', Time: '', Type: '', 'Quantity (pcs)': grandTotal, 'Coupon Taken': '' });
+
+      const ws = XLSX.utils.json_to_sheet(exportRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Waste Data');
-
-      // Generate filename
-      const fileName = `waste-report-${viewMode}-${typeFilter}-${new Date().toISOString().split('T')[0]}.xlsx`;
-      
-      // Download
-      XLSX.writeFile(wb, fileName);
+      XLSX.writeFile(wb, `waste-report-daily-${new Date().toISOString().split('T')[0]}.xlsx`);
       return;
     }
 
-    // For monthly view with aggregated data
-    const filteredData = processedData.map(record => {
-      if (!record) return null;
-      
-      const filtered = { date: formatDate(record.date) };
+    // Monthly view — one aggregated row per month, columns filtered by wasteTypes
+    const aggregated = aggregateForExport(dateFiltered);
+
+    aggregated.forEach(record => {
+      const row = { Date: formatDate(record.date) };
       
       if (wasteTypes.recyclable) {
-        filtered['Recyclable (pcs)'] = formatCount(record.recyclable);
+        totals.recyclable += record.recyclable || 0;
+        row['Recyclable (pcs)'] = record.recyclable || 0;
       }
       if (wasteTypes.biodegradable) {
-        filtered['Wet Wastes (pcs)'] = formatCount(record.biodegradable);
+        totals.biodegradable += record.biodegradable || 0;
+        row['Wet Wastes (pcs)'] = record.biodegradable || 0;
       }
       if (wasteTypes.nonBiodegradable) {
-        filtered['Dry Wastes (pcs)'] = formatCount(record.nonBiodegradable);
+        totals.nonBiodegradable += record.nonBiodegradable || 0;
+        row['Dry Wastes (pcs)'] = record.nonBiodegradable || 0;
       }
       
-      return filtered;
-    }).filter(Boolean); // Remove any null entries
+      exportRows.push(row);
+    });
 
-    // Add totals row
-    const totalsRow = { date: 'TOTAL' };
-    if (wasteTypes.recyclable) totalsRow['Recyclable (pcs)'] = formatCount(statistics.recyclable);
-    if (wasteTypes.biodegradable) totalsRow['Wet Wastes (pcs)'] = formatCount(statistics.biodegradable);
-    if (wasteTypes.nonBiodegradable) totalsRow['Dry Wastes (pcs)'] = formatCount(statistics.nonBiodegradable);
-    
-    filteredData.push(totalsRow);
+    const totalsRow = { Date: 'TOTAL' };
+    if (wasteTypes.recyclable) totalsRow['Recyclable (pcs)'] = totals.recyclable;
+    if (wasteTypes.biodegradable) totalsRow['Wet Wastes (pcs)'] = totals.biodegradable;
+    if (wasteTypes.nonBiodegradable) totalsRow['Dry Wastes (pcs)'] = totals.nonBiodegradable;
+    exportRows.push(totalsRow);
 
-    // Create worksheet
-    const ws = XLSX.utils.json_to_sheet(filteredData);
+    const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Waste Data');
+    XLSX.writeFile(wb, `waste-report-monthly-${new Date().toISOString().split('T')[0]}.xlsx`);
+  }, [viewMode, formatDate, aggregateForExport]);
 
-    // Generate filename
-    const fileName = `waste-report-${viewMode}-${typeFilter}-${new Date().toISOString().split('T')[0]}.xlsx`;
-    
-    // Download
-    XLSX.writeFile(wb, fileName);
-  }, [processedData, formatDate, formatCount, statistics, viewMode, typeFilter]);
+  // Unified export handler
+  const handleExport = useCallback((options) => {
+    const { format, includeTypes, dateRange, customDateFrom, customDateTo } = options;
+
+    // Map modal includeTypes to internal keys
+    // Use explicit checks to handle false values correctly
+    const wasteTypes = {
+      recyclable: includeTypes?.recyclable !== undefined ? includeTypes.recyclable : true,
+      biodegradable: includeTypes?.wet !== undefined ? includeTypes.wet : true,
+      nonBiodegradable: includeTypes?.dry !== undefined ? includeTypes.dry : true
+    };
+
+    // Apply the export modal's date range to the raw fetched data
+    const dateFiltered = applyExportDateFilter(wasteData, dateRange, customDateFrom, customDateTo);
+
+    if (format === 'excel') {
+      handleExcelExport(wasteTypes, dateFiltered);
+    } else if (format === 'pdf') {
+      handlePDFExport(wasteTypes, dateFiltered, dateRange, customDateFrom, customDateTo);
+    }
+  }, [wasteData, applyExportDateFilter, handleExcelExport, handlePDFExport]);
 
   // Pagination handlers (memoized)
   const scrollToTop = useCallback(() => {
@@ -627,14 +773,14 @@ const WasteTable = () => {
       />
 
       {/* Error Display */}
-      {error && (
+      {error && !dismissedError && (
         <div className="error-container" role="alert">
           <div className="error-card">
             <div className="error-header">
               <h2 className="error-title">Data Loading Error</h2>
               <button
                 className="error-close"
-                onClick={() => setError(null)}
+                onClick={() => setDismissedError(true)}
                 aria-label="Dismiss error message"
               >
                 ✕
@@ -785,6 +931,15 @@ const WasteTable = () => {
                       </div>
                     </th>
                     <th role="columnheader">
+                      <div className="column-header sortable" onClick={() => handleSort('time')} title="Click to sort">
+                        {sortBy === 'time' && (
+                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                        <span className="column-icon" aria-hidden="true">🕒</span>
+                        <span className="column-text">Time</span>
+                      </div>
+                    </th>
+                    <th role="columnheader">
                       <div className="column-header sortable" onClick={() => handleSort('type')} title="Click to sort">
                         <span className="column-icon" aria-hidden="true">🗂️</span>
                         <span className="column-text">Type</span>
@@ -800,15 +955,6 @@ const WasteTable = () => {
                         )}
                         <span className="column-icon" aria-hidden="true">📦</span>
                         <span className="column-text">Quantity (pcs)</span>
-                      </div>
-                    </th>
-                    <th role="columnheader">
-                      <div className="column-header sortable" onClick={() => handleSort('coupon')} title="Click to sort">
-                        {sortBy === 'coupon' && (
-                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
-                        )}
-                        <span className="column-icon" aria-hidden="true">🎟️</span>
-                        <span className="column-text">Coupon Taken</span>
                       </div>
                     </th>
                   </tr>
@@ -839,6 +985,11 @@ const WasteTable = () => {
                               <span className="cell-text">{formatDate(record.date)}</span>
                             </div>
                           </td>
+                          <td role="gridcell" data-label="Time">
+                            <div className="cell-content">
+                              <span className="cell-text">-</span>
+                            </div>
+                          </td>
                           <td role="gridcell" data-label="Type">
                             <div className="cell-content">
                               <span className="cell-text">Monthly Total</span>
@@ -849,16 +1000,12 @@ const WasteTable = () => {
                               <span className="cell-number">{formatCount(totalCount)}</span>
                             </div>
                           </td>
-                          <td role="gridcell" data-label="Coupons">
-                            <div className="cell-content number-cell">
-                              <span className="cell-number">-</span>
-                            </div>
-                          </td>
                         </tr>
                       );
                     }
                     
                     // For daily view, show individual type records
+                    const timeStr = record.time ? new Date(record.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : '-';
                     return (
                       <tr
                         key={record.id || globalIndex}
@@ -871,6 +1018,12 @@ const WasteTable = () => {
                             <span className="cell-text">{formatDate(record.date)}</span>
                           </div>
                         </td>
+                        <td role="gridcell" data-label="Time">
+                          <div className="cell-content">
+                            <span className="cell-icon" aria-hidden="true">🕒</span>
+                            <span className="cell-text">{timeStr}</span>
+                          </div>
+                        </td>
                         <td role="gridcell" data-label="Type">
                           <div className="cell-content">
                             <span className="cell-text">{record.type}</span>
@@ -880,12 +1033,6 @@ const WasteTable = () => {
                           <div className="cell-content number-cell">
                             <span className="cell-icon" aria-hidden="true">📦</span>
                             <span className="cell-number">{record.quantityInPcs || 0} pcs</span>
-                          </div>
-                        </td>
-                        <td role="gridcell" data-label="Coupons">
-                          <div className="cell-content number-cell">
-                            <span className="cell-icon" aria-hidden="true">🎟️</span>
-                            <span className="cell-number">{record.couponTaken || 0}</span>
                           </div>
                         </td>
                       </tr>

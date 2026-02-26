@@ -64,7 +64,7 @@
 /* Balance Section */
 .balance-section {
   display: grid;
-  grid-template-columns: 1fr 1.5fr;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--spacing-lg);
   margin-bottom: var(--spacing-xl);
 }
@@ -81,33 +81,51 @@
   transition: transform 0.2s ease;
 }
 
-.balance-card:hover {
+.consumed-card {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: white;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.2s ease;
+}
+
+.balance-card:hover,
+.consumed-card:hover {
   transform: translateY(-2px);
 }
 
-.balance-icon {
+.balance-icon,
+.consumed-icon {
   font-size: 4rem;
   opacity: 0.9;
 }
 
-.balance-content {
+.balance-content,
+.consumed-content {
   flex: 1;
 }
 
-.balance-label {
+.balance-label,
+.consumed-label {
   font-size: 0.875rem;
   opacity: 0.9;
   margin-bottom: var(--spacing-xs);
 }
 
-.balance-value {
+.balance-value,
+.consumed-value {
   font-size: 3rem;
   font-weight: 700;
   line-height: 1;
   margin-bottom: var(--spacing-xs);
 }
 
-.balance-unit {
+.balance-unit,
+.consumed-unit {
   font-size: 1rem;
   opacity: 0.8;
 }
@@ -119,6 +137,7 @@
   border-radius: var(--radius-lg);
   padding: var(--spacing-xl);
   box-shadow: var(--shadow-sm);
+  margin-bottom: var(--spacing-xl);
 }
 
 .adjustment-title {
@@ -223,6 +242,46 @@
   color: var(--text-primary);
 }
 
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.date-filters {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.btn-export {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-export:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-export:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .period-filter {
   display: flex;
   align-items: center;
@@ -255,6 +314,9 @@
   border-color: var(--border-focus);
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
 }
+
+/* Totals Summary */
+
 
 /* Empty State */
 .empty-state {
@@ -385,13 +447,39 @@
     font-size: 1.5rem;
   }
 
-  .balance-value {
+  .balance-value,
+  .consumed-value {
     font-size: 2rem;
   }
 
   .transactions-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+  
+  .header-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .date-filters {
+    width: 100%;
+    flex-direction: column;
+  }
+  
+  .date-filters > * {
+    width: 100%;
+  }
+  
+  .btn-export {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .period-filter {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .transactions-table-wrapper {
@@ -543,7 +631,7 @@
   }
   
   .balance-actions {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
   
   .balance-actions button {

@@ -63,10 +63,13 @@ const AppContent = () => {
                   <Login />
                 } 
               />
-
               <Route 
                 path="/" 
-                element={<LandingPage />} 
+                element={
+                  isAuthenticated ? 
+                  <Navigate to="/dashboard" replace /> : 
+                  <Login />
+                } 
               />
           
             <Route 

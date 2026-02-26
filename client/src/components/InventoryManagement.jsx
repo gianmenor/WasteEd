@@ -89,6 +89,16 @@ export default function InventoryManagement() {
     }
   };
 
+  const handleQuickStockAdjust = async (itemId, adjustment) => {
+    try {
+      await updateItemStock(itemId, adjustment);
+      fetchItems();
+    } catch (err) {
+      setError(err.message || 'Failed to adjust stock');
+      console.error('Error adjusting stock:', err);
+    }
+  };
+
   const handleDeleteItem = async (id) => {
     if (!confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
       return;
@@ -218,15 +228,6 @@ export default function InventoryManagement() {
 
   return (
     <div className="inventory-management">
-      <div className="inventory-header">
-        <div>
-          <h2>Inventory Management</h2>
-          <p className="subtitle">{filteredAndSortedItems.length} item{filteredAndSortedItems.length !== 1 ? 's' : ''} {filters.search || filters.status !== 'all' || filters.stockLevel !== 'all' || filters.costRange !== 'all' ? '(filtered)' : ''}</p>
-        </div>
-        <button className="btn-primary" onClick={() => setShowAddModal(true)}>
-          + Add New Item
-        </button>
-      </div>
 
       {error && (
         <div className="error-message">
@@ -323,6 +324,10 @@ export default function InventoryManagement() {
             </button>
           </div>
         </div>
+        
+        <button className="btn-add-item" onClick={() => setShowAddModal(true)}>
+          + Add New Item
+        </button>
       </div>
 
       {/* Table Section */}
@@ -334,8 +339,6 @@ export default function InventoryManagement() {
               <th>Cost</th>
               <th>Price</th>
               <th>Stock</th>
-              <th>Stock Status</th>
-              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -350,17 +353,24 @@ export default function InventoryManagement() {
                     {item.price !== null && item.price !== undefined ? `₱${parseFloat(item.price).toFixed(2)}` : 'N/A'}
                   </td>
                   <td className="item-stock" data-label="Stock">
-                    <span className={stockStatus.class}>{item.stock}</span>
-                  </td>
-                  <td data-label="Stock Status">
-                    <span className={`stock-badge ${stockStatus.class}`}>
-                      {stockStatus.label}
-                    </span>
-                  </td>
-                  <td data-label="Status">
-                    <span className={`status-badge ${item.isActive ? 'active' : 'inactive'}`}>
-                      {item.isActive ? 'Active' : 'Inactive'}
-                    </span>
+                    <div className="stock-control">
+                      <button 
+                        className="btn-stock-quick btn-stock-decrease" 
+                        onClick={() => handleQuickStockAdjust(item.id, -1)}
+                        disabled={item.stock === 0}
+                        title="Decrease stock by 1"
+                      >
+                        −
+                      </button>
+                      <span className={`stock-value ${stockStatus.class}`}>{item.stock}</span>
+                      <button 
+                        className="btn-stock-quick btn-stock-increase" 
+                        onClick={() => handleQuickStockAdjust(item.id, 1)}
+                        title="Increase stock by 1"
+                      >
+                        +
+                      </button>
+                    </div>
                   </td>
                   <td className="actions-cell" data-label="Actions">
                     <button className="btn-action btn-stock" onClick={() => openStockModal(item)} title="Adjust stock">

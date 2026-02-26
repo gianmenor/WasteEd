@@ -30,6 +30,10 @@
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
 }
 
 .filters-row {
@@ -37,6 +41,7 @@
   flex-wrap: wrap;
   gap: 16px;
   align-items: flex-end;
+  flex: 1;
 }
 
 .filter-group {
@@ -92,6 +97,26 @@
 .btn-reset:hover {
   background: #f5f5f5;
   border-color: #999;
+}
+
+.btn-add-item {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #4CAF50;
+  color: white;
+  white-space: nowrap;
+  transition: all 0.2s;
+  align-self: flex-end;
+}
+
+.btn-add-item:hover {
+  background: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
 }
 
 /* Table Section */
@@ -160,6 +185,80 @@
 
 .item-stock {
   font-weight: 600;
+}
+
+.stock-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card-bg, white);
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e0e0e0);
+}
+
+.stock-value {
+  min-width: 30px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.stock-value.in-stock {
+  color: #4CAF50;
+}
+
+.stock-value.low-stock {
+  color: #ff9800;
+}
+
+.stock-value.out-of-stock {
+  color: #f44336;
+}
+
+.btn-stock-quick {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border-color, #ddd);
+  background: var(--card-bg, white);
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-stock-quick:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.btn-stock-quick.btn-stock-increase {
+  color: #4CAF50;
+  border-color: #4CAF50;
+}
+
+.btn-stock-quick.btn-stock-increase:hover:not(:disabled) {
+  background: #e8f5e9;
+}
+
+.btn-stock-quick.btn-stock-decrease {
+  color: #f44336;
+  border-color: #f44336;
+}
+
+.btn-stock-quick.btn-stock-decrease:hover:not(:disabled) {
+  background: #ffebee;
+}
+
+.btn-stock-quick:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .item-stock .in-stock {
@@ -281,12 +380,15 @@
 }
 
 .btn-secondary {
-  background: #2196F3;
-  color: white;
+  background: #6c757d !important;
+  color: white !important;
+  border: 1px solid #6c757d !important;
 }
 
 .btn-secondary:hover {
-  background: #1976D2;
+  background: #5a6268 !important;
+  border-color: #545b62 !important;
+  color: white !important;
 }
 
 .btn-danger {
@@ -494,6 +596,13 @@
 
   .filters-section {
     padding: 14px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .btn-add-item {
+    width: 100%;
+    margin-top: 12px;
   }
 
   .table-container {
@@ -564,6 +673,10 @@
 
   .actions-cell::before {
     margin-bottom: 8px;
+  }
+
+  .stock-control {
+    justify-content: flex-end;
   }
 
   .btn-action {

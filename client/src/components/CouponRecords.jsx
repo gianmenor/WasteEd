@@ -7,8 +7,17 @@ import RedeemOutlinedIcon from '@mui/icons-material/RedeemOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { TextField } from '@mui/material';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
+import ExportModal from './ExportModal';
 import { usePreferences } from '../contexts/PreferencesContext';
 import './CouponRecords.css';
 
@@ -58,6 +67,9 @@ const CouponRecords = () => {
   const [adjustmentReason, setAdjustmentReason] = useState('');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
 
   // Fetch balance
   const { data: balanceData, isLoading: balanceLoading } = useQuery({
@@ -148,6 +160,129 @@ const CouponRecords = () => {
     }
   };
 
+  // Filter transactions by date range
+  const filteredTransactions = useMemo(() => {
+    if (!dateFrom && !dateTo) return transactions;
+    
+    return transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.createdAt);
+      transactionDate.setHours(0, 0, 0, 0);
+      
+      if (dateFrom && dateTo) {
+        const from = new Date(dateFrom);
+        from.setHours(0, 0, 0, 0);
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        return transactionDate >= from && transactionDate <= to;
+      } else if (dateFrom) {
+        const from = new Date(dateFrom);
+        from.setHours(0, 0, 0, 0);
+        return transactionDate >= from;
+      } else if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        return transactionDate <= to;
+      }
+      return true;
+    });
+  }, [transactions, dateFrom, dateTo]);
+
+  // Calculate total consumed
+  const totalConsumed = useMemo(() => {
+    return Math.abs(filteredTransactions
+      .filter(t => Number(t.amount) < 0)
+      .reduce((sum, t) => sum + Number(t.amount), 0));
+  }, [filteredTransactions]);
+
+  // Export handlers
+  const handleExcelExport = useCallback(() => {
+    const exportData = filteredTransactions.map(transaction => ({
+      'Date & Time': formatDate(transaction.createdAt),
+      'Type': getTransactionTypeLabel(transaction.type),
+      'Amount': Number(transaction.amount).toFixed(2),
+      'Details': transaction.reason || transaction.metadata?.reason || '-'
+    }));
+
+    // Add total consumed row
+    exportData.push({});
+    exportData.push({
+      'Date & Time': 'Total Consumed',
+      'Type': '',
+      'Amount': totalConsumed.toFixed(2),
+      'Details': ''
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Coupon Transactions');
+    XLSX.writeFile(wb, `coupon-transactions-${new Date().toISOString().split('T')[0]}.xlsx`);
+  }, [filteredTransactions, totalConsumed, formatDate]);
+
+  const handlePDFExport = useCallback(() => {
+    const doc = new jsPDF();
+
+    // Title
+    doc.setFontSize(18);
+    doc.setTextColor(22, 163, 74);
+    doc.text('Coupon Transaction Report', 14, 22);
+
+    // Metadata
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128);
+    
+    let dateRangeLabel = 'Period: All time';
+    if (dateFrom && dateTo) {
+      dateRangeLabel = `Period: ${dateFrom.toLocaleDateString()} to ${dateTo.toLocaleDateString()}`;
+    } else if (dateFrom) {
+      dateRangeLabel = `Period: From ${dateFrom.toLocaleDateString()}`;
+    } else if (dateTo) {
+      dateRangeLabel = `Period: Until ${dateTo.toLocaleDateString()}`;
+    }
+
+    doc.text(dateRangeLabel, 14, 30);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 36);
+
+    // Transaction table
+    const tableData = filteredTransactions.map(transaction => [
+      formatDate(transaction.createdAt),
+      getTransactionTypeLabel(transaction.type),
+      Number(transaction.amount).toFixed(2),
+      transaction.reason || transaction.metadata?.reason || '-'
+    ]);
+
+    autoTable(doc, {
+      head: [['Date & Time', 'Type', 'Amount', 'Details']],
+      body: tableData,
+      startY: 42,
+      headStyles: { fillColor: [22, 163, 74], textColor: 255, fontStyle: 'bold' },
+      bodyStyles: { textColor: [31, 41, 55] },
+      alternateRowStyles: { fillColor: [243, 244, 246] },
+    });
+
+    // Add total consumed
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('Summary:', 14, finalY);
+    
+    doc.setFont(undefined, 'normal');
+    doc.text(`Total Consumed: ${totalConsumed.toFixed(2)}`, 14, finalY + 7);
+
+    doc.save(`coupon-transactions-${new Date().toISOString().split('T')[0]}.pdf`);
+  }, [filteredTransactions, totalConsumed, dateFrom, dateTo, formatDate]);
+
+  const handleExport = useCallback((options) => {
+    const { format } = options;
+    
+    if (format === 'excel') {
+      handleExcelExport();
+    } else if (format === 'pdf') {
+      handlePDFExport();
+    }
+    
+    setShowExportModal(false);
+  }, [handleExcelExport, handlePDFExport]);
+
   const uiSizeClass = useMemo(() => 
     `ui-size-${preferences?.uiSize || 'medium'}`,
     [preferences?.uiSize]
@@ -172,7 +307,7 @@ const CouponRecords = () => {
         </div>
       )}
 
-      {/* Balance Card */}
+      {/* Stats Cards */}
       <div className="balance-section">
         <div className="balance-card">
           <div className="balance-icon">🎟️</div>
@@ -183,9 +318,19 @@ const CouponRecords = () => {
           </div>
         </div>
 
-        {/* Manual Adjustment Form */}
-        <div className="adjustment-card">
-          <h3 className="adjustment-title">Adjust Balance</h3>
+        <div className="consumed-card">
+          <div className="consumed-icon">📊</div>
+          <div className="consumed-content">
+            <div className="consumed-label">Total Consumed</div>
+            <div className="consumed-value">{totalConsumed.toFixed(2)}</div>
+            <div className="consumed-unit">Coupons</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Manual Adjustment Form */}
+      <div className="adjustment-card">
+        <h3 className="adjustment-title">Adjust Balance</h3>
           <form onSubmit={handleAdjustment} className="adjustment-form">
             <div className="form-group">
               <label htmlFor="amount">Amount</label>
@@ -241,30 +386,57 @@ const CouponRecords = () => {
             </div>
           </form>
         </div>
-      </div>
 
       {/* Transactions Section */}
       <div className="transactions-section">
         <div className="transactions-header">
           <h2 className="transactions-title">Transaction History</h2>
-          <div className="period-filter">
-            <label htmlFor="period">Period:</label>
-            <select 
-              id="period"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              className="period-select"
+          <div className="header-controls">
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <div className="date-filters">
+                <DatePicker
+                  label="From Date"
+                  value={dateFrom}
+                  onChange={(newValue) => setDateFrom(newValue)}
+                  slotProps={{ textField: { size: 'small' } }}
+                />
+                <DatePicker
+                  label="To Date"
+                  value={dateTo}
+                  onChange={(newValue) => setDateTo(newValue)}
+                  minDate={dateFrom}
+                  slotProps={{ textField: { size: 'small' } }}
+                />
+              </div>
+            </LocalizationProvider>
+            <button
+              className="btn-export"
+              onClick={() => setShowExportModal(true)}
+              disabled={filteredTransactions.length === 0}
+              title="Export transactions"
             >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="year">This Year</option>
-            </select>
+              <FileDownloadOutlinedIcon fontSize="small" />
+              <span>Export</span>
+            </button>
+            <div className="period-filter">
+              <label htmlFor="period">Period:</label>
+              <select 
+                id="period"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+                className="period-select"
+              >
+                <option value="all">All Time</option>
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {transactions.length === 0 ? (
+        {filteredTransactions.length === 0 ? (
           <div className="empty-state">
             <span className="empty-icon" aria-hidden="true"><InboxOutlinedIcon fontSize="inherit" /></span>
             <p>No transactions found for the selected period</p>
@@ -282,7 +454,7 @@ const CouponRecords = () => {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((transaction) => (
+                {filteredTransactions.map((transaction) => (
                   <tr key={transaction.id}>
                     <td data-label="Date">{formatDate(transaction.createdAt)}</td>
                     <td data-label="Type">
@@ -310,6 +482,16 @@ const CouponRecords = () => {
           </div>
         )}
       </div>
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        title="Export Coupon Transactions"
+        showWasteTypes={false}
+        showDateRange={false}
+      />
     </div>
   );
 };
