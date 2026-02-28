@@ -4,23 +4,19 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TextField } from '@mui/material';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { API_ENDPOINTS } from '../config/api';
 import ExportModal from './ExportModal';
 import LoadingSpinner from './LoadingSpinner';
-import './AnalyticsDashboard.css';
 
 // Skeleton loading component
 const ChartSkeleton = memo(() => (
-  <div className="chart-skeleton">
-    <div className="skeleton-header"></div>
-    <div className="skeleton-bars">
-      {[...Array(8)].map((_, i) => (
-        <div key={i} className="skeleton-bar" style={{ height: `${Math.random() * 80 + 20}%` }}></div>
-      ))}
-    </div>
+  <div className="bg-white rounded-lg p-6 border border-gray-200">
+    <div className="h-4 bg-gray-100 rounded w-1/3 mb-4 animate-pulse"></div>
+    <div className="h-64 bg-gray-50 rounded animate-pulse"></div>
   </div>
 ));
 
@@ -28,10 +24,9 @@ ChartSkeleton.displayName = 'ChartSkeleton';
 
 // Metric card skeleton
 const MetricSkeleton = memo(() => (
-  <div className="metric-card skeleton">
-    <div className="skeleton-icon"></div>
-    <div className="skeleton-value"></div>
-    <div className="skeleton-label"></div>
+  <div className="bg-white rounded-lg p-6 border border-gray-200">
+    <div className="h-12 bg-gray-100 rounded mb-2 animate-pulse"></div>
+    <div className="h-6 bg-gray-50 rounded w-2/3 animate-pulse"></div>
   </div>
 ));
 
@@ -100,6 +95,7 @@ const fetchAllBinData = async () => {
 };
 
 const AnalyticsDashboard = () => {
+  const [timeframe, setTimeframe] = useState('30d'); // Preset timeframe
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -594,36 +590,73 @@ const AnalyticsDashboard = () => {
     });
   };
 
-  // Generate comprehensive waste analytics from raw data (memoized)
-  const analyticsData = useMemo(() => {
-    if (!wasteData.length) return null;
-
-    // Filter by date range if provided
-    let filteredData = wasteData;
+  // Calculate date range based on timeframe preset
+  const getDateRange = useCallback(() => {
+    const now = new Date();
+    now.setHours(23, 59, 59, 999);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
-    if (dateFrom || dateTo) {
-      filteredData = wasteData.filter(record => {
-        const recordDate = new Date(record.date);
-        recordDate.setHours(0, 0, 0, 0);
-        
+    switch (timeframe) {
+      case 'today':
+        return { from: today, to: now };
+      case '7d':
+        const last7Days = new Date();
+        last7Days.setDate(now.getDate() - 7);
+        last7Days.setHours(0, 0, 0, 0);
+        return { from: last7Days, to: now };
+      case '30d':
+        const last30Days = new Date();
+        last30Days.setDate(now.getDate() - 30);
+        last30Days.setHours(0, 0, 0, 0);
+        return { from: last30Days, to: now };
+      case 'thisMonth':
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        thisMonthStart.setHours(0, 0, 0, 0);
+        return { from: thisMonthStart, to: now };
+      case 'lastMonth':
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        lastMonthStart.setHours(0, 0, 0, 0);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        lastMonthEnd.setHours(23, 59, 59, 999);
+        return { from: lastMonthStart, to: lastMonthEnd };
+      case 'custom':
         if (dateFrom && dateTo) {
           const from = new Date(dateFrom);
           from.setHours(0, 0, 0, 0);
           const to = new Date(dateTo);
           to.setHours(23, 59, 59, 999);
-          return recordDate >= from && recordDate <= to;
-        } else if (dateFrom) {
-          const from = new Date(dateFrom);
-          from.setHours(0, 0, 0, 0);
-          return recordDate >= from;
-        } else if (dateTo) {
-          const to = new Date(dateTo);
-          to.setHours(23, 59, 59, 999);
-          return recordDate <= to;
+          return { from, to };
         }
-        return true;
+        return null;
+      default:
+        return null;
+    }
+  }, [timeframe, dateFrom, dateTo]);
+
+  // Generate comprehensive waste analytics from raw data (memoized)
+  const analyticsData = useMemo(() => {
+    if (!wasteData.length) return null;
+
+    // Filter by date range based on timeframe
+    let filteredData = wasteData;
+    const dateRange = getDateRange();
+    
+    if (dateRange) {
+      filteredData = wasteData.filter(record => {
+        const recordDate = new Date(record.date);
+        recordDate.setHours(0, 0, 0, 0);
+        return recordDate >= dateRange.from && recordDate <= dateRange.to;
       });
     }
+    
+    // Filter by selected waste types
+    filteredData = filteredData.map(record => ({
+      ...record,
+      recyclable: selectedTypes.RECYCLABLE ? (record.recyclable || 0) : 0,
+      biodegradable: selectedTypes.WET ? (record.biodegradable || 0) : 0,
+      nonBiodegradable: selectedTypes.DRY ? (record.nonBiodegradable || 0) : 0
+    }));
 
     const totals = filteredData.reduce((acc, record) => {
       acc.recyclable += record.recyclable || 0;
@@ -659,37 +692,33 @@ const AnalyticsDashboard = () => {
       recordCount: filteredData.length,
       peakDay: findPeakDay(filteredData)
     };
-  }, [wasteData, dateFrom, dateTo]);
+  }, [wasteData, timeframe, dateFrom, dateTo, selectedTypes, getDateRange]);
 
   // Derive bin analytics (memoized)
   const binAnalytics = useMemo(() => {
     if (!binData.length) return null;
     
-    // Filter by date range if provided
+    // Filter by date range using same logic as waste data
     let filteredBinData = binData;
+    const dateRange = getDateRange();
     
-    if (dateFrom || dateTo) {
+    if (dateRange) {
       filteredBinData = binData.filter(record => {
         const recordDate = new Date(record.fullAt || record.createdAt);
         recordDate.setHours(0, 0, 0, 0);
-        
-        if (dateFrom && dateTo) {
-          const from = new Date(dateFrom);
-          from.setHours(0, 0, 0, 0);
-          const to = new Date(dateTo);
-          to.setHours(23, 59, 59, 999);
-          return recordDate >= from && recordDate <= to;
-        } else if (dateFrom) {
-          const from = new Date(dateFrom);
-          from.setHours(0, 0, 0, 0);
-          return recordDate >= from;
-        } else if (dateTo) {
-          const to = new Date(dateTo);
-          to.setHours(23, 59, 59, 999);
-          return recordDate <= to;
-        }
-        return true;
+        return recordDate >= dateRange.from && recordDate <= dateRange.to;
       });
+    }
+    
+    // Filter by selected waste types
+    if (!selectedTypes.RECYCLABLE) {
+      filteredBinData = filteredBinData.filter(r => r.binType !== 'RECYCLABLE');
+    }
+    if (!selectedTypes.WET) {
+      filteredBinData = filteredBinData.filter(r => r.binType !== 'WET');
+    }
+    if (!selectedTypes.DRY) {
+      filteredBinData = filteredBinData.filter(r => r.binType !== 'DRY');
     }
     
     return {
@@ -700,7 +729,7 @@ const AnalyticsDashboard = () => {
         DRY: filteredBinData.filter(r => r.binType === 'DRY').length,
       }
     };
-  }, [binData, dateFrom, dateTo]);
+  }, [binData, timeframe, dateFrom, dateTo, selectedTypes, getDateRange]);
 
   // Fixed to light theme per PRD
   const themeClass = 'light-theme';
@@ -708,30 +737,21 @@ const AnalyticsDashboard = () => {
   // Show skeleton while loading
   if (loading) {
     return (
-      <div className={`analytics-dashboard ${themeClass}`}>
-        <div className="filters-section">
-          <div className="filters-header">
-            <h1 className="analytics-title">
-              <span className="title-icon">📊</span>
-              Analytics Dashboard
-            </h1>
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6">
+            <div className="h-8 bg-gray-100 rounded w-64 mb-4 animate-pulse"></div>
+            <div className="h-10 bg-gray-50 rounded animate-pulse"></div>
           </div>
-          <div className="filters-controls skeleton-pulse">
-            <div className="skeleton-filter"></div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
+            <MetricSkeleton />
           </div>
-        </div>
-        
-        <div className="metrics-grid">
-          <MetricSkeleton />
-          <MetricSkeleton />
-          <MetricSkeleton />
-          <MetricSkeleton />
-        </div>
-        
-        <div className="charts-container">
-          <div className="chart-grid">
-            <ChartSkeleton />
-            <ChartSkeleton />
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ChartSkeleton />
             <ChartSkeleton />
           </div>
@@ -742,314 +762,390 @@ const AnalyticsDashboard = () => {
 
   if (error) {
     return (
-      <div className="analytics-error">
-        <div className="error-icon">⚠️</div>
-        <h3>Failed to Load Analytics</h3>
-        <p>{error?.message || 'Unknown error'}</p>
-        <button onClick={handleRefresh} className="retry-button">
-          🔄 Retry
-        </button>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center p-8 bg-white rounded-lg border border-gray-200 max-w-md">
+          <div className="text-5xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Failed to Load Analytics</h3>
+          <p className="text-gray-600 mb-6">{error?.message || 'Unknown error'}</p>
+          <button 
+            onClick={handleRefresh} 
+            className="bg-gray-900 text-white px-6 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors"
+          >
+            🔄 Retry
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={`analytics-dashboard ${themeClass}`}>
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`analytics-toast ${toast.type}`}>
-          <span className="toast-icon">{toast.type === 'success' ? '✅' : '❌'}</span>
-          <span className="toast-message">{toast.message}</span>
-          <button className="toast-close" onClick={() => setToast(null)}>×</button>
-        </div>
-      )}
-
-      {/* Filters Section */}
-      <div className="filters-section">
-        <div className="filters-header">
-          <h1 className="analytics-title">
-            <span className="title-icon">📊</span>
-            Analytics Dashboard
-          </h1>
-        </div>
-        
-        <div className="filters-controls">
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <div className="filter-group">
-              <label className="filter-label">Date From</label>
-              <DatePicker
-                value={dateFrom}
-                onChange={(newValue) => setDateFrom(newValue)}
-                slotProps={{
-                  textField: {
-                    size: 'small',
-                    placeholder: 'Start Date',
-                    sx: { minWidth: '180px' }
-                  },
-                }}
-                enableAccessibleFieldDOMStructure={false}
-              />
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Toast Notification */}
+        {toast && (
+          <div className={`fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg border transition-all ${
+            toast.type === 'success' 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span>{toast.type === 'success' ? '✓' : '✕'}</span>
+                <span className="font-medium text-sm">{toast.message}</span>
+              </div>
+              <button 
+                className="text-gray-500 hover:text-gray-700 ml-4" 
+                onClick={() => setToast(null)}
+              >
+                ×
+              </button>
             </div>
-            <div className="filter-group">
-              <label className="filter-label">Date To</label>
-              <DatePicker
-                value={dateTo}
-                onChange={(newValue) => setDateTo(newValue)}
-                slotProps={{
-                  textField: {
-                    size: 'small',
-                    placeholder: 'End Date',
-                    sx: { minWidth: '180px' }
-                  },
-                }}
-                enableAccessibleFieldDOMStructure={false}
-              />
-            </div>
-          </LocalizationProvider>
-          
-          <button 
-            onClick={() => setShowExportModal(true)} 
-            className="export-btn"
-            disabled={exporting}
-            title="Export waste data"
-          >
-            {exporting ? '⏳ Exporting...' : '📊 Export Data'}
-          </button>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="mb-6 flex justify-between items-center flex-wrap gap-4">
+          <h1 className="text-2xl font-semibold text-gray-900">Analytics Dashboard</h1>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleRefresh} 
+              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              ↻ Refresh
+            </button>
+            <button 
+              onClick={() => setShowExportModal(true)} 
+              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+              disabled={exporting}
+            >
+              {exporting ? 'Exporting...' : 'Export'}
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Export Modal */}
-      <ExportModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        onExport={handleExport}
-        title="Export Waste Data"
-      />
+        {/* Filters */}
+        <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6">
+          <div className="space-y-4">
+            {/* Timeframe Presets */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Timeframe</label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'today', label: 'Today' },
+                  { value: '7d', label: 'Last 7 Days' },
+                  { value: '30d', label: 'Last 30 Days' },
+                  { value: 'thisMonth', label: 'This Month' },
+                  { value: 'lastMonth', label: 'Last Month' },
+                  { value: 'custom', label: 'Custom' },
+                ].map((option) => (
+                  <button 
+                    key={option.value}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      timeframe === option.value 
+                        ? 'bg-gray-900 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    onClick={() => setTimeframe(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Custom Date Range */}
+            {timeframe === 'custom' && (
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <div className="flex gap-4 flex-wrap p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-gray-700">From</label>
+                    <DatePicker
+                      value={dateFrom}
+                      onChange={(newValue) => setDateFrom(newValue)}
+                      maxDate={new Date()}
+                      slotProps={{
+                        textField: {
+                          size: 'small',
+                          placeholder: 'Start Date',
+                          sx: { minWidth: '160px', backgroundColor: 'white' }
+                        },
+                      }}
+                      enableAccessibleFieldDOMStructure={false}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-gray-700">To</label>
+                    <DatePicker
+                      value={dateTo}
+                      onChange={(newValue) => setDateTo(newValue)}
+                      maxDate={new Date()}
+                      slotProps={{
+                        textField: {
+                          size: 'small',
+                          placeholder: 'End Date',
+                          sx: { minWidth: '160px', backgroundColor: 'white' }
+                        },
+                      }}
+                      enableAccessibleFieldDOMStructure={false}
+                    />
+                  </div>
+                </div>
+              </LocalizationProvider>
+            )}
+            
+            {/* Waste Type Filters */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Waste Types</label>
+              <div className="flex gap-2 flex-wrap">
+                <button 
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    selectedTypes.RECYCLABLE 
+                      ? 'bg-emerald-600 text-white' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => setSelectedTypes(prev => ({ ...prev, RECYCLABLE: !prev.RECYCLABLE }))}
+                >
+                  ♻ Recyclable
+                </button>
+                <button 
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    selectedTypes.WET 
+                      ? 'bg-amber-600 text-white' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => setSelectedTypes(prev => ({ ...prev, WET: !prev.WET }))}
+                >
+                  🌿 Wet
+                </button>
+                <button 
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    selectedTypes.DRY 
+                      ? 'bg-slate-600 text-white' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => setSelectedTypes(prev => ({ ...prev, DRY: !prev.DRY }))}
+                >
+                  🗑 Dry
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      {analyticsData && (
-        <>
-          {/* Key Metrics */}
-          <div className="metrics-grid">
-            <div className="metric-card total">
-              <div className="metric-header">
-                <span className="metric-icon">📊</span>
-                <span className="metric-trend positive">
-                  {analyticsData.trend >= 0 ? '📈' : '📉'} {Math.abs(analyticsData.trend)}%
+        {/* Export Modal */}
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          onExport={handleExport}
+          title="Export Waste Data"
+        />
+
+        {/* Metrics */}
+        {analyticsData && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {/* Total Items */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-2xl">📊</span>
+                <span className={`text-xs font-medium px-2 py-1 rounded ${
+                  analyticsData.trend >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  {analyticsData.trend >= 0 ? '↑' : '↓'} {Math.abs(analyticsData.trend)}%
                 </span>
               </div>
-              <div className="metric-value">{analyticsData.totals.total.toLocaleString()}</div>
-              <div className="metric-label">Total Items Collected</div>
-              <div className="metric-subtitle">Avg {analyticsData.averageDaily}/day</div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">
+                {analyticsData.totals.total.toLocaleString()}
+              </div>
+              <div className="text-sm font-medium text-gray-700 mb-1">Total Items Collected</div>
+              <div className="text-xs text-gray-500">Avg {analyticsData.averageDaily}/day</div>
             </div>
 
-            <div className="metric-card recyclable">
-              <div className="metric-header">
-                <span className="metric-icon">♻️</span>
-                <span className="metric-percentage">{analyticsData.percentages.recyclable}%</span>
+            {/* Recyclable */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-2xl">♻</span>
+                <span className="text-xs font-medium px-2 py-1 rounded bg-emerald-100 text-emerald-700">
+                  {analyticsData.percentages.recyclable}%
+                </span>
               </div>
-              <div className="metric-value">{analyticsData.totals.recyclable.toLocaleString()}</div>
-              <div className="metric-label">Recyclable Wastes</div>
-              <div className="metric-subtitle">Most sustainable</div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">
+                {analyticsData.totals.recyclable.toLocaleString()}
+              </div>
+              <div className="text-sm font-medium text-gray-700 mb-1">Recyclable Wastes</div>
+              <div className="text-xs text-gray-500">Most sustainable</div>
             </div>
 
-            <div className="metric-card biodegradable">
-              <div className="metric-header">
-                <span className="metric-icon">🍃</span>
-                <span className="metric-percentage">{analyticsData.percentages.biodegradable}%</span>
+            {/* Wet Waste */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-2xl">🌿</span>
+                <span className="text-xs font-medium px-2 py-1 rounded bg-amber-100 text-amber-700">
+                  {analyticsData.percentages.biodegradable}%
+                </span>
               </div>
-              <div className="metric-value">{analyticsData.totals.biodegradable.toLocaleString()}</div>
-              <div className="metric-label">Wet Wastes</div>
-              <div className="metric-subtitle">Compostable waste</div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">
+                {analyticsData.totals.biodegradable.toLocaleString()}
+              </div>
+              <div className="text-sm font-medium text-gray-700 mb-1">Wet Wastes</div>
+              <div className="text-xs text-gray-500">Compostable</div>
             </div>
 
-            {/* Bin Records Metric */}
-            <div className="metric-card bin-records">
-              <div className="metric-header">
-                <span className="metric-icon">🗑️</span>
-                <span className="metric-status">Records</span>
+            {/* Bin Events */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-2xl">🗑</span>
+                <span className="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-700">
+                  Events
+                </span>
               </div>
-              <div className="metric-value">{binAnalytics ? binAnalytics.total : binData.length}</div>
-              <div className="metric-label">Bin Full Events</div>
-              <div className="metric-subtitle">In selected period</div>
-            </div>
-          </div>
-
-          {/* Charts Section */}
-          <div className="charts-container">
-            <div className="chart-grid">
-              {/* Daily Waste Chart - Top Left */}
-              <div className="chart-wrapper daily-waste">
-                <h3>Daily Waste Items <span className="chart-meta">(Avg {analyticsData.averageDaily}/day)</span></h3>
-                <div className="stacked-chart">
-                  <div className="chart-container">
-                    {analyticsData.dailyTrends.length > 0 ? (
-                      analyticsData.dailyTrends.map((item, i) => {
-                        const recyclablePercent = ((item.recyclable || 0) / (item.total || 1)) * 100;
-                        const biodegradablePercent = ((item.biodegradable || 0) / (item.total || 1)) * 100;
-                        const nonBiodegradablePercent = ((item.nonBiodegradable || 0) / (item.total || 1)) * 100;
-                        const maxValue = Math.max(...analyticsData.dailyTrends.map(d => d.total || 1));
-                        const height = ((item.total || 0) / maxValue) * 100;
-
-                        return (
-                          <div key={i} className="chart-bar" style={{ height: `${height}%` }}>
-                            <div className="bar-segment recyclable" style={{ height: `${recyclablePercent}%` }}></div>
-                            <div className="bar-segment biodegradable" style={{ height: `${biodegradablePercent}%` }}></div>
-                            <div className="bar-segment non-biodegradable" style={{ height: `${nonBiodegradablePercent}%` }}></div>
-                            <div className="bar-label">{formatDate(item.date)}</div>
-                            <div className="bar-total">{item.total || 0}</div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="no-data">No data available</div>
-                    )}
-                  </div>
-                  <div className="chart-legend">
-                    <div className="legend-item">
-                      <span className="legend-color recyclable"></span>
-                      <span>Recyclable Wastes</span>
-                    </div>
-                    <div className="legend-item">
-                      <span className="legend-color biodegradable"></span>
-                      <span>Wet Wastes</span>
-                    </div>
-                    <div className="legend-item">
-                      <span className="legend-color non-biodegradable"></span>
-                      <span>Dry Wastes</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">
+                {binAnalytics ? binAnalytics.total : binData.length}
               </div>
-
-              {/* Monthly Waste Chart - Top Right */}
-              <div className="chart-wrapper monthly-waste">
-                <h3>Monthly Waste <span className="chart-meta">(Avg {analyticsData.monthlyAverage}/mo)</span></h3>
-                <div className="horizontal-line-graph" style={{ '--line-color': '#10b981' }}>
-                  {(analyticsData?.monthlyData?.length ?? 0) > 0 ? (
-                    <div className="chart-area">
-                      <div className="y-labels">
-                        {[...(analyticsData?.monthlyData ?? [])].reverse().map((item, i) => (
-                          <span key={i}>{item.month}</span>
-                        ))}
-                      </div>
-                      <div className="horizontal-bars">
-                        {(() => {
-                          const maxValue = Math.max(...(analyticsData?.monthlyData ?? []).map(d => d.total || 1));
-                          return [...(analyticsData?.monthlyData ?? [])].reverse().map((item, i) => {
-                            const width = ((item.total || 0) / maxValue) * 100;
-                            return (
-                              <div key={i} className="horizontal-bar">
-                                <div 
-                                  className="bar-line" 
-                                  style={{ width: `${width}%` }}
-                                >
-                                  <div className="bar-value">{item.total || 0}</div>
-                                </div>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="no-data">No data available</div>
-                  )}
-                </div>
-              </div>
-
+              <div className="text-sm font-medium text-gray-700 mb-1">Bin Full Events</div>
+              <div className="text-xs text-gray-500">In selected period</div>
             </div>
           </div>
+        )}
 
-          {/* Insights Section */}
-          <div className="insights-section">
-            <div className="insights-grid">
-              <div className="insight-card">
-                <h3 className="insight-title">📊 Key Insights</h3>
-                <div className="insight-list">
-                  <div className="insight-item">
-                    <span className="insight-icon">🏆</span>
-                    <span>Peak collection day: {analyticsData.peakDay ? formatDate(analyticsData.peakDay.date) : 'N/A'}</span>
-                  </div>
-                  <div className="insight-item">
-                    <span className="insight-icon">📈</span>
-                    <span>Recycling rate: {analyticsData.percentages.recyclable}% of total waste</span>
-                  </div>
-                  {binAnalytics && (
-                    <div className="insight-item">
-                      <span className="insight-icon">🗑️</span>
-                      <span>Bin events this period: {binAnalytics.total}</span>
-                    </div>
-                  )}
+        {/* Charts */}
+        {analyticsData && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {/* Daily Waste Chart */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">
+                Daily Waste Items
+                <span className="text-xs font-normal text-gray-500 ml-2">(Avg {analyticsData.averageDaily}/day)</span>
+              </h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={analyticsData.dailyTrends.map(item => ({
+                  date: formatDate(item.date),
+                  Recyclable: item.recyclable || 0,
+                  Wet: item.biodegradable || 0,
+                  Dry: item.nonBiodegradable || 0,
+                }))}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={70}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#fff', 
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '12px'
+                    }} 
+                  />
+                  <Legend 
+                    wrapperStyle={{ fontSize: '12px' }}
+                    iconType="square"
+                  />
+                  <Bar dataKey="Recyclable" stackId="a" fill="#10b981" />
+                  <Bar dataKey="Wet" stackId="a" fill="#f59e0b" />
+                  <Bar dataKey="Dry" stackId="a" fill="#6b7280" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Monthly Waste Chart */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">
+                Monthly Waste
+                <span className="text-xs font-normal text-gray-500 ml-2">(Avg {analyticsData.monthlyAverage}/mo)</span>
+              </h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={(analyticsData.monthlyData || []).map(item => ({
+                  month: item.month,
+                  Total: item.total || 0,
+                }))}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="month" 
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#fff', 
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '12px'
+                    }} 
+                  />
+                  <Bar dataKey="Total" fill="#3b82f6" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* Insights */}
+        {analyticsData && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Key Insights</h3>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
+                  <span>🏆</span>
+                  <span>Peak day: {analyticsData.peakDay ? formatDate(analyticsData.peakDay.date) : 'N/A'}</span>
                 </div>
+                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
+                  <span>📈</span>
+                  <span>Recycling rate: {analyticsData.percentages.recyclable}%</span>
+                </div>
+                {binAnalytics && (
+                  <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
+                    <span>🗑</span>
+                    <span>Bin events: {binAnalytics.total}</span>
+                  </div>
+                )}
               </div>
-              <div className="insight-card">
-                <h3 className="insight-title"> Activity Analytics</h3>
-                <div className="recommendation-list">
-                  <div className="recommendation-item">
-                    <span className="rec-icon">🏆</span>
-                    <span>Most active day: {(() => {
-                      if (!(analyticsData?.dailyTrends?.length > 0)) return 'No data';
-                      const mostActive = (analyticsData?.dailyTrends ?? []).reduce((max, day) => 
-                        (day.total || 0) > (max.total || 0) ? day : max
-                      );
-                      return `${formatDate(mostActive.date)} (${mostActive.total} items)`;
-                    })()}</span>
-                  </div>
-                  <div className="recommendation-item">
-                    <span className="rec-icon">📅</span>
-                    <span>Most active month: {(() => {
-                      if (!(analyticsData?.monthlyData?.length > 0)) return 'No data';
-                      const mostActive = (analyticsData?.monthlyData ?? []).reduce((max, month) => 
-                        (month.total || 0) > (max.total || 0) ? month : max
-                      );
-                      return `${mostActive.month} (${mostActive.total} items)`;
-                    })()}</span>
-                  </div>
-                  {(binAnalytics?.dailyTrends && binAnalytics.dailyTrends.length > 0) && (
-                    <div className="recommendation-item">
-                      <span className="rec-icon">🗑️</span>
-                      <span>Busiest bin day: {(() => {
-                        const busiestDay = binAnalytics.dailyTrends.reduce((max, day) => 
-                          (day.count || 0) > (max.count || 0) ? day : max
-                        );
-                        return `${formatDate(busiestDay.date)} (${busiestDay.count} events)`;
-                      })()}</span>
-                    </div>
-                  )}
-                  <div className="recommendation-item">
-                    <span className="rec-icon">🔥</span>
-                    <span>Collection streak: {(() => {
-                      if (!(analyticsData?.dailyTrends?.length > 0)) return '0 days';
-                      let streak = 0;
-                      for (let i = (analyticsData?.dailyTrends?.length ?? 0) - 1; i >= 0; i--) {
-                        if (((analyticsData?.dailyTrends?.[i]?.total) || 0) > 0) {
-                          streak++;
-                        } else {
-                          break;
-                        }
-                      }
-                      return `${streak} days`;
-                    })()}</span>
-                  </div>
-                  <div className="recommendation-item">
-                    <span className="rec-icon">♻️</span>
-                    <span>Top category: {(() => {
-                      const totals = analyticsData.totals;
-                      const categories = [
-                        { name: 'Recyclable Wastes', value: totals.recyclable },
-                        { name: 'Wet Wastes', value: totals.biodegradable },
-                        { name: 'Dry Wastes', value: totals.nonBiodegradable }
-                      ];
-                      const top = categories.reduce((max, cat) => cat.value > max.value ? cat : max);
-                      return `${top.name} (${top.value} items)`;
-                    })()}</span>
-                  </div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Activity</h3>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
+                  <span>📅</span>
+                  <span>Most active day: {(() => {
+                    if (!analyticsData.dailyTrends?.length) return 'No data';
+                    const mostActive = analyticsData.dailyTrends.reduce((max, day) => 
+                      (day.total || 0) > (max.total || 0) ? day : max
+                    );
+                    return `${formatDate(mostActive.date)} (${mostActive.total})`;
+                  })()}</span>
+                </div>
+                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
+                  <span>📊</span>
+                  <span>Most active month: {(() => {
+                    if (!analyticsData.monthlyData?.length) return 'No data';
+                    const mostActive = analyticsData.monthlyData.reduce((max, month) => 
+                      (month.total || 0) > (max.total || 0) ? month : max
+                    );
+                    return `${mostActive.month} (${mostActive.total})`;
+                  })()}</span>
+                </div>
+                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
+                  <span>♻</span>
+                  <span>Top category: {(() => {
+                    const totals = analyticsData.totals;
+                    const categories = [
+                      { name: 'Recyclable', value: totals.recyclable },
+                      { name: 'Wet', value: totals.biodegradable },
+                      { name: 'Dry', value: totals.nonBiodegradable }
+                    ];
+                    const top = categories.reduce((max, cat) => cat.value > max.value ? cat : max);
+                    return `${top.name} (${top.value})`;
+                  })()}</span>
                 </div>
               </div>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 };

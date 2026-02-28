@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import AnalyticsCharts from './AnalyticsCharts';
 import LoadingSpinner from './LoadingSpinner';
-import './AnalyticsDashboard.css';
 
 const Analytics = () => {
   const [category, setCategory] = useState('waste');
@@ -318,45 +317,65 @@ const Analytics = () => {
   };
 
   return (
-    <div className="analytics-container">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-900 dark:to-slate-800 p-4 font-sans overflow-x-hidden">
       {/* Toast Notification */}
       {toast && (
-        <div className={`analytics-toast ${toast.type}`}>
-          <span className="toast-icon">{toast.type === 'success' ? '✅' : '❌'}</span>
-          <span className="toast-message">{toast.message}</span>
-          <button className="toast-close" onClick={() => setToast(null)}>×</button>
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg backdrop-blur-md animate-slideDown ${
+          toast.type === 'success' 
+            ? 'bg-green-100/90 dark:bg-green-900/90 text-green-800 dark:text-green-100 border border-green-300 dark:border-green-700' 
+            : 'bg-red-100/90 dark:bg-red-900/90 text-red-800 dark:text-red-100 border border-red-300 dark:border-red-700'
+        }`}>
+          <span className="text-xl">{toast.type === 'success' ? '✅' : '❌'}</span>
+          <span className="font-medium">{toast.message}</span>
+          <button className="ml-4 text-2xl font-light hover:opacity-70 transition-opacity" onClick={() => setToast(null)}>×</button>
         </div>
       )}
 
       {/* Header Section */}
-      <div className="analytics-header">
-        <div className="header-content">
-          <h1 className="analytics-title">📊 Analytics Dashboard</h1>
-          <p className="analytics-subtitle">Track waste management performance and trends</p>
+      <div className="mb-6 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-black/10 dark:border-slate-700/50 shadow-lg p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-3 mb-2">📊 Analytics Dashboard</h1>
+          <p className="text-slate-600 dark:text-slate-400">Track waste management performance and trends</p>
         </div>
         
         {/* Category Tabs */}
-        <div className="category-tabs">
+        <div className="flex gap-2 mb-6 flex-wrap">
           <button
-            className={`tab-button ${category === 'waste' ? 'active' : ''}`}
+            className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm transition-all duration-300 whitespace-nowrap ${
+              category === 'waste' 
+                ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white border-blue-500 shadow-md shadow-blue-500/30' 
+                : 'bg-white/10 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/30'
+            }`}
             onClick={() => setCategory('waste')}
           >
             ♻️ Waste Management
           </button>
           <button
-            className={`tab-button ${category === 'bins' ? 'active' : ''}`}
+            className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm transition-all duration-300 whitespace-nowrap ${
+              category === 'bins' 
+                ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white border-blue-500 shadow-md shadow-blue-500/30' 
+                : 'bg-white/10 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/30'
+            }`}
             onClick={() => setCategory('bins')}
           >
             🗑️ Bin Monitoring
           </button>
           <button
-            className={`tab-button ${category === 'accounts' ? 'active' : ''}`}
+            className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm transition-all duration-300 whitespace-nowrap ${
+              category === 'accounts' 
+                ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white border-blue-500 shadow-md shadow-blue-500/30' 
+                : 'bg-white/10 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/30'
+            }`}
             onClick={() => setCategory('accounts')}
           >
             👥 User Accounts
           </button>
           <button
-            className={`tab-button ${category === 'notifications' ? 'active' : ''}`}
+            className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm transition-all duration-300 whitespace-nowrap ${
+              category === 'notifications' 
+                ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white border-blue-500 shadow-md shadow-blue-500/30' 
+                : 'bg-white/10 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/30'
+            }`}
             onClick={() => setCategory('notifications')}
           >
             🔔 Notifications
@@ -364,14 +383,14 @@ const Analytics = () => {
         </div>
         
         {/* Controls */}
-        <div className="analytics-controls">
-          <div className="control-group">
-            <label htmlFor="timeRange">📅 Time Range</label>
+        <div className="flex gap-3 items-end flex-wrap mt-4">
+          <div className="flex flex-col gap-1.5 min-w-[140px]">
+            <label htmlFor="timeRange" className="text-sm font-semibold text-slate-700 dark:text-slate-300">📅 Time Range</label>
             <select
               id="timeRange"
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="control-select"
+              className="px-3 py-2 border-2 border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-[0.95rem] cursor-pointer transition-all duration-300 hover:border-blue-500 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
             >
               <option value="24h">Last 24 Hours</option>
               <option value="7d">Last 7 Days</option>
@@ -380,13 +399,13 @@ const Analytics = () => {
             </select>
           </div>
           
-          <div className="control-group">
-            <label htmlFor="metric">📏 Metric</label>
+          <div className="flex flex-col gap-1.5 min-w-[140px]">
+            <label htmlFor="metric" className="text-sm font-semibold text-slate-700 dark:text-slate-300">📏 Metric</label>
             <select
               id="metric"
               value={metric}
               onChange={(e) => setMetric(e.target.value)}
-              className="control-select"
+              className="px-3 py-2 border-2 border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-[0.95rem] cursor-pointer transition-all duration-300 hover:border-blue-500 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={category !== 'waste'}
             >
               {category === 'waste' && (
@@ -415,7 +434,7 @@ const Analytics = () => {
               setError(null);
               fetchAnalyticsData();
             }}
-            className="refresh-btn"
+            className="px-4 py-2.5 bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-lg font-semibold text-sm transition-all duration-300 hover:from-blue-700 hover:to-blue-900 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap h-fit"
             disabled={loading}
           >
             {loading ? '🔄 Loading...' : '🔄 Refresh'}
@@ -423,7 +442,7 @@ const Analytics = () => {
           
           <button
             onClick={exportToExcel}
-            className="export-btn"
+            className="px-4 py-2.5 bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-lg font-semibold text-sm transition-all duration-300 hover:from-blue-700 hover:to-blue-900 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap h-fit"
             disabled={exporting || category !== 'waste'}
             title={category !== 'waste' ? 'Export is only available for Waste Management data' : 'Export to Excel'}
           >
@@ -434,23 +453,23 @@ const Analytics = () => {
 
       {/* Error Display */}
       {error && (
-        <div className="error-container">
-          <div className="error-card">
-            <div className="error-header">
-              <h3>{getErrorMessage(error).title}</h3>
+        <div className="mb-6">
+          <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-red-300 dark:border-red-700 shadow-lg p-6">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">{getErrorMessage(error).title}</h3>
               <button
                 onClick={() => setError(null)}
-                className="error-close"
+                className="text-2xl font-light text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
                 aria-label="Close error"
               >
                 ✕
               </button>
             </div>
-            <p className="error-message">{getErrorMessage(error).message}</p>
-            <div className="error-actions">
+            <p className="text-slate-700 dark:text-slate-300 mb-4">{getErrorMessage(error).message}</p>
+            <div className="flex gap-3">
               <button
                 onClick={fetchAnalyticsData}
-                className="btn-primary"
+                className="px-4 py-2 bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-lg font-semibold transition-all duration-300 hover:from-blue-700 hover:to-blue-900 disabled:opacity-60"
                 disabled={loading}
               >
                 🔄 Retry
@@ -467,51 +486,51 @@ const Analytics = () => {
       {!loading && !error && analyticsData && (
         <>
           {/* Key Metrics */}
-          <div className="metrics-grid">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-6 max-w-full overflow-hidden">
             {category === 'waste' && (
               <>
-                <div className="metric-card total-weight">
-                  <div className="metric-icon">⚖️</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{formatValue(analyticsData.totalWeight, 'weight')}</div>
-                    <div className="metric-label">Total Weight</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp [animation-delay:100ms]">
+                  <div className="text-3xl mb-4">⚖️</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{formatValue(analyticsData.totalWeight, 'weight')}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Total Weight</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>📈</span>
                       <span>Real data from DB</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card efficiency">
-                  <div className="metric-icon">⚡</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.efficiency?.toFixed(1) || '0.0'}%</div>
-                    <div className="metric-label">Collection Rate</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp [animation-delay:200ms]">
+                  <div className="text-3xl mb-4">⚡</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.efficiency?.toFixed(1) || '0.0'}%</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Collection Rate</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>�</span>
                       <span>Weight/Volume ratio</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card active-devices">
-                  <div className="metric-icon">�</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.totalRecords || '0'}</div>
-                    <div className="metric-label">Total Records</div>
-                    <div className="metric-trend neutral">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp [animation-delay:300ms]">
+                  <div className="text-3xl mb-4">📊</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.totalRecords || '0'}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Total Records</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-slate-500/20 border border-slate-500/30 font-semibold inline-flex items-center gap-1">
                       <span>📝</span>
                       <span>Database entries</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card co2-saved">
-                  <div className="metric-icon">🌱</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{formatValue(analyticsData.co2Saved, 'weight')}</div>
-                    <div className="metric-label">CO₂ Saved (Est.)</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp [animation-delay:400ms]">
+                  <div className="text-3xl mb-4">🌱</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{formatValue(analyticsData.co2Saved, 'weight')}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">CO₂ Saved (Est.)</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>🌍</span>
                       <span>Environmental impact</span>
                     </div>
@@ -522,48 +541,48 @@ const Analytics = () => {
 
             {category === 'bins' && analyticsData.data && (
               <>
-                <div className="metric-card total-weight">
-                  <div className="metric-icon">🗑️</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.totalBinFullEvents || 0}</div>
-                    <div className="metric-label">Total Bin Events</div>
-                    <div className="metric-trend neutral">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">🗑️</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.totalBinFullEvents || 0}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Total Bin Events</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-slate-500/20 border border-slate-500/30 font-semibold inline-flex items-center gap-1">
                       <span>📊</span>
                       <span>All time count</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card efficiency">
-                  <div className="metric-icon">📅</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.todayCount || 0}</div>
-                    <div className="metric-label">Today's Events</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">📅</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.todayCount || 0}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Today's Events</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>🔔</span>
                       <span>Current day</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card active-devices">
-                  <div className="metric-icon">📊</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.thisWeekCount || 0}</div>
-                    <div className="metric-label">This Week</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">📊</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.thisWeekCount || 0}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">This Week</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>📈</span>
                       <span>Weekly total</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card co2-saved">
-                  <div className="metric-icon">⏰</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.timeSinceLastFull ? `${analyticsData.data.timeSinceLastFull}h` : 'N/A'}</div>
-                    <div className="metric-label">Hours Since Last</div>
-                    <div className="metric-trend neutral">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">⏰</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.timeSinceLastFull ? `${analyticsData.data.timeSinceLastFull}h` : 'N/A'}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Hours Since Last</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-slate-500/20 border border-slate-500/30 font-semibold inline-flex items-center gap-1">
                       <span>🕐</span>
                       <span>Time tracking</span>
                     </div>
@@ -574,48 +593,48 @@ const Analytics = () => {
 
             {category === 'accounts' && analyticsData.data?.summary && (
               <>
-                <div className="metric-card total-weight">
-                  <div className="metric-icon">👥</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.summary.totalAccounts || 0}</div>
-                    <div className="metric-label">Total Users</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">👥</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.summary.totalAccounts || 0}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Total Users</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>👤</span>
                       <span>All registered</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card efficiency">
-                  <div className="metric-icon">🎯</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.summary.activeAccounts || 0}</div>
-                    <div className="metric-label">Active Users</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">🎯</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.summary.activeAccounts || 0}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Active Users</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>✅</span>
                       <span>Recently active</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card active-devices">
-                  <div className="metric-icon">📈</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.summary.newRegistrations || 0}</div>
-                    <div className="metric-label">New Registrations</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">📈</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.summary.newRegistrations || 0}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">New Registrations</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>🆕</span>
                       <span>This period</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card co2-saved">
-                  <div className="metric-icon">📊</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.summary.engagementRate?.toFixed(1) || '0'}%</div>
-                    <div className="metric-label">Engagement Rate</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">📊</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.summary.engagementRate?.toFixed(1) || '0'}%</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Engagement Rate</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>🎯</span>
                       <span>User activity</span>
                     </div>
@@ -626,48 +645,48 @@ const Analytics = () => {
 
             {category === 'notifications' && analyticsData.data?.summary && (
               <>
-                <div className="metric-card total-weight">
-                  <div className="metric-icon">📧</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.summary.totalNotifications || 0}</div>
-                    <div className="metric-label">Total Sent</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">📧</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.summary.totalNotifications || 0}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Total Sent</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>📤</span>
                       <span>All time</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card efficiency">
-                  <div className="metric-icon">✅</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.summary.deliveryRate?.toFixed(1) || '98.5'}%</div>
-                    <div className="metric-label">Delivery Rate</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">✅</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.summary.deliveryRate?.toFixed(1) || '98.5'}%</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Delivery Rate</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>🚀</span>
                       <span>High success</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card active-devices">
-                  <div className="metric-icon">📈</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.summary.periodNotifications || 0}</div>
-                    <div className="metric-label">This Period</div>
-                    <div className="metric-trend positive">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">📈</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.summary.periodNotifications || 0}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">This Period</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-green-500/20 border border-green-500/30 font-semibold inline-flex items-center gap-1">
                       <span>📊</span>
                       <span>Recent activity</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="metric-card co2-saved">
-                  <div className="metric-icon">⏰</div>
-                  <div className="metric-content">
-                    <div className="metric-value">{analyticsData.data.summary.avgPerDay || 0}</div>
-                    <div className="metric-label">Avg Per Day</div>
-                    <div className="metric-trend neutral">
+                <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-black/10 dark:border-slate-700/50 rounded-xl p-4 text-slate-900 dark:text-slate-100 transition-all duration-300 relative overflow-hidden min-h-[120px] before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-to-r before:from-green-500 before:via-blue-500 before:to-purple-500 before:opacity-0 before:transition-opacity before:duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/20 dark:hover:shadow-black/40 hover:before:opacity-100 animate-fadeInUp">
+                  <div className="text-3xl mb-4">⏰</div>
+                  <div>
+                    <div className="text-3xl font-bold mb-1">{analyticsData.data.summary.avgPerDay || 0}</div>
+                    <div className="text-sm font-semibold mb-1 text-slate-600 dark:text-slate-400">Avg Per Day</div>
+                    <div className="text-sm px-2 py-1 rounded-xl bg-slate-500/20 border border-slate-500/30 font-semibold inline-flex items-center gap-1">
                       <span>📅</span>
                       <span>Daily average</span>
                     </div>

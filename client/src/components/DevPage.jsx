@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
-import './DevPage.css';
 
 const DEV_PASSWORD = '123456';
 const DEV_AUTH_KEY = 'devPageAuthorized';
@@ -52,18 +51,18 @@ export default function DevPage() {
 
   if (!isAuthorized) {
     return (
-      <div className="dev-password-gate">
-        <div className="dev-password-card">
-          <div className="dev-password-icon">🔒</div>
-          <h1 className="dev-password-title">Developer Access</h1>
-          <p className="dev-password-subtitle">Enter password to access developer tools</p>
+      <div className="min-h-[calc(100vh-100px)] flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl p-10 shadow-lg">
+          <div className="text-5xl text-center mb-4">🔒</div>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">Developer Access</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 text-center mb-8">Enter password to access developer tools</p>
           
-          <form onSubmit={handlePasswordSubmit} className="dev-password-form">
-            <div className="dev-form-group">
-              <label className="dev-form-label">Password</label>
+          <form onSubmit={handlePasswordSubmit} className="m-0">
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1.5">Password</label>
               <input
                 type="password"
-                className="dev-input"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-150 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-600 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="Enter password"
@@ -72,12 +71,12 @@ export default function DevPage() {
             </div>
             
             {passwordError && (
-              <div className="dev-password-error">
+              <div className="px-4 py-3 mb-4 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-md text-red-600 dark:text-red-400 text-sm">
                 {passwordError}
               </div>
             )}
             
-            <button type="submit" className="dev-btn dev-btn-primary" style={{ width: '100%' }}>
+            <button type="submit" className="w-full px-4 py-2 text-sm font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
               Access Developer Tools
             </button>
           </form>
@@ -141,46 +140,50 @@ export default function DevPage() {
   };
 
   return (
-    <div className="dev-page">
+    <div className="max-w-7xl mx-auto p-6 font-sans">
       {loading && <LoadingSpinner fullscreen message="Calling API..." />}
 
-      <div className="dev-header">
-        <div className="dev-header-content">
-          <h1>Developer Tools</h1>
-          <p>Trigger common backend actions, seed data, and debug payloads.</p>
+      <div className="pb-4 mb-6 border-b border-gray-300 dark:border-gray-700 flex flex-col sm:flex-row items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100 mb-1">Developer Tools</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 m-0">Trigger common backend actions, seed data, and debug payloads.</p>
         </div>
-        <div className="dev-header-actions">
-          <span className="dev-badge">Env: {import.meta.env.MODE}</span>
-          <span className="dev-badge">API: {API_BASE_URL || 'relative'}</span>
-          <button onClick={handleLogout} className="dev-lock-btn" title="Lock developer tools">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700">Env: {import.meta.env.MODE}</span>
+          <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700">API: {API_BASE_URL || 'relative'}</span>
+          <button onClick={handleLogout} className="px-2.5 py-1 text-xs font-medium rounded-md bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 cursor-pointer transition-all duration-150 hover:bg-red-100 dark:hover:bg-red-900/50" title="Lock developer tools">
             🔒 Lock
           </button>
         </div>
       </div>
 
       {toast && (
-        <div className={`dev-toast ${toast.type}`}>
+        <div className={`mb-4 px-4 py-3 rounded-md text-sm font-medium animate-slideDown ${
+          toast.type === 'success' 
+            ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-300 dark:border-green-800'
+            : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800'
+        }`}>
           {toast.message}
         </div>
       )}
 
-      <div className="dev-grid">
-        <section className="dev-section">
-          <div className="dev-section-header">
-            <h2 className="dev-section-title">Bin: Mark Full</h2>
-            <span className="dev-endpoint-badge post">POST /api/bin/full</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5 mb-6">
+        <section className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 m-0">Bin: Mark Full</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded font-mono font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">POST /api/bin/full</span>
           </div>
-          <div className="dev-section-body">
-            <p className="dev-section-description">
+          <div className="p-5">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 leading-normal">
               Simulate the device notifying that a bin is full. This also broadcasts to connected clients.
             </p>
             
-            <div className="dev-form-group">
-              <label className="dev-form-label">Bin Type</label>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1.5">Bin Type</label>
               <select
                 value={binType}
                 onChange={(e) => setBinType(Number(e.target.value))}
-                className="dev-select"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-150 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-600 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
               >
                 <option value={1}>1 - Recyclable Wastes</option>
                 <option value={2}>2 - Wet Wastes</option>
@@ -189,7 +192,7 @@ export default function DevPage() {
             </div>
             
             <button
-              className="dev-btn dev-btn-primary"
+              className="px-4 py-2 text-sm font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
               onClick={() => callApi({ url: API_ENDPOINTS.BIN_FULL, method: 'POST', body: { bin: binType } })}
             >
@@ -198,17 +201,17 @@ export default function DevPage() {
           </div>
         </section>
 
-        <section className="dev-section">
-          <div className="dev-section-header">
-            <h2 className="dev-section-title">Waste: Delete Today</h2>
-            <span className="dev-endpoint-badge delete">POST /api/waste/delete-today</span>
+        <section className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 m-0">Waste: Delete Today</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded font-mono font-semibold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">POST /api/waste/delete-today</span>
           </div>
-          <div className="dev-section-body">
-            <p className="dev-section-description">
+          <div className="p-5">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 leading-normal">
               Removes today's waste records. Useful when a duplicate was added.
             </p>
             <button
-              className="dev-btn dev-btn-danger"
+              className="px-4 py-2 text-sm font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
               onClick={() => {
                 if (confirm('Delete today\'s records? This cannot be undone.')) {
@@ -221,22 +224,22 @@ export default function DevPage() {
           </div>
         </section>
 
-        <section className="dev-section">
-          <div className="dev-section-header">
-            <h2 className="dev-section-title">Add Recyclable Wastes</h2>
-            <span className="dev-endpoint-badge post">POST /api/waste/add</span>
+        <section className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 m-0">Add Recyclable Wastes</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded font-mono font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">POST /api/waste/add</span>
           </div>
-          <div className="dev-section-body">
-            <p className="dev-section-description">
+          <div className="p-5">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 leading-normal">
               Add recyclable waste record. Triggers recyclable waste video notification.
             </p>
             
-            <div className="dev-form-group">
-              <label className="dev-form-label">Recyclable Wastes Count</label>
-              <div className="dev-input-wrapper">
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1.5">Recyclable Wastes Count</label>
+              <div className="flex items-center gap-2">
                 <button 
                   type="button" 
-                  className="dev-step-btn" 
+                  className="w-8 h-8 p-0 text-base font-semibold flex items-center justify-center border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 cursor-pointer transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600" 
                   onClick={() => setRecyclableForm(f => ({ recyclable: Math.max(0, (f.recyclable || 0) - 1) }))}
                 >
                   −
@@ -244,13 +247,13 @@ export default function DevPage() {
                 <input
                   type="number"
                   min={0}
-                  className="dev-input"
+                  className="flex-1 text-center font-medium px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-150 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-600 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
                   value={recyclableForm.recyclable}
                   onChange={(e) => setRecyclableForm({ recyclable: clampNum(e.target.value) })}
                 />
                 <button 
                   type="button" 
-                  className="dev-step-btn" 
+                  className="w-8 h-8 p-0 text-base font-semibold flex items-center justify-center border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 cursor-pointer transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600" 
                   onClick={() => setRecyclableForm(f => ({ recyclable: (f.recyclable || 0) + 1 }))}
                 >
                   +
@@ -259,7 +262,7 @@ export default function DevPage() {
             </div>
             
             <button
-              className="dev-btn dev-btn-success"
+              className="px-4 py-2 text-sm font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
               onClick={() => callApi({ 
                 url: API_ENDPOINTS.WASTE_ADD, 
@@ -272,22 +275,22 @@ export default function DevPage() {
           </div>
         </section>
 
-        <section className="dev-section">
-          <div className="dev-section-header">
-            <h2 className="dev-section-title">Add Wet Wastes</h2>
-            <span className="dev-endpoint-badge post">POST /api/waste/add</span>
+        <section className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 m-0">Add Wet Wastes</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded font-mono font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">POST /api/waste/add</span>
           </div>
-          <div className="dev-section-body">
-            <p className="dev-section-description">
+          <div className="p-5">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 leading-normal">
               Add wet/biodegradable waste record. Triggers wet waste video notification.
             </p>
             
-            <div className="dev-form-group">
-              <label className="dev-form-label">Wet Wastes Count</label>
-              <div className="dev-input-wrapper">
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1.5">Wet Wastes Count</label>
+              <div className="flex items-center gap-2">
                 <button 
                   type="button" 
-                  className="dev-step-btn" 
+                  className="w-8 h-8 p-0 text-base font-semibold flex items-center justify-center border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 cursor-pointer transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600" 
                   onClick={() => setWetForm(f => ({ biodegradable: Math.max(0, (f.biodegradable || 0) - 1) }))}
                 >
                   −
@@ -295,13 +298,13 @@ export default function DevPage() {
                 <input
                   type="number"
                   min={0}
-                  className="dev-input"
+                  className="flex-1 text-center font-medium px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-150 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-600 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
                   value={wetForm.biodegradable}
                   onChange={(e) => setWetForm({ biodegradable: clampNum(e.target.value) })}
                 />
                 <button 
                   type="button" 
-                  className="dev-step-btn" 
+                  className="w-8 h-8 p-0 text-base font-semibold flex items-center justify-center border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 cursor-pointer transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600" 
                   onClick={() => setWetForm(f => ({ biodegradable: (f.biodegradable || 0) + 1 }))}
                 >
                   +
@@ -310,7 +313,7 @@ export default function DevPage() {
             </div>
             
             <button
-              className="dev-btn dev-btn-success"
+              className="px-4 py-2 text-sm font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
               onClick={() => callApi({ 
                 url: API_ENDPOINTS.WASTE_ADD, 
@@ -323,22 +326,22 @@ export default function DevPage() {
           </div>
         </section>
 
-        <section className="dev-section">
-          <div className="dev-section-header">
-            <h2 className="dev-section-title">Add Dry Wastes</h2>
-            <span className="dev-endpoint-badge post">POST /api/waste/add</span>
+        <section className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 m-0">Add Dry Wastes</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded font-mono font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">POST /api/waste/add</span>
           </div>
-          <div className="dev-section-body">
-            <p className="dev-section-description">
+          <div className="p-5">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 leading-normal">
               Add dry/non-biodegradable waste record. Triggers dry waste video notification.
             </p>
             
-            <div className="dev-form-group">
-              <label className="dev-form-label">Dry Wastes Count</label>
-              <div className="dev-input-wrapper">
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1.5">Dry Wastes Count</label>
+              <div className="flex items-center gap-2">
                 <button 
                   type="button" 
-                  className="dev-step-btn" 
+                  className="w-8 h-8 p-0 text-base font-semibold flex items-center justify-center border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 cursor-pointer transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600" 
                   onClick={() => setDryForm(f => ({ nonBiodegradable: Math.max(0, (f.nonBiodegradable || 0) - 1) }))}
                 >
                   −
@@ -346,13 +349,13 @@ export default function DevPage() {
                 <input
                   type="number"
                   min={0}
-                  className="dev-input"
+                  className="flex-1 text-center font-medium px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-150 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-600 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
                   value={dryForm.nonBiodegradable}
                   onChange={(e) => setDryForm({ nonBiodegradable: clampNum(e.target.value) })}
                 />
                 <button 
                   type="button" 
-                  className="dev-step-btn" 
+                  className="w-8 h-8 p-0 text-base font-semibold flex items-center justify-center border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 cursor-pointer transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600" 
                   onClick={() => setDryForm(f => ({ nonBiodegradable: (f.nonBiodegradable || 0) + 1 }))}
                 >
                   +
@@ -361,7 +364,7 @@ export default function DevPage() {
             </div>
             
             <button
-              className="dev-btn dev-btn-success"
+              className="px-4 py-2 text-sm font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
               onClick={() => callApi({ 
                 url: API_ENDPOINTS.WASTE_ADD, 
@@ -374,35 +377,35 @@ export default function DevPage() {
           </div>
         </section>
 
-        <section className="dev-section full-width">
-          <div className="dev-section-header">
-            <h2 className="dev-section-title">Add Mixed Waste Record</h2>
-            <span className="dev-endpoint-badge post">POST /api/waste/add</span>
+        <section className="col-span-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 m-0">Add Mixed Waste Record</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded font-mono font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">POST /api/waste/add</span>
           </div>
-          <div className="dev-section-body">
-            <p className="dev-section-description">
+          <div className="p-5">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 leading-normal">
               Add a mixed waste record with all types. Video notification shows the predominant waste type.
             </p>
 
-            <div className="dev-presets">
+            <div className="flex flex-wrap gap-2 mb-4">
               {presets.map((p) => (
                 <button 
                   key={p.label} 
-                  className="dev-btn dev-btn-secondary"
+                  className="px-4 py-2 text-sm font-medium rounded-md border cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => setForm(p.values)}
                 >
                   {p.label}
                 </button>
               ))}
               <button 
-                className="dev-btn dev-btn-secondary" 
+                className="px-4 py-2 text-sm font-medium rounded-md border cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" 
                 onClick={() => setForm({ recyclable: 0, biodegradable: 0, nonBiodegradable: 0 })}
               >
                 Reset
               </button>
             </div>
 
-            <div className="dev-input-grid">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {(['recyclable','biodegradable','nonBiodegradable']).map((key) => {
                 const labels = {
                   recyclable: 'Recyclable Wastes',
@@ -410,14 +413,14 @@ export default function DevPage() {
                   nonBiodegradable: 'Dry Wastes'
                 };
                 return (
-                  <div key={key} className="dev-form-group">
-                    <label className="dev-form-label">
+                  <div key={key} className="mb-4">
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1.5">
                       {labels[key]}
                     </label>
-                    <div className="dev-input-wrapper">
+                    <div className="flex items-center gap-2">
                       <button 
                         type="button" 
-                        className="dev-step-btn" 
+                        className="w-8 h-8 p-0 text-base font-semibold flex items-center justify-center border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 cursor-pointer transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600" 
                         onClick={() => step(key, -1)}
                       >
                         −
@@ -425,13 +428,13 @@ export default function DevPage() {
                       <input
                         type="number"
                         min={0}
-                        className="dev-input"
+                        className="flex-1 text-center font-medium px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-150 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-600 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
                         value={form[key]}
                         onChange={(e) => setForm((f) => ({ ...f, [key]: clampNum(e.target.value) }))}
                       />
                       <button 
                         type="button" 
-                        className="dev-step-btn" 
+                        className="w-8 h-8 p-0 text-base font-semibold flex items-center justify-center border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 cursor-pointer transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600" 
                         onClick={() => step(key, 1)}
                       >
                         +
@@ -442,12 +445,12 @@ export default function DevPage() {
               })}
             </div>
 
-            <div className="dev-summary-row">
-              <div className="dev-total">
-                Total: <span className="dev-total-value">{total}</span>
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-300 dark:border-gray-700">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Total: <span className="font-bold text-gray-900 dark:text-gray-100 text-base">{total}</span>
               </div>
               <button
-                className="dev-btn dev-btn-success"
+                className="px-4 py-2 text-sm font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={loading}
                 onClick={() => callApi({ url: API_ENDPOINTS.WASTE_ADD, method: 'POST', body: form })}
               >
@@ -459,28 +462,28 @@ export default function DevPage() {
       </div>
 
       {(result || error || lastRequest) && (
-        <section className="dev-section response full-width">
-          <div className="dev-section-header">
-            <h2 className="dev-section-title">Request & Response</h2>
+        <section className="mt-6 col-span-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 m-0">Request & Response</h2>
             {lastRequest?.status != null && (
-              <span className={`dev-status-badge ${lastRequest.status >= 400 ? 'error' : 'success'}`}>
+              <span className={`text-[11px] px-2 py-0.5 rounded font-semibold ${lastRequest.status >= 400 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'}`}>
                 Status: {lastRequest.status}
               </span>
             )}
           </div>
-          <div className="dev-section-body">
+          <div className="p-5">
             {lastRequest && (
-              <div className="dev-request-details">
-                <div className="dev-response-label">Request</div>
-                <div className="dev-request-method">
+              <div className="mb-4">
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Request</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mb-2 font-mono">
                   {lastRequest.method} {lastRequest.url}
                 </div>
                 {lastRequest.body && (
-                  <pre className="dev-code-block">{JSON.stringify(lastRequest.body, null, 2)}</pre>
+                  <pre className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 overflow-auto font-mono text-xs leading-normal text-gray-900 dark:text-gray-100 max-h-96">{JSON.stringify(lastRequest.body, null, 2)}</pre>
                 )}
-                <div className="dev-code-actions">
+                <div className="mt-3 flex gap-2">
                   <button
-                    className="dev-btn dev-btn-secondary"
+                    className="px-4 py-2 text-sm font-medium rounded-md border cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={() => navigator.clipboard.writeText(buildCurl(lastRequest))}
                   >
                     📋 Copy cURL
@@ -491,15 +494,15 @@ export default function DevPage() {
 
             {result && (
               <div>
-                <div className="dev-response-label">Response</div>
-                <pre className="dev-code-block">{JSON.stringify(result, null, 2)}</pre>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Response</div>
+                <pre className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 overflow-auto font-mono text-xs leading-normal text-gray-900 dark:text-gray-100 max-h-96">{JSON.stringify(result, null, 2)}</pre>
               </div>
             )}
             
             {error && (
               <div>
-                <div className="dev-response-label">Error</div>
-                <pre className="dev-code-block error">{JSON.stringify(error, null, 2)}</pre>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Error</div>
+                <pre className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-md p-3 overflow-auto font-mono text-xs leading-normal max-h-96">{JSON.stringify(error, null, 2)}</pre>
               </div>
             )}
           </div>

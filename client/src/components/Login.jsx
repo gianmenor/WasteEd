@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
 import DashboardSkeleton from './DashboardSkeleton';
 import brandLogo from '../assets/brandName.png';
-import './Login.css';
 
 const Login = () => {
   const { login } = useAuth();
@@ -94,12 +93,6 @@ const Login = () => {
     setRememberMe(e.target.checked);
   }, []);
 
-  // Memoize UI size class
-  const uiSizeClass = useMemo(() => 
-    `ui-size-${preferences?.uiSize || 'medium'}`,
-    [preferences?.uiSize]
-  );
-
   // Memoize button disabled state
   const isSubmitDisabled = useMemo(() => 
     loading || !credentials.username.trim() || !credentials.password,
@@ -111,23 +104,30 @@ const Login = () => {
     return <DashboardSkeleton />;
   }
 
+  // Determine padding class based on UI size
+  const cardPaddingClass = useMemo(() => {
+    if (preferences?.uiSize === 'small') return 'p-6';
+    if (preferences?.uiSize === 'large') return 'p-10';
+    return 'p-10';
+  }, [preferences?.uiSize]);
+
   return (
-    <div className={`login-page ${uiSizeClass}`}>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-green-50 via-emerald-50/30 to-green-50 p-6">
       {/* Logo Section - Outside the card */}
-      <div className="login-brand-header">
-        <img src={brandLogo} alt="Waste-Ed Logo" className="login-brand-logo" />
-        <p className="login-subtitle">Smart Waste Management System</p>
+      <div className="text-center mb-8 animate-fadeInDown">
+        <img src={brandLogo} alt="Waste-Ed Logo" className="w-[180px] h-auto mb-4 block mx-auto" />
+        <p className="text-gray-500 text-base mt-2 mb-0 font-medium">Smart Waste Management System</p>
       </div>
 
-      <div className="login-container">
-        <div className="login-card">
+      <div className="w-full max-w-[420px] animate-fadeInUp">
+        <div className={`bg-white border border-gray-200 rounded-2xl ${cardPaddingClass} shadow-[0_10px_25px_rgba(0,0,0,0.1),0_6px_12px_rgba(0,0,0,0.08)]`}>
           {/* Error Alert */}
           {error && (
-            <div className="alert alert-error" role="alert">
-              <span className="alert-icon" aria-hidden="true"><WarningAmberIcon fontSize="small" /></span>
-              <span className="alert-message">{error}</span>
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg mb-6 text-sm bg-red-50 border border-red-200 text-red-800" role="alert">
+              <span className="flex-shrink-0" aria-hidden="true"><WarningAmberIcon fontSize="small" /></span>
+              <span className="flex-1">{error}</span>
               <button 
-                className="alert-close"
+                className="bg-transparent border-none text-red-800 cursor-pointer p-1 rounded flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity duration-200"
                 onClick={dismissError}
                 aria-label="Close error"
               >
@@ -137,9 +137,9 @@ const Login = () => {
           )}
 
           {/* Login Form */}
-          <form onSubmit={handleSubmit} className="login-form">
-            <div className="form-group">
-              <label htmlFor="username" className="form-label">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="username" className="text-sm font-medium text-gray-800">
                 Username
               </label>
               <input
@@ -148,7 +148,7 @@ const Login = () => {
                 type="text"
                 value={credentials.username}
                 onChange={handleChange}
-                className="form-input"
+                className="px-4 py-3 border border-gray-200 rounded-lg text-base bg-white text-gray-800 transition-all duration-200 focus:outline-none focus:border-green-600 focus:ring-[3px] focus:ring-green-600/10 placeholder:text-gray-400"
                 placeholder="Enter your username"
                 required
                 autoComplete="username"
@@ -156,25 +156,25 @@ const Login = () => {
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="password" className="form-label">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="password" className="text-sm font-medium text-gray-800">
                 Password
               </label>
-              <div className="password-input-group">
+              <div className="relative flex">
                 <input
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   value={credentials.password}
                   onChange={handleChange}
-                  className="form-input"
+                  className="flex-1 pr-12 px-4 py-3 border border-gray-200 rounded-lg text-base bg-white text-gray-800 transition-all duration-200 focus:outline-none focus:border-green-600 focus:ring-[3px] focus:ring-green-600/10 placeholder:text-gray-400"
                   placeholder="Enter your password"
                   required
                   autoComplete="current-password"
                 />
                 <button
                   type="button"
-                  className="password-toggle"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none text-gray-500 cursor-pointer p-1 rounded flex items-center justify-center transition-colors duration-200 hover:bg-gray-100"
                   onClick={togglePasswordVisibility}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -183,22 +183,22 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="form-group remember-me-group">
-              <label className="checkbox-label">
+            <div className="m-0 flex flex-row flex-nowrap w-full">
+              <label className="flex items-center gap-2.5 cursor-pointer text-sm text-gray-500">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={handleRememberMeChange}
-                  className="checkbox-input"
+                  className="peer sr-only"
                 />
-                <span className="checkbox-custom"></span>
-                <span className="checkbox-text">Remember me</span>
+                <span className="w-5 h-5 border-2 border-gray-200 rounded bg-white relative transition-all duration-200 flex items-center justify-center flex-shrink-0 peer-checked:bg-green-600 peer-checked:border-green-600 peer-focus:ring-[3px] peer-focus:ring-green-600/10 after:content-['✓'] after:text-white after:text-sm after:font-bold after:hidden peer-checked:after:block"></span>
+                <span className="select-none">Remember me</span>
               </label>
             </div>
 
             <button
               type="submit"
-              className={`btn btn-primary login-btn ${loading ? 'loading' : ''}`}
+              className="inline-flex items-center justify-center gap-2 px-6 py-4 border border-transparent rounded-lg text-base font-medium no-underline cursor-pointer transition-all duration-200 whitespace-nowrap w-full bg-green-600 text-white hover:enabled:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
               disabled={isSubmitDisabled}
             >
               Sign In

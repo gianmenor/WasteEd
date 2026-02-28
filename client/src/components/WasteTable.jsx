@@ -7,20 +7,17 @@ import { TextField } from '@mui/material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import ExportModal from './ExportModal';
-import './WasteTable.css';
 
 // Skeleton row component
 const SkeletonRow = memo(() => (
-  <tr className="skeleton-row">
-    <td><div className="skeleton-cell skeleton-pulse"></div></td>
-    <td><div className="skeleton-cell skeleton-pulse"></div></td>
-    <td><div className="skeleton-cell skeleton-pulse"></div></td>
-    <td><div className="skeleton-cell skeleton-pulse"></div></td>
-    <td><div className="skeleton-cell skeleton-pulse"></div></td>
+  <tr className="animate-pulse border-b border-gray-200">
+    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
   </tr>
 ));
 
@@ -61,38 +58,19 @@ const fetchAllWasteData = async ({ dateFrom, dateTo }) => {
 };
 
 const WasteTable = () => {
-  const { preferences } = usePreferences();
   const tableRef = useRef(null);
   const [viewMode, setViewMode] = useState('daily');
   const [dateFromObj, setDateFromObj] = useState(null);
   const [dateToObj, setDateToObj] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isCompactPagination, setIsCompactPagination] = useState(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-    return window.matchMedia('(max-width: 480px)').matches;
-  });
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
   const [typeFilter, setTypeFilter] = useState('all'); // all, recyclable, biodegradable, nonBiodegradable
   const [showExportModal, setShowExportModal] = useState(false);
   const [dismissedError, setDismissedError] = useState(false);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-
-    const mediaQueryList = window.matchMedia('(max-width: 480px)');
-    const handleChange = (event) => setIsCompactPagination(event.matches);
-
-    setIsCompactPagination(mediaQueryList.matches);
-    if (typeof mediaQueryList.addEventListener === 'function') {
-      mediaQueryList.addEventListener('change', handleChange);
-      return () => mediaQueryList.removeEventListener('change', handleChange);
-    }
-
-    // Safari fallback
-    mediaQueryList.addListener(handleChange);
-    return () => mediaQueryList.removeListener(handleChange);
-  }, []);
   
   // Convert Date objects to strings for API
   const dateFrom = useMemo(() => 
@@ -103,9 +81,6 @@ const WasteTable = () => {
     dateToObj ? dateToObj.toISOString().split('T')[0] : '',
     [dateToObj]
   );
-  
-  // Fixed to 10 records per page as per PRD requirement
-  const itemsPerPage = 10;
 
   // Use React Query for data fetching with caching
   const { data: wasteData = [], isLoading: loading, error: queryError, refetch } = useQuery({
@@ -154,6 +129,27 @@ const WasteTable = () => {
     return Object.values(monthlyData).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, []);
 
+  // Format date based on view mode
+  const formatDate = useCallback((dateString) => {
+    const date = new Date(dateString);
+    if (viewMode === 'monthly') {
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long'
+      });
+    }
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }, [viewMode]);
+
+  const formatCount = useCallback((count) => {
+    if (count == null) return '0';
+    return parseInt(count).toString();
+  }, []);
+
   // Process data based on view mode (memoized)
   const processedData = useMemo(() => {
     let data;
@@ -162,11 +158,11 @@ const WasteTable = () => {
       data = aggregateByMonth(wasteData);
     } else {
       // Transform each record into individual rows per waste type
-      data = [];
+      const individualRows = [];
       wasteData.forEach(record => {
         // Add recyclable row if quantity > 0
         if (record.recyclable > 0) {
-          data.push({
+          individualRows.push({
             id: `${record.id}-recyclable`,
             date: record.date,
             time: record.recordedAt || record.createdAt,
@@ -178,7 +174,7 @@ const WasteTable = () => {
         }
         // Add biodegradable row if quantity > 0
         if (record.biodegradable > 0) {
-          data.push({
+          individualRows.push({
             id: `${record.id}-biodegradable`,
             date: record.date,
             time: record.recordedAt || record.createdAt,
@@ -190,7 +186,7 @@ const WasteTable = () => {
         }
         // Add non-biodegradable row if quantity > 0
         if (record.nonBiodegradable > 0) {
-          data.push({
+          individualRows.push({
             id: `${record.id}-nonBiodegradable`,
             date: record.date,
             time: record.recordedAt || record.createdAt,
@@ -201,6 +197,38 @@ const WasteTable = () => {
           });
         }
       });
+      
+      // Compile same-day records of the same type into single rows
+      const groupedMap = {};
+      individualRows.forEach(row => {
+        const dateStr = new Date(row.date).toDateString();
+        const key = `${dateStr}-${row.originalType}`;
+        
+        if (!groupedMap[key]) {
+          groupedMap[key] = {
+            ...row,
+            ids: [row.id]
+          };
+        } else {
+          // Sum quantities
+          groupedMap[key].quantityInPcs += row.quantityInPcs;
+          groupedMap[key].couponTaken += row.couponTaken;
+          groupedMap[key].ids.push(row.id);
+          
+          // Keep the most recent time
+          const existingTime = new Date(groupedMap[key].time || 0).getTime();
+          const newTime = new Date(row.time || 0).getTime();
+          if (newTime > existingTime) {
+            groupedMap[key].time = row.time;
+          }
+        }
+      });
+      
+      // Convert grouped map to array
+      data = Object.values(groupedMap).map(record => ({
+        ...record,
+        id: record.ids.join(',') // Combine IDs for unique key
+      }));
     }
     
     // Apply type filtering
@@ -257,8 +285,18 @@ const WasteTable = () => {
       });
     }
     
+    // Apply search filtering
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      data = data.filter(record => {
+        const dateStr = formatDate(record.date).toLowerCase();
+        const typeStr = (record.type || '').toLowerCase();
+        return dateStr.includes(query) || typeStr.includes(query);
+      });
+    }
+    
     return data;
-  }, [viewMode, wasteData, aggregateByMonth, sortBy, sortOrder, typeFilter]);
+  }, [viewMode, wasteData, aggregateByMonth, sortBy, sortOrder, typeFilter, searchQuery, formatDate]);
 
   // Calculate pagination (memoized)
   const { totalItems, totalPages, startIndex, endIndex, paginatedData } = useMemo(() => {
@@ -313,26 +351,6 @@ const WasteTable = () => {
       setSortOrder('desc');
     }
   }, [sortBy]);
-
-  const formatDate = useCallback((dateString) => {
-    const date = new Date(dateString);
-    if (viewMode === 'monthly') {
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long'
-      });
-    }
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  }, [viewMode]);
-
-  const formatCount = useCallback((count) => {
-    if (count == null) return '0';
-    return parseInt(count).toString();
-  }, []);
 
   // Helper: filter wasteData (raw records) by the export modal date range
   const applyExportDateFilter = useCallback((rawData, dateRange, customDateFrom, customDateTo) => {
@@ -450,48 +468,68 @@ const WasteTable = () => {
         return row;
       });
     } else {
-      // Daily — expand raw records into per-type rows, then filter
+      // Daily — expand raw records into per-type rows, grouped by date+time to avoid redundancy
       tableData = [];
       dateFiltered.forEach(record => {
+        const dateStr = new Date(record.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
         const timeStr = record.recordedAt || record.createdAt 
           ? new Date(record.recordedAt || record.createdAt).toLocaleTimeString('en-US', { 
               hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true 
             })
           : '-';
         
+        const typeRows = [];
         if (wasteTypes.recyclable && (record.recyclable || 0) > 0) {
           totals.recyclable += record.recyclable;
-          tableData.push([
-            new Date(record.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-            timeStr,
-            formatCount(record.recyclable),
-            ...(wasteTypes.biodegradable ? ['-'] : []),
-            ...(wasteTypes.nonBiodegradable ? ['-'] : []),
-            formatCount(record.recyclable)
-          ]);
+          typeRows.push({
+            type: 'recyclable',
+            row: [
+              dateStr,
+              timeStr,
+              formatCount(record.recyclable),
+              ...(wasteTypes.biodegradable ? ['-'] : []),
+              ...(wasteTypes.nonBiodegradable ? ['-'] : []),
+              formatCount(record.recyclable)
+            ]
+          });
         }
         if (wasteTypes.biodegradable && (record.biodegradable || 0) > 0) {
           totals.biodegradable += record.biodegradable;
-          tableData.push([
-            new Date(record.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-            timeStr,
-            ...(wasteTypes.recyclable ? ['-'] : []),
-            formatCount(record.biodegradable),
-            ...(wasteTypes.nonBiodegradable ? ['-'] : []),
-            formatCount(record.biodegradable)
-          ]);
+          typeRows.push({
+            type: 'biodegradable',
+            row: [
+              dateStr,
+              timeStr,
+              ...(wasteTypes.recyclable ? ['-'] : []),
+              formatCount(record.biodegradable),
+              ...(wasteTypes.nonBiodegradable ? ['-'] : []),
+              formatCount(record.biodegradable)
+            ]
+          });
         }
         if (wasteTypes.nonBiodegradable && (record.nonBiodegradable || 0) > 0) {
           totals.nonBiodegradable += record.nonBiodegradable;
-          tableData.push([
-            new Date(record.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-            timeStr,
-            ...(wasteTypes.recyclable ? ['-'] : []),
-            ...(wasteTypes.biodegradable ? ['-'] : []),
-            formatCount(record.nonBiodegradable),
-            formatCount(record.nonBiodegradable)
-          ]);
+          typeRows.push({
+            type: 'nonBiodegradable',
+            row: [
+              dateStr,
+              timeStr,
+              ...(wasteTypes.recyclable ? ['-'] : []),
+              ...(wasteTypes.biodegradable ? ['-'] : []),
+              formatCount(record.nonBiodegradable),
+              formatCount(record.nonBiodegradable)
+            ]
+          });
         }
+        
+        // Show date+time only on first row, leave blank for others
+        typeRows.forEach((typeRow, index) => {
+          if (index > 0) {
+            typeRow.row[0] = ''; // Blank date for subsequent rows
+            typeRow.row[1] = ''; // Blank time for subsequent rows
+          }
+          tableData.push(typeRow.row);
+        });
       });
     }
 
@@ -531,6 +569,7 @@ const WasteTable = () => {
 
     if (viewMode === 'daily') {
       // Expand each raw record into individual type rows, filtered by wasteTypes
+      // Group by date+time to avoid redundancy
       dateFiltered.forEach(record => {
         const dateStr = new Date(record.date).toLocaleDateString('en-US', {
           year: 'numeric', month: 'short', day: 'numeric'
@@ -541,9 +580,10 @@ const WasteTable = () => {
             })
           : '-';
         
+        const typeRows = [];
         if (wasteTypes.recyclable && (record.recyclable || 0) > 0) {
           totals.recyclable += record.recyclable;
-          exportRows.push({
+          typeRows.push({
             Date: dateStr,
             Time: timeStr,
             Type: 'Recyclable',
@@ -553,7 +593,7 @@ const WasteTable = () => {
         }
         if (wasteTypes.biodegradable && (record.biodegradable || 0) > 0) {
           totals.biodegradable += record.biodegradable;
-          exportRows.push({
+          typeRows.push({
             Date: dateStr,
             Time: timeStr,
             Type: 'Wet Wastes',
@@ -563,7 +603,7 @@ const WasteTable = () => {
         }
         if (wasteTypes.nonBiodegradable && (record.nonBiodegradable || 0) > 0) {
           totals.nonBiodegradable += record.nonBiodegradable;
-          exportRows.push({
+          typeRows.push({
             Date: dateStr,
             Time: timeStr,
             Type: 'Dry Wastes',
@@ -571,6 +611,15 @@ const WasteTable = () => {
             'Coupon Taken': 0
           });
         }
+        
+        // Show date+time only on first row, leave blank for others
+        typeRows.forEach((row, index) => {
+          if (index > 0) {
+            row.Date = '';
+            row.Time = '';
+          }
+          exportRows.push(row);
+        });
       });
 
       const grandTotal =
@@ -665,433 +714,437 @@ const WasteTable = () => {
     scrollToTop();
   }, [totalPages, scrollToTop]);
 
-  // Memoize UI size class
-  const uiSizeClass = useMemo(() => 
-    `ui-size-${preferences?.uiSize || 'medium'}`,
-    [preferences?.uiSize]
-  );
+  // Clear all filters
+  const handleClearFilters = useCallback(() => {
+    setDateFromObj(null);
+    setDateToObj(null);
+    setTypeFilter('all');
+    setSearchQuery('');
+    setViewMode('daily');
+  }, []);
 
   return (
-    <div className={`waste-table-container ${uiSizeClass}`}>
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
 
-      {/* Filter Controls */}
-      <div className="filter-controls">
-        <div className="filter-row">
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <div className="date-input-group">
-              <label htmlFor="dateFrom">From:</label>
-              <DatePicker
-                value={dateFromObj}
-                onChange={(newValue) => setDateFromObj(newValue)}
-                enableAccessibleFieldDOMStructure={false}
-                slots={{
-                  textField: TextField
-                }}
-                slotProps={{
-                  textField: {
-                    size: 'small',
-                    className: 'date-picker-input'
-                  }
-                }}
-              />
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Waste Management</h1>
+              <p className="mt-1 text-sm text-gray-600">Track and analyze waste collection records</p>
             </div>
-            <div className="date-input-group">
-              <label htmlFor="dateTo">To:</label>
-              <DatePicker
-                value={dateToObj}
-                onChange={(newValue) => setDateToObj(newValue)}
-                enableAccessibleFieldDOMStructure={false}
-                slots={{
-                  textField: TextField
-                }}
-                slotProps={{
-                  textField: {
-                    size: 'small',
-                    className: 'date-picker-input'
-                  }
-                }}
-              />
-            </div>
-          </LocalizationProvider>
-          
-          <div className="view-toggle">
             <button
-              className={`toggle-btn ${viewMode === 'daily' ? 'active' : ''}`}
-              onClick={() => setViewMode('daily')}
+              onClick={() => setShowExportModal(true)}
+              disabled={loading || processedData.length === 0}
+              className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
             >
-              Daily
-            </button>
-            <button
-              className={`toggle-btn ${viewMode === 'monthly' ? 'active' : ''}`}
-              onClick={() => setViewMode('monthly')}
-            >
-              Monthly
+              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export Data
             </button>
           </div>
-          
-          {/* Type Filter (only for daily view) */}
-          {viewMode === 'daily' && (
-            <div className="type-filter">
-              <label htmlFor="typeFilter">Filter by Type:</label>
-              <select 
-                id="typeFilter"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="type-filter-select"
-              >
-                <option value="all">All Waste Types</option>
-                <option value="recyclable">Recyclable Wastes Only</option>
-                <option value="biodegradable">Wet Wastes Only</option>
-                <option value="nonBiodegradable">Dry Wastes Only</option>
-              </select>
-            </div>
-          )}
-          
-          <button
-            className="export-pdf-btn"
-            onClick={() => setShowExportModal(true)}
-            disabled={loading || processedData.length === 0}
-            title="Export data"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            <span>Export Data</span>
-          </button>
         </div>
 
-      </div>
+        {/* Filter Controls */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="space-y-4">
+            {/* Row 1: Date Filters & View Mode */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">From Date</label>
+                  <DatePicker
+                    value={dateFromObj}
+                    onChange={(newValue) => setDateFromObj(newValue)}
+                    maxDate={new Date()}
+                    enableAccessibleFieldDOMStructure={false}
+                    slots={{ textField: TextField }}
+                    slotProps={{
+                      textField: {
+                        size: 'small',
+                        fullWidth: true,
+                        sx: {
+                          '& .MuiOutlinedInput-root': {
+                            '&:hover fieldset': { borderColor: '#10b981' },
+                            '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">To Date</label>
+                  <DatePicker
+                    value={dateToObj}
+                    onChange={(newValue) => setDateToObj(newValue)}
+                    maxDate={new Date()}
+                    enableAccessibleFieldDOMStructure={false}
+                    slots={{ textField: TextField }}
+                    slotProps={{
+                      textField: {
+                        size: 'small',
+                        fullWidth: true,
+                        sx: {
+                          '& .MuiOutlinedInput-root': {
+                            '&:hover fieldset': { borderColor: '#10b981' },
+                            '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </LocalizationProvider>
 
-      {/* Export Modal */}
-      <ExportModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        onExport={handleExport}
-        title="Export Waste Records"
-      />
-
-      {/* Error Display */}
-      {error && !dismissedError && (
-        <div className="error-container" role="alert">
-          <div className="error-card">
-            <div className="error-header">
-              <h2 className="error-title">Data Loading Error</h2>
-              <button
-                className="error-close"
-                onClick={() => setDismissedError(true)}
-                aria-label="Dismiss error message"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="error-message">{error.message}</p>
-            <details className="error-details">
-              <summary>Technical Details</summary>
-              <p>Error: {error.details}</p>
-              <p>Time: {new Date(error.timestamp).toLocaleString()}</p>
-            </details>
-            <div className="error-actions">
-              <button
-                className="btn-primary"
-                onClick={refetch}
-              >
-                <span className="btn-icon">🔄</span>
-                <span className="btn-text">Try Again</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Statistics Section */}
-      <section className="stats-section" aria-labelledby="stats-heading">
-        <h2 id="stats-heading" className="visually-hidden">Waste Collection Statistics</h2>
-        <div className="stats-grid" role="group" aria-label="Waste statistics summary">
-          <div className="stat-card recyclable">
-            <div className="stat-header">
-              <span className="stat-icon" aria-hidden="true">♻️</span>
-              <span className="stat-trend" aria-hidden="true">📈</span>
-            </div>
-            <div className="stat-content">
-              <div className="stat-value">
-                <span className="cell-number">{statistics.recyclable}</span>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">View Mode</label>
+                <div className="flex rounded-lg border border-gray-300 p-1 bg-gray-50">
+                  <button
+                    onClick={() => setViewMode('daily')}
+                    className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
+                      viewMode === 'daily'
+                        ? 'bg-white text-emerald-600 shadow-sm'
+                        : 'text-gray-700 hover:text-gray-900'
+                    }`}
+                  >
+                    Daily
+                  </button>
+                  <button
+                    onClick={() => setViewMode('monthly')}
+                    className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
+                      viewMode === 'monthly'
+                        ? 'bg-white text-emerald-600 shadow-sm'
+                        : 'text-gray-700 hover:text-gray-900'
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                </div>
               </div>
-              <div className="stat-label">Recyclable Wastes</div>
-
             </div>
-          </div>
 
-          <div className="stat-card biodegradable">
-            <div className="stat-header">
-              <span className="stat-icon" aria-hidden="true">🍃</span>
-              <span className="stat-trend" aria-hidden="true">📈</span>
-            </div>
-            <div className="stat-content">
-              <div className="stat-value">
-                <span className="cell-number">{statistics.biodegradable}</span>
+            {/* Row 2: Type Filter, Search & Clear */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {viewMode === 'daily' && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Waste Type</label>
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="recyclable">Recyclable Only</option>
+                    <option value="biodegradable">Wet Wastes Only</option>
+                    <option value="nonBiodegradable">Dry Wastes Only</option>
+                  </select>
+                </div>
+              )}
+              
+              <div className={`space-y-2 ${viewMode === 'monthly' ? 'md:col-span-2' : ''}`}>
+                <label className="block text-sm font-medium text-gray-700">Search</label>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by date or type..."
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
               </div>
-              <div className="stat-label">Wet Wastes</div>
 
-            </div>
-          </div>
-
-          <div className="stat-card non-biodegradable">
-            <div className="stat-header">
-              <span className="stat-icon" aria-hidden="true">🗑️</span>
-              <span className="stat-trend" aria-hidden="true">📈</span>
-            </div>
-            <div className="stat-content">
-              <div className="stat-value">
-                <span className="cell-number">{statistics.nonBiodegradable}</span>
-              </div>
-              <div className="stat-label">Dry Wastes</div>
-
-            </div>
-          </div>
-
-          <div className="stat-card total">
-            <div className="stat-header">
-              <span className="stat-icon" aria-hidden="true">📊</span>
-              <span className="stat-trend" aria-hidden="true">📈</span>
-            </div>
-            <div className="stat-content">
-              <div className="stat-value">
-                <span className="cell-number">{statistics.total}</span>
-              </div>
-              <div className="stat-label">Total Waste</div>
-
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Table Section */}
-      <main className="table-section" aria-labelledby="table-heading" ref={tableRef}>
-        <div className="table-container">
-          <div className="table-header-section">
-            <h2 className="table-section-title" id="table-heading">
-              <span className="section-icon" aria-hidden="true">📋</span>
-              Waste Collection Records
-            </h2>
-            <div className="table-actions">
-              <button
-                className="refresh-btn"
-                onClick={refetch}
-                disabled={loading}
-                aria-label="Refresh data"
-                title="Refresh data"
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={loading ? 'spinning' : ''}
+              <div className="flex items-end">
+                <button
+                  onClick={handleClearFilters}
+                  className="w-full px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors duration-200"
                 >
-                  <polyline points="23 4 23 10 17 10"></polyline>
-                  <polyline points="1 20 1 14 7 14"></polyline>
-                  <path d="m20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+                  Clear Filters
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Export Modal */}
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          onExport={handleExport}
+          title="Export Waste Records"
+        />
+
+        {/* Error Display */}
+        {error && !dismissedError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4" role="alert">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-red-800">Data Loading Error</h3>
+                <p className="mt-1 text-sm text-red-700">{error.message}</p>
+                <details className="mt-2">
+                  <summary className="text-sm text-red-600 cursor-pointer hover:text-red-800">Technical Details</summary>
+                  <div className="mt-2 text-xs text-red-600 space-y-1">
+                    <p>Error: {error.details}</p>
+                    <p>Time: {new Date(error.timestamp).toLocaleString()}</p>
+                  </div>
+                </details>
+                <button
+                  onClick={refetch}
+                  className="mt-3 inline-flex items-center px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors duration-200"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Try Again
+                </button>
+              </div>
+              <button
+                onClick={() => setDismissedError(true)}
+                className="ml-4 text-red-400 hover:text-red-600 transition-colors duration-200"
+                aria-label="Dismiss error"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-              <div className="table-summary">
-                Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} {viewMode === 'monthly' ? 'months' : 'records'}
+            </div>
+          </div>
+        )}
+
+        {/* Statistics Section */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-lg">
+                <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{statistics.recyclable.toLocaleString()}</div>
+            <div className="text-sm font-medium text-gray-600 mt-1">Recyclable Wastes</div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
+                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{statistics.biodegradable.toLocaleString()}</div>
+            <div className="text-sm font-medium text-gray-600 mt-1">Wet Wastes</div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-lg">
+                <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{statistics.nonBiodegradable.toLocaleString()}</div>
+            <div className="text-sm font-medium text-gray-600 mt-1">Dry Wastes</div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
+                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{statistics.total.toLocaleString()}</div>
+            <div className="text-sm font-medium text-gray-600 mt-1">Total Waste</div>
+          </div>
+        </div>
+
+        {/* Table Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200" ref={tableRef}>
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <h2 className="text-lg font-semibold text-gray-900">Waste Collection Records</h2>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={refetch}
+                  disabled={loading}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                  aria-label="Refresh data"
+                >
+                  <svg
+                    className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+                <span className="text-sm text-gray-600">
+                  Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} {viewMode === 'monthly' ? 'months' : 'records'}
+                </span>
               </div>
             </div>
           </div>
 
           {processedData.length === 0 ? (
-            <div className="no-data" role="status">
-              <div className="no-data-content">
-                <div className="no-data-icon" aria-hidden="true">📄</div>
-                <h3 className="no-data-title">No Records Found</h3>
-                <p className="no-data-description">
-                  No waste collection data is currently available. Please check back later or contact your administrator.
-                </p>
-              </div>
+            <div className="p-12 text-center">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">No Records Found</h3>
+              <p className="mt-2 text-sm text-gray-500">
+                No waste collection data is currently available. Try adjusting your filters.
+              </p>
             </div>
           ) : (
             <>
-              <div className="table-wrapper">
-                <table className="waste-table" role="table" aria-label="Waste collection data">
-                <thead>
-                  <tr role="row">
-                    <th role="columnheader">
-                      <div className="column-header sortable" onClick={() => handleSort('date')} title="Click to sort">
-                        {sortBy === 'date' && (
-                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
-                        )}
-                        <span className="column-icon" aria-hidden="true">📅</span>
-                        <span className="column-text">Date</span>
-                      </div>
-                    </th>
-                    <th role="columnheader">
-                      <div className="column-header sortable" onClick={() => handleSort('time')} title="Click to sort">
-                        {sortBy === 'time' && (
-                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
-                        )}
-                        <span className="column-icon" aria-hidden="true">🕒</span>
-                        <span className="column-text">Time</span>
-                      </div>
-                    </th>
-                    <th role="columnheader">
-                      <div className="column-header sortable" onClick={() => handleSort('type')} title="Click to sort">
-                        <span className="column-icon" aria-hidden="true">🗂️</span>
-                        <span className="column-text">Type</span>
-                        {sortBy === 'type' && (
-                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
-                        )}
-                      </div>
-                    </th>
-                    <th role="columnheader">
-                      <div className="column-header sortable" onClick={() => handleSort('quantity')} title="Click to sort">
-                        {sortBy === 'quantity' && (
-                          <span className="sort-indicator">{sortOrder === 'asc' ? '▲' : '▼'}</span>
-                        )}
-                        <span className="column-icon" aria-hidden="true">📦</span>
-                        <span className="column-text">Quantity (pcs)</span>
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    // Show skeleton rows while loading
-                    [...Array(itemsPerPage)].map((_, i) => <SkeletonRow key={i} />)
-                  ) : (
-                    paginatedData.map((record, index) => {
-                    const globalIndex = startIndex + index;
-                    const isMonthly = viewMode === 'monthly';
-                    
-                    // For monthly view, show aggregated data
-                    if (isMonthly) {
-                      const totalCount = (record.recyclable || 0) +
-                                         (record.biodegradable || 0) +
-                                         (record.nonBiodegradable || 0);
-                      return (
-                        <tr
-                          key={record.id || globalIndex}
-                          role="row"
-                          className={globalIndex % 2 === 0 ? 'even' : 'odd'}
-                        >
-                          <td role="gridcell" data-label="Date">
-                            <div className="cell-content">
-                              <span className="cell-icon" aria-hidden="true">📅</span>
-                              <span className="cell-text">{formatDate(record.date)}</span>
-                            </div>
-                          </td>
-                          <td role="gridcell" data-label="Time">
-                            <div className="cell-content">
-                              <span className="cell-text">-</span>
-                            </div>
-                          </td>
-                          <td role="gridcell" data-label="Type">
-                            <div className="cell-content">
-                              <span className="cell-text">Monthly Total</span>
-                            </div>
-                          </td>
-                          <td role="gridcell" data-label="Quantity">
-                            <div className="cell-content number-cell">
-                              <span className="cell-number">{formatCount(totalCount)}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }
-                    
-                    // For daily view, show individual type records
-                    const timeStr = record.time ? new Date(record.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : '-';
-                    return (
-                      <tr
-                        key={record.id || globalIndex}
-                        role="row"
-                        className={globalIndex % 2 === 0 ? 'even' : 'odd'}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th
+                        onClick={() => handleSort('date')}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       >
-                        <td role="gridcell" data-label="Date">
-                          <div className="cell-content">
-                            <span className="cell-icon" aria-hidden="true">📅</span>
-                            <span className="cell-text">{formatDate(record.date)}</span>
-                          </div>
-                        </td>
-                        <td role="gridcell" data-label="Time">
-                          <div className="cell-content">
-                            <span className="cell-icon" aria-hidden="true">🕒</span>
-                            <span className="cell-text">{timeStr}</span>
-                          </div>
-                        </td>
-                        <td role="gridcell" data-label="Type">
-                          <div className="cell-content">
-                            <span className="cell-text">{record.type}</span>
-                          </div>
-                        </td>
-                        <td role="gridcell" data-label="Quantity">
-                          <div className="cell-content number-cell">
-                            <span className="cell-icon" aria-hidden="true">📦</span>
-                            <span className="cell-number">{record.quantityInPcs || 0} pcs</span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        <div className="flex items-center gap-2">
+                          {sortBy === 'date' && (
+                            <span>{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                          )}
+                          <span>Date</span>
+                        </div>
+                      </th>
+                      <th
+                        onClick={() => handleSort('time')}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      >
+                        <div className="flex items-center gap-2">
+                          {sortBy === 'time' && (
+                            <span>{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                          )}
+                          <span>Time</span>
+                        </div>
+                      </th>
+                      <th
+                        onClick={() => handleSort('type')}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>Type</span>
+                          {sortBy === 'type' && (
+                            <span>{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        onClick={() => handleSort('quantity')}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      >
+                        <div className="flex items-center gap-2">
+                          {sortBy === 'quantity' && (
+                            <span>{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                          )}
+                          <span>Quantity (pcs)</span>
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {loading ? (
+                      [...Array(itemsPerPage)].map((_, i) => <SkeletonRow key={i} />)
+                    ) : (
+                      paginatedData.map((record, index) => {
+                        const globalIndex = startIndex + index;
+                        const isMonthly = viewMode === 'monthly';
+                        
+                        if (isMonthly) {
+                          const totalCount = (record.recyclable || 0) +
+                                             (record.biodegradable || 0) +
+                                             (record.nonBiodegradable || 0);
+                          return (
+                            <tr key={record.id || globalIndex} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {formatDate(record.date)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                Monthly Total
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {formatCount(totalCount)}
+                              </td>
+                            </tr>
+                          );
+                        }
+                        
+                        const timeStr = record.time ? new Date(record.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : '-';
+                        return (
+                          <tr key={record.id || globalIndex} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {formatDate(record.date)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {timeStr}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {record.type}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {record.quantityInPcs || 0} pcs
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="pagination-container">
-                <div className="pagination-info">
-                  Page {currentPage} of {totalPages}
-                </div>
-                <div className={`pagination-controls ${isCompactPagination ? 'compact' : ''}`}>
-                  {isCompactPagination ? (
-                    <>
+              {/* Pagination Controls */}
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-700">Show:</label>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                    <span className="text-sm text-gray-700">per page</span>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-2">
                       <button
-                        className="pagination-btn"
-                        onClick={goToPrevPage}
-                        disabled={currentPage === 1}
-                        aria-label="Go to previous page"
-                      >
-                        Prev
-                      </button>
-                      <div className="pagination-compact-status" aria-live="polite">
-                        {currentPage} / {totalPages}
-                      </div>
-                      <button
-                        className="pagination-btn"
-                        onClick={goToNextPage}
-                        disabled={currentPage === totalPages}
-                        aria-label="Go to next page"
-                      >
-                        Next
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        className="pagination-btn"
                         onClick={() => goToPage(1)}
                         disabled={currentPage === 1}
-                        aria-label="Go to first page"
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="First page"
                       >
-                        ⏮️
+                        «
                       </button>
                       <button
-                        className="pagination-btn"
                         onClick={goToPrevPage}
                         disabled={currentPage === 1}
-                        aria-label="Go to previous page"
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Previous page"
                       >
-                        ⬅️
+                        ‹
                       </button>
 
-                      {/* Page numbers */}
                       {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                         let pageNum;
                         if (totalPages <= 5) {
@@ -1107,9 +1160,13 @@ const WasteTable = () => {
                         return (
                           <button
                             key={pageNum}
-                            className={`pagination-btn ${currentPage === pageNum ? 'active' : ''}`}
                             onClick={() => goToPage(pageNum)}
-                            aria-label={`Go to page ${pageNum}`}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+                              currentPage === pageNum
+                                ? 'bg-emerald-600 text-white'
+                                : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                            }`}
+                            aria-label={`Page ${pageNum}`}
                             aria-current={currentPage === pageNum ? 'page' : undefined}
                           >
                             {pageNum}
@@ -1118,30 +1175,29 @@ const WasteTable = () => {
                       })}
 
                       <button
-                        className="pagination-btn"
                         onClick={goToNextPage}
                         disabled={currentPage === totalPages}
-                        aria-label="Go to next page"
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Next page"
                       >
-                        ➡️
+                        ›
                       </button>
                       <button
-                        className="pagination-btn"
                         onClick={() => goToPage(totalPages)}
                         disabled={currentPage === totalPages}
-                        aria-label="Go to last page"
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Last page"
                       >
-                        ⏭️
+                        »
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
-            )}
             </>
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 };
