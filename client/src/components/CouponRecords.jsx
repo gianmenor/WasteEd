@@ -103,15 +103,22 @@ const CouponRecords = () => {
         throw new Error(error.message || 'Failed to adjust balance');
       }
 
-      return response.json();
+      return { data: await response.json(), amount }; // Return amount for success message
     },
-    onSuccess: async () => {
+    onSuccess: async ({ amount }) => {
       // Refetch and wait for new data
       await queryClient.invalidateQueries(['couponBalance']);
       await queryClient.invalidateQueries(['couponTransactions']);
       setAdjustmentAmount('');
       setAdjustmentReason('');
-      showMessage('Balance adjusted successfully', 'success');
+      
+      // Show specific message based on whether it was add or subtract
+      const absAmount = Math.abs(amount).toFixed(2);
+      if (amount > 0) {
+        showMessage(`✓ Added ${absAmount} coupons successfully!`, 'success');
+      } else {
+        showMessage(`✓ Deducted ${absAmount} coupons successfully!`, 'success');
+      }
     },
     onError: (error) => {
       showMessage(error.message, 'error');
@@ -253,7 +260,8 @@ const CouponRecords = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Coupon Transactions');
     XLSX.writeFile(wb, `coupon-transactions-${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [filteredTransactions, totalConsumed, formatDate]);
+    showMessage('✓ Excel file exported successfully!', 'success');
+  }, [filteredTransactions, totalConsumed, formatDate, showMessage]);
 
   const handlePDFExport = useCallback(() => {
     const doc = new jsPDF();
@@ -306,7 +314,8 @@ const CouponRecords = () => {
     doc.text(`Total Consumed: ${totalConsumed.toFixed(2)}`, 14, finalY + 7);
 
     doc.save(`coupon-transactions-${new Date().toISOString().split('T')[0]}.pdf`);
-  }, [filteredTransactions, totalConsumed, dateFrom, dateTo, formatDate]);
+    showMessage('✓ PDF file exported successfully!', 'success');
+  }, [filteredTransactions, totalConsumed, dateFrom, dateTo, formatDate, showMessage]);
 
   const handleExport = useCallback((options) => {
     const { format } = options;

@@ -5,6 +5,7 @@ export default function InventoryManagement() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showStockModal, setShowStockModal] = useState(false);
@@ -57,6 +58,8 @@ export default function InventoryManagement() {
       await createInventoryItem(formData);
       setShowAddModal(false);
       resetForm();
+      setSuccessMessage(`✓ Item "${formData.name}" added successfully!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
       fetchItems();
     } catch (err) {
       setError(err.message || 'Failed to create item');
@@ -71,6 +74,8 @@ export default function InventoryManagement() {
       setShowEditModal(false);
       setSelectedItem(null);
       resetForm();
+      setSuccessMessage(`✓ Item "${formData.name}" updated successfully!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
       fetchItems();
     } catch (err) {
       setError(err.message || 'Failed to update item');
@@ -81,10 +86,13 @@ export default function InventoryManagement() {
   const handleStockAdjustment = async (e) => {
     e.preventDefault();
     try {
+      const itemName = selectedItem.name;
       await updateItemStock(selectedItem.id, stockAdjustment);
       setShowStockModal(false);
       setSelectedItem(null);
       setStockAdjustment(0);
+      setSuccessMessage(`✓ Stock for "${itemName}" adjusted by ${stockAdjustment > 0 ? '+' : ''}${stockAdjustment}!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
       fetchItems();
     } catch (err) {
       setError(err.message || 'Failed to adjust stock');
@@ -101,9 +109,12 @@ export default function InventoryManagement() {
     if (!quickStockChange) return;
     
     try {
+      const item = items.find(i => i.id === quickStockChange.itemId);
       await updateItemStock(quickStockChange.itemId, quickStockChange.adjustment);
       setShowQuickStockConfirm(false);
       setQuickStockChange(null);
+      setSuccessMessage(`✓ Quick stock adjustment: ${quickStockChange.adjustment > 0 ? '+' : ''}${quickStockChange.adjustment} for "${item?.name}"!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
       fetchItems();
     } catch (err) {
       setError(err.message || 'Failed to adjust stock');
@@ -122,9 +133,12 @@ export default function InventoryManagement() {
     if (!itemToDelete) return;
     
     try {
+      const item = items.find(i => i.id === itemToDelete);
       await deleteInventoryItem(itemToDelete);
       setShowDeleteConfirm(false);
       setItemToDelete(null);
+      setSuccessMessage(`✓ Item "${item?.name || 'Item'}" deleted successfully!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
       fetchItems();
     } catch (err) {
       setError(err.message || 'Failed to delete item');
@@ -264,6 +278,13 @@ export default function InventoryManagement() {
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-5 flex justify-between items-center">
           {error}
           <button onClick={() => setError(null)} className="bg-transparent border-none text-red-800 text-xl cursor-pointer px-2 hover:text-red-600">×</button>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-5 flex justify-between items-center">
+          {successMessage}
+          <button onClick={() => setSuccessMessage(null)} className="bg-transparent border-none text-green-800 text-xl cursor-pointer px-2 hover:text-green-600">×</button>
         </div>
       )}
 

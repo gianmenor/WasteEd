@@ -728,9 +728,20 @@ const ProfitRewards = () => {
                         type="number"
                         step="0.01"
                         min="0"
+                        max="9999.99"
                         className="border-none border-l-[3px] border-l-[var(--success-color)] rounded-none flex-1 min-w-0 shadow-none focus:outline-none focus:border-transparent focus:shadow-none px-4 py-2 text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] transition-all"
                         value={formData.profitAmount}
-                        onChange={(e) => setFormData(prev => ({ ...prev, profitAmount: e.target.value }))}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          if (value <= 9999.99) {
+                            setFormData(prev => ({ ...prev, profitAmount: e.target.value }));
+                          }
+                        }}
+                        onInput={(e) => {
+                          if (parseFloat(e.target.value) > 9999.99) {
+                            e.target.value = '9999.99';
+                          }
+                        }}
                         placeholder="0.00"
                         disabled={isSubmitting}
                       />
@@ -747,9 +758,20 @@ const ProfitRewards = () => {
                         type="number"
                         step="0.01"
                         min="0"
+                        max="9999.99"
                         className="border-none border-l-[3px] border-l-[var(--danger-color,#ef4444)] rounded-none flex-1 min-w-0 shadow-none focus:outline-none focus:border-transparent focus:shadow-none px-4 py-2 text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] transition-all"
                         value={formData.expenseAmount}
-                        onChange={(e) => setFormData(prev => ({ ...prev, expenseAmount: e.target.value }))}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          if (value <= 9999.99) {
+                            setFormData(prev => ({ ...prev, expenseAmount: e.target.value }));
+                          }
+                        }}
+                        onInput={(e) => {
+                          if (parseFloat(e.target.value) > 9999.99) {
+                            e.target.value = '9999.99';
+                          }
+                        }}
                         placeholder="0.00"
                         disabled={isSubmitting}
                       />
