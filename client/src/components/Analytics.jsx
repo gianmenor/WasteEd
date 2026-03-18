@@ -55,7 +55,27 @@ const Analytics = () => {
         return;
       }
 
-      const wasteData = allData;
+      // Summarize into one row per day before building monthly sheets
+      const dailyMap = {};
+      allData.forEach((record) => {
+        const dateObj = new Date(record.date);
+        const dateKey = dateObj.toISOString().split('T')[0];
+
+        if (!dailyMap[dateKey]) {
+          dailyMap[dateKey] = {
+            date: dateObj,
+            recyclable: 0,
+            biodegradable: 0,
+            nonBiodegradable: 0,
+          };
+        }
+
+        dailyMap[dateKey].recyclable += record.recyclable || 0;
+        dailyMap[dateKey].biodegradable += record.biodegradable || 0;
+        dailyMap[dateKey].nonBiodegradable += record.nonBiodegradable || 0;
+      });
+
+      const wasteData = Object.values(dailyMap).sort((a, b) => new Date(a.date) - new Date(b.date));
 
       // Group data by month
       const dataByMonth = {};

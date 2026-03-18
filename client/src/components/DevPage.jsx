@@ -16,6 +16,7 @@ export default function DevPage() {
   const [toast, setToast] = useState(null);
 
   const [lastRequest, setLastRequest] = useState(null);
+  const [clearDataText, setClearDataText] = useState('');
   const [form, setForm] = useState({ recyclable: 20, biodegradable: 4, nonBiodegradable: 8 });
   const [recyclableForm, setRecyclableForm] = useState({ recyclable: 20 });
   const [wetForm, setWetForm] = useState({ biodegradable: 15 });
@@ -121,7 +122,10 @@ export default function DevPage() {
     try {
       const res = await fetch(config.url, {
         method: config.method || 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {})
+        },
         body: config.body ? JSON.stringify(config.body) : undefined,
       });
       const json = await res.json().catch(() => ({}));
@@ -455,6 +459,45 @@ export default function DevPage() {
                 onClick={() => callApi({ url: API_ENDPOINTS.WASTE_ADD, method: 'POST', body: form })}
               >
                 Add Record
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="col-span-full bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-red-700 dark:text-red-300 m-0">Developer: Clear Waste & Coupon Data</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded font-mono font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">POST /api/accounts/dev/clear-data</span>
+          </div>
+          <div className="p-5">
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3 leading-normal">
+              This will remove all waste records, remove all coupon transactions, and reset coupon balances.
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-300 mb-3">
+              Type <span className="font-mono font-semibold">CLEAR ALL DATA</span> to enable this action.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+              <input
+                type="text"
+                value={clearDataText}
+                onChange={(e) => setClearDataText(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm border border-red-200 dark:border-red-800 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-red-500 focus:ring-4 focus:ring-red-100 dark:focus:ring-red-900/30"
+                placeholder="Type CLEAR ALL DATA"
+              />
+              <button
+                className="px-4 py-2 text-sm font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 inline-flex items-center justify-center gap-1.5 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading || clearDataText !== 'CLEAR ALL DATA'}
+                onClick={() => {
+                  if (confirm('This will permanently clear waste and coupon data. Continue?')) {
+                    callApi({
+                      url: API_ENDPOINTS.DEV_CLEAR_DATA,
+                      method: 'POST',
+                      body: { confirmationText: clearDataText }
+                    });
+                  }
+                }}
+              >
+                Clear Data
               </button>
             </div>
           </div>

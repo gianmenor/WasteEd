@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
+import { API_ENDPOINTS } from '../config/api';
 import DashboardSkeleton from './DashboardSkeleton';
 import brandLogo from '../assets/brandName.png';
 
@@ -14,6 +15,14 @@ const Login = () => {
   });
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotForm, setForgotForm] = useState({
+    username: '',
+    recoveryCode: '',
+    newPassword: ''
+  });
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -92,6 +101,71 @@ const Login = () => {
   const handleRememberMeChange = useCallback((e) => {
     setRememberMe(e.target.checked);
   }, []);
+
+  const handleForgotFormChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setForgotForm((prev) => {
+      if (name === 'recoveryCode') {
+        // Keep recovery code strict: digits only, max 4.
+        const digitsOnly = value.replace(/\D/g, '').slice(0, 4);
+        return { ...prev, recoveryCode: digitsOnly };
+      }
+
+      return { ...prev, [name]: value };
+    });
+    setForgotMessage('');
+  }, []);
+
+  const handleForgotPasswordSubmit = useCallback(async (e) => {
+    e.preventDefault();
+
+    if (!forgotForm.username.trim()) {
+      setForgotMessage('Username is required.');
+      return;
+    }
+
+    if (!/^\d{4}$/.test(forgotForm.recoveryCode)) {
+      setForgotMessage('Recovery code must be exactly 4 digits.');
+      return;
+    }
+
+    if (!forgotForm.newPassword || forgotForm.newPassword.length < 3) {
+      setForgotMessage('New password must be at least 3 characters.');
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotMessage('');
+
+    try {
+      const response = await fetch(API_ENDPOINTS.FORGOT_PASSWORD, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: forgotForm.username.trim(),
+          recoveryCode: forgotForm.recoveryCode,
+          newPassword: forgotForm.newPassword
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setForgotMessage(data.message || 'Failed to reset password.');
+        return;
+      }
+
+      setForgotMessage('Password reset successful. You can now sign in with your new password.');
+      setForgotForm({ username: '', recoveryCode: '', newPassword: '' });
+    } catch (err) {
+      console.error('Forgot password request failed:', err);
+      setForgotMessage('Network error. Please try again.');
+    } finally {
+      setForgotLoading(false);
+    }
+  }, [forgotForm]);
 
   // Memoize button disabled state
   const isSubmitDisabled = useMemo(() => 
@@ -194,7 +268,67 @@ const Login = () => {
                 <span className="w-5 h-5 border-2 border-gray-200 rounded bg-white relative transition-all duration-200 flex items-center justify-center flex-shrink-0 peer-checked:bg-green-600 peer-checked:border-green-600 peer-focus:ring-[3px] peer-focus:ring-green-600/10 after:content-['✓'] after:text-white after:text-sm after:font-bold after:hidden peer-checked:after:block"></span>
                 <span className="select-none">Remember me</span>
               </label>
+              <button
+                type="button"
+                className="ml-auto bg-transparent border-none text-sm text-green-700 cursor-pointer hover:text-green-800"
+                onClick={() => {
+                  setShowForgotPassword((prev) => !prev);
+                  setForgotMessage('');
+                }}
+              >
+                Forgot Password?
+              </button>
             </div>
+
+            {showForgotPassword && (
+              <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                <p className="text-sm text-emerald-900 font-medium mb-3">Reset Password</p>
+
+                <div className="flex flex-col gap-3">
+                  <input
+                    type="text"
+                    name="username"
+                    value={forgotForm.username}
+                    onChange={handleForgotFormChange}
+                    placeholder="Username"
+                    className="px-3 py-2 border border-emerald-200 rounded-lg text-sm bg-white text-gray-800 focus:outline-none focus:border-emerald-500"
+                  />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    name="recoveryCode"
+                    value={forgotForm.recoveryCode}
+                    onChange={handleForgotFormChange}
+                    placeholder="4-digit recovery code"
+                    className="px-3 py-2 border border-emerald-200 rounded-lg text-sm bg-white text-gray-800 focus:outline-none focus:border-emerald-500"
+                  />
+                  <input
+                    type="password"
+                    name="newPassword"
+                    value={forgotForm.newPassword}
+                    onChange={handleForgotFormChange}
+                    placeholder="New password"
+                    className="px-3 py-2 border border-emerald-200 rounded-lg text-sm bg-white text-gray-800 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                {forgotMessage && (
+                  <p className={`text-xs mt-3 ${forgotMessage.toLowerCase().includes('successful') ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {forgotMessage}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleForgotPasswordSubmit}
+                  disabled={forgotLoading}
+                  className="mt-3 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:enabled:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {forgotLoading ? 'Resetting...' : 'Reset Password'}
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"

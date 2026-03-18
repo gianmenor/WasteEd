@@ -311,28 +311,45 @@ const ProfitRewards = () => {
       ? `${customDateFrom || 'start'}_to_${customDateTo || 'end'}`
       : `${selectedYear}${selectedMonth ? '_' + selectedMonth : ''}`;
 
-    // Group records by date to avoid redundancy
+    // Summarize records by day (single row per date)
     const groupedByDate = records.reduce((acc, r) => {
-      const dateKey = formatDate(r.date);
+      const dateObj = new Date(r.date);
+      const dateKey = dateObj.toISOString().split('T')[0];
+
       if (!acc[dateKey]) {
-        acc[dateKey] = [];
+        acc[dateKey] = {
+          date: dateObj,
+          profitFromRecyclables: 0,
+          rewardsSpent: 0,
+          netProfit: 0,
+          notes: new Set(),
+        };
       }
-      acc[dateKey].push(r);
+
+      acc[dateKey].profitFromRecyclables += r.profitFromRecyclables || 0;
+      acc[dateKey].rewardsSpent += r.rewardsSpent || 0;
+      acc[dateKey].netProfit += r.netProfit || 0;
+
+      if (r.notes) {
+        acc[dateKey].notes.add(r.notes);
+      }
+
       return acc;
     }, {});
 
-    const rows = [];
-    Object.entries(groupedByDate).forEach(([date, dateRecords]) => {
-      dateRecords.forEach((r, index) => {
-        rows.push({
-          Date: index === 0 ? date : '', // Show date only for first record
-          'Total Amount Collected (₱)': (r.profitFromRecyclables || 0).toFixed(2),
-          'Expense (₱)': (r.rewardsSpent || 0).toFixed(2),
-          'Net Revenue (₱)': (r.netProfit || 0).toFixed(2),
-          Notes: r.notes || ''
-        });
-      });
-    });
+    const rows = Object.values(groupedByDate)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .map((row) => ({
+        Date: row.date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        }),
+        'Total Amount Collected (₱)': row.profitFromRecyclables.toFixed(2),
+        'Expense (₱)': row.rewardsSpent.toFixed(2),
+        'Net Revenue (₱)': row.netProfit.toFixed(2),
+        Notes: Array.from(row.notes).join(' | '),
+      }));
 
     if (exportFormat === 'excel') {
       const ws = XLSX.utils.json_to_sheet(rows);
@@ -347,19 +364,13 @@ const ProfitRewards = () => {
       doc.setTextColor(120);
       doc.text(`Period: ${periodLabel.replace(/_/g, ' ')}`, 14, 26);
       
-      // Create PDF rows, grouping by date
-      const pdfRows = [];
-      Object.entries(groupedByDate).forEach(([date, dateRecords]) => {
-        dateRecords.forEach((r, index) => {
-          pdfRows.push([
-            index === 0 ? date : '', // Show date only for first record
-            `₱${(r.profitFromRecyclables || 0).toFixed(2)}`,
-            `₱${(r.rewardsSpent || 0).toFixed(2)}`,
-            `₱${(r.netProfit || 0).toFixed(2)}`,
-            r.notes || ''
-          ]);
-        });
-      });
+      const pdfRows = rows.map((row) => ([
+        row.Date,
+        `₱${row['Total Amount Collected (₱)']}`,
+        `₱${row['Expense (₱)']}`,
+        `₱${row['Net Revenue (₱)']}`,
+        row.Notes || ''
+      ]));
 
       autoTable(doc, {
         startY: 32,

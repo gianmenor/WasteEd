@@ -8,7 +8,6 @@ export default function InventoryManagement() {
   const [successMessage, setSuccessMessage] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showStockModal, setShowStockModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [showQuickStockConfirm, setShowQuickStockConfirm] = useState(false);
@@ -22,17 +21,31 @@ export default function InventoryManagement() {
     stock: 0,
     isActive: true
   });
-  const [stockAdjustment, setStockAdjustment] = useState(0);
   
   // Filter states
   const [filters, setFilters] = useState({
     search: '',
-    status: 'all', // all, active, inactive
-    stockLevel: 'all', // all, in-stock, low-stock, out-of-stock
+    status: 'all', // all, available, low-stock, no-stock
     costRange: 'all', // all, low, medium, high
     sortBy: 'name', // name, cost, stock, createdAt
     sortOrder: 'asc' // asc, desc
   });
+
+  const toSafeNumber = (value, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const normalizeStock = (stock) => {
+    const safeStock = Math.floor(toSafeNumber(stock, 0));
+    return safeStock < 0 ? 0 : safeStock;
+  };
+
+  const formatPrice = (price) => {
+    const safePrice = toSafeNumber(price, null);
+    if (safePrice === null) return null;
+    return `₱${safePrice.toFixed(2)}`;
+  };
 
   useEffect(() => {
     fetchItems();
@@ -80,23 +93,6 @@ export default function InventoryManagement() {
     } catch (err) {
       setError(err.message || 'Failed to update item');
       console.error('Error updating item:', err);
-    }
-  };
-
-  const handleStockAdjustment = async (e) => {
-    e.preventDefault();
-    try {
-      const itemName = selectedItem.name;
-      await updateItemStock(selectedItem.id, stockAdjustment);
-      setShowStockModal(false);
-      setSelectedItem(null);
-      setStockAdjustment(0);
-      setSuccessMessage(`✓ Stock for "${itemName}" adjusted by ${stockAdjustment > 0 ? '+' : ''}${stockAdjustment}!`);
-      setTimeout(() => setSuccessMessage(null), 5000);
-      fetchItems();
-    } catch (err) {
-      setError(err.message || 'Failed to adjust stock');
-      console.error('Error adjusting stock:', err);
     }
   };
 
@@ -161,12 +157,6 @@ export default function InventoryManagement() {
     setShowEditModal(true);
   };
 
-  const openStockModal = (item) => {
-    setSelectedItem(item);
-    setStockAdjustment(0);
-    setShowStockModal(true);
-  };
-
   const resetForm = () => {
     setFormData({
       name: '',
@@ -186,7 +176,6 @@ export default function InventoryManagement() {
     setFilters({
       search: '',
       status: 'all',
-      stockLevel: 'all',
       costRange: 'all',
       sortBy: 'name',
       sortOrder: 'asc'
@@ -208,18 +197,11 @@ export default function InventoryManagement() {
 
     // Status filter
     if (filters.status !== 'all') {
-      filtered = filtered.filter(item => 
-        filters.status === 'active' ? item.isActive : !item.isActive
-      );
-    }
-
-    // Stock level filter
-    if (filters.stockLevel !== 'all') {
       filtered = filtered.filter(item => {
-        if (filters.stockLevel === 'out-of-stock') return item.stock === 0;
-        if (filters.stockLevel === 'low-stock') return item.stock > 0 && item.stock < 10;
-        if (filters.stockLevel === 'in-stock') return item.stock >= 10;
-        return true;
+        const stock = normalizeStock(item.stock);
+        if (!item.isActive || stock === 0) return filters.status === 'no-stock';
+        if (stock < 20) return filters.status === 'low-stock';
+        return filters.status === 'available';
       });
     }
 
@@ -251,10 +233,11 @@ export default function InventoryManagement() {
     return filtered;
   }, [items, filters]);
 
-  const getStockStatus = (stock) => {
-    if (stock === 0) return { label: 'Out of Stock', class: 'out-of-stock' };
-    if (stock < 10) return { label: 'Low Stock', class: 'low-stock' };
-    return { label: 'In Stock', class: 'in-stock' };
+  const getStockStatus = (item) => {
+    const safeStock = normalizeStock(item?.stock);
+    if (!item?.isActive || safeStock === 0) return { label: 'No stock', class: 'no-stock' };
+    if (safeStock < 20) return { label: 'Low on stock', class: 'low-stock' };
+    return { label: 'Available', class: 'available' };
   };
 
   if (loading) {
@@ -311,22 +294,9 @@ export default function InventoryManagement() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 transition-colors focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
             >
               <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Stock Level</label>
-            <select 
-              value={filters.stockLevel} 
-              onChange={(e) => updateFilter('stockLevel', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 transition-colors focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
-            >
-              <option value="all">All Levels</option>
-              <option value="in-stock">In Stock (≥10)</option>
-              <option value="low-stock">Low Stock (1-9)</option>
-              <option value="out-of-stock">Out of Stock (0)</option>
+              <option value="available">Available</option>
+              <option value="low-stock">Low on stock (&lt;20)</option>
+              <option value="no-stock">No stock</option>
             </select>
           </div>
 
@@ -395,7 +365,7 @@ export default function InventoryManagement() {
             </thead>
             <tbody>
               {filteredAndSortedItems.map(item => {
-                const stockStatus = getStockStatus(item.stock);
+                const stockStatus = getStockStatus(item);
                 return (
                   <tr key={item.id} className={`border-b border-gray-100 transition-all hover:bg-gray-50 ${!item.isActive ? 'opacity-50 bg-gray-50' : ''}`}>
                     <td className="px-4 py-4">
@@ -406,24 +376,24 @@ export default function InventoryManagement() {
                     </td>
                     <td className="px-4 py-4 text-sm">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                        {item.cost} coupon{item.cost !== 1 ? 's' : ''}
+                        {toSafeNumber(item.cost)} coupon{toSafeNumber(item.cost) !== 1 ? 's' : ''}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-sm text-gray-700 font-medium">
-                      {item.price !== null && item.price !== undefined ? `₱${parseFloat(item.price).toFixed(2)}` : <span className="text-gray-400">N/A</span>}
+                      {formatPrice(item.price) ? formatPrice(item.price) : <span className="text-gray-400">N/A</span>}
                     </td>
                     <td className="px-4 py-4">
                       <div className="inline-flex items-center gap-2 bg-gray-50 py-1.5 px-2.5 rounded-lg border border-gray-200">
                         <button 
                           className="w-6 h-6 p-0 border border-red-400 bg-white rounded text-red-500 font-bold transition-all flex items-center justify-center hover:scale-110 hover:shadow-md hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed" 
                           onClick={() => handleQuickStockAdjust(item.id, -1)}
-                          disabled={item.stock === 0}
+                          disabled={normalizeStock(item.stock) === 0}
                           title="Decrease"
                         >
                           −
                         </button>
-                        <span className={`min-w-[35px] text-center font-bold text-sm ${stockStatus.class === 'in-stock' ? 'text-green-600' : stockStatus.class === 'low-stock' ? 'text-orange-500' : 'text-red-500'}`}>
-                          {item.stock}
+                        <span className={`min-w-[35px] text-center font-bold text-sm ${stockStatus.class === 'available' ? 'text-green-600' : stockStatus.class === 'low-stock' ? 'text-orange-500' : 'text-gray-600'}`}>
+                          {normalizeStock(item.stock)}
                         </span>
                         <button 
                           className="w-6 h-6 p-0 border border-green-500 bg-white rounded text-green-600 font-bold transition-all flex items-center justify-center hover:scale-110 hover:shadow-md hover:bg-green-50" 
@@ -435,15 +405,12 @@ export default function InventoryManagement() {
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${item.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
-                        {item.isActive ? 'Active' : 'Inactive'}
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${stockStatus.class === 'available' ? 'bg-emerald-100 text-emerald-800' : stockStatus.class === 'low-stock' ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-700'}`}>
+                        {stockStatus.label}
                       </span>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-center gap-2">
-                        <button className="p-2 border border-blue-300 bg-white rounded-md text-xs font-medium cursor-pointer transition-all hover:bg-blue-50 hover:border-blue-500 hover:shadow-md" onClick={() => openStockModal(item)} title="Adjust stock">
-                          📦 Stock
-                        </button>
                         <button className="p-2 border border-orange-300 bg-white rounded-md text-xs font-medium cursor-pointer transition-all hover:bg-orange-50 hover:border-orange-500 hover:shadow-md" onClick={() => openEditModal(item)} title="Edit">
                           ✏️ Edit
                         </button>
@@ -462,7 +429,7 @@ export default function InventoryManagement() {
         {/* Mobile/Tablet Card View - Hidden on Desktop */}
         <div className="block lg:hidden space-y-3">
           {filteredAndSortedItems.map(item => {
-            const stockStatus = getStockStatus(item.stock);
+            const stockStatus = getStockStatus(item);
             return (
               <div key={item.id} className={`bg-white border border-gray-200 rounded-xl p-4 shadow-sm transition-all hover:shadow-md ${!item.isActive ? 'opacity-60 bg-gray-50' : ''}`}>
                 <div className="flex justify-between items-start mb-3">
@@ -470,20 +437,20 @@ export default function InventoryManagement() {
                     <h3 className="font-semibold text-gray-900 text-base">{item.name}</h3>
                     {item.description && <p className="text-xs text-gray-500 mt-1">{item.description}</p>}
                   </div>
-                  <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${item.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
-                    {item.isActive ? 'Active' : 'Inactive'}
+                  <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${stockStatus.class === 'available' ? 'bg-emerald-100 text-emerald-800' : stockStatus.class === 'low-stock' ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-700'}`}>
+                    {stockStatus.label}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-gray-50 rounded-lg p-2.5">
                     <div className="text-xs text-gray-500 font-medium mb-1">Cost</div>
-                    <div className="text-sm font-bold text-green-600">{item.cost} coupon{item.cost !== 1 ? 's' : ''}</div>
+                    <div className="text-sm font-bold text-green-600">{toSafeNumber(item.cost)} coupon{toSafeNumber(item.cost) !== 1 ? 's' : ''}</div>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-2.5">
                     <div className="text-xs text-gray-500 font-medium mb-1">Price</div>
                     <div className="text-sm font-bold text-gray-900">
-                      {item.price !== null && item.price !== undefined ? `₱${parseFloat(item.price).toFixed(2)}` : <span className="text-gray-400">N/A</span>}
+                      {formatPrice(item.price) ? formatPrice(item.price) : <span className="text-gray-400">N/A</span>}
                     </div>
                   </div>
                 </div>
@@ -494,12 +461,12 @@ export default function InventoryManagement() {
                     <button 
                       className="w-8 h-8 p-0 border border-red-400 bg-white rounded-md text-red-500 font-bold transition-all flex items-center justify-center hover:scale-110 hover:shadow-md hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed" 
                       onClick={() => handleQuickStockAdjust(item.id, -1)}
-                      disabled={item.stock === 0}
+                      disabled={normalizeStock(item.stock) === 0}
                     >
                       −
                     </button>
-                    <span className={`min-w-[45px] text-center font-bold text-lg ${stockStatus.class === 'in-stock' ? 'text-green-600' : stockStatus.class === 'low-stock' ? 'text-orange-500' : 'text-red-500'}`}>
-                      {item.stock}
+                    <span className={`min-w-[45px] text-center font-bold text-lg ${stockStatus.class === 'available' ? 'text-green-600' : stockStatus.class === 'low-stock' ? 'text-orange-500' : 'text-gray-600'}`}>
+                      {normalizeStock(item.stock)}
                     </span>
                     <button 
                       className="w-8 h-8 p-0 border border-green-500 bg-white rounded-md text-green-600 font-bold transition-all flex items-center justify-center hover:scale-110 hover:shadow-md hover:bg-green-50" 
@@ -510,10 +477,7 @@ export default function InventoryManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <button className="py-2.5 px-2 border border-blue-300 bg-white rounded-lg text-xs font-medium cursor-pointer transition-all hover:bg-blue-50 hover:border-blue-500 hover:shadow-md" onClick={() => openStockModal(item)}>
-                    📦 Stock
-                  </button>
+                <div className="grid grid-cols-2 gap-2">
                   <button className="py-2.5 px-2 border border-orange-300 bg-white rounded-lg text-xs font-medium cursor-pointer transition-all hover:bg-orange-50 hover:border-orange-500 hover:shadow-md" onClick={() => openEditModal(item)}>
                     ✏️ Edit
                   </button>
@@ -530,7 +494,7 @@ export default function InventoryManagement() {
           <div className="text-center py-16 px-5 bg-white border border-gray-200 rounded-xl">
             <div className="text-5xl mb-4">📦</div>
             <p className="text-lg text-gray-600 font-medium mb-2">No items found</p>
-            {(filters.search || filters.status !== 'all' || filters.stockLevel !== 'all' || filters.costRange !== 'all') && (
+            {(filters.search || filters.status !== 'all' || filters.costRange !== 'all') && (
               <button className="mt-4 py-2 px-5 border-none rounded-lg text-sm font-medium cursor-pointer transition-all bg-gray-600 text-white hover:bg-gray-700" onClick={resetFilters}>
                 Clear Filters
               </button>
@@ -630,7 +594,7 @@ export default function InventoryManagement() {
                     onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                     className="w-auto m-0 cursor-pointer"
                   />
-                  Active (available for redemption)
+                  Available for redemption
                 </label>
               </div>
               
@@ -738,7 +702,7 @@ export default function InventoryManagement() {
                     onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                     className="w-auto m-0 cursor-pointer"
                   />
-                  Active (available for redemption)
+                  Available for redemption
                 </label>
               </div>
               
@@ -748,50 +712,6 @@ export default function InventoryManagement() {
                 </button>
                 <button type="submit" className="bg-green-600 text-white py-2 px-4 border-none rounded-md text-sm font-medium cursor-pointer transition-all flex-1 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed min-w-[100px]">
                   Update Item
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Stock Adjustment Modal */}
-      {showStockModal && selectedItem && (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[1000]" onClick={() => setShowStockModal(false)}>
-          <div className="bg-white rounded-xl p-7 max-w-[500px] w-[90%] max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="m-0 mb-5 text-2xl text-gray-900">Adjust Stock: {selectedItem.name}</h3>
-            <p className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-4 text-gray-700">Current Stock: <strong className="text-blue-600 text-lg">{selectedItem.stock}</strong></p>
-            
-            <form onSubmit={handleStockAdjustment}>
-              <div className="mb-5">
-                <label className="block mb-2 font-medium text-gray-900">Adjustment Amount</label>
-                <input
-                  type="number"
-                  value={stockAdjustment}
-                  onChange={(e) => setStockAdjustment(parseInt(e.target.value))}
-                  placeholder="Enter positive to add, negative to remove"
-                  required
-                  className="w-full py-2.5 px-2 border border-gray-300 rounded-md text-sm transition-colors bg-white text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                />
-                <small className="block mt-1.5 text-xs text-gray-600">
-                  {stockAdjustment > 0 && `Will add ${stockAdjustment} items`}
-                  {stockAdjustment < 0 && `Will remove ${Math.abs(stockAdjustment)} items`}
-                  {stockAdjustment === 0 && 'Enter an adjustment amount'}
-                </small>
-              </div>
-              
-              {stockAdjustment !== 0 && (
-                <p className="p-3 bg-green-50 border border-green-200 rounded-md mb-4 text-gray-700">
-                  New Stock: <strong className="text-green-600 text-lg">{selectedItem.stock + stockAdjustment}</strong>
-                </p>
-              )}
-              
-              <div className="flex gap-3 mt-6 justify-end">
-                <button type="button" className="py-2 px-4 border-none rounded-md text-sm font-medium cursor-pointer transition-all flex-1 bg-gray-500 text-white hover:bg-gray-600 min-w-[100px]" onClick={() => { setShowStockModal(false); setSelectedItem(null); setStockAdjustment(0); }}>
-                  Cancel
-                </button>
-                <button type="submit" className="bg-green-600 text-white py-2 px-4 border-none rounded-md text-sm font-medium cursor-pointer transition-all flex-1 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed min-w-[100px]" disabled={stockAdjustment === 0}>
-                  Apply Adjustment
                 </button>
               </div>
             </form>

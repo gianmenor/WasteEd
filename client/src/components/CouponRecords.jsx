@@ -71,6 +71,16 @@ const CouponRecords = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
 
+  const toInt = useCallback((value) => {
+    const parsed = parseInt(value, 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }, []);
+
+  const formatInt = useCallback((value) => {
+    const intValue = toInt(value);
+    return intValue.toString();
+  }, [toInt]);
+
   // Fetch balance
   const { data: balanceData, isLoading: balanceLoading } = useQuery({
     queryKey: ['couponBalance'],
@@ -113,7 +123,7 @@ const CouponRecords = () => {
       setAdjustmentReason('');
       
       // Show specific message based on whether it was add or subtract
-      const absAmount = Math.abs(amount).toFixed(2);
+      const absAmount = Math.abs(toInt(amount));
       if (amount > 0) {
         showMessage(`✓ Added ${absAmount} coupons successfully!`, 'success');
       } else {
@@ -238,13 +248,50 @@ const CouponRecords = () => {
     setPeriod('all');
   }, []);
 
+  const summarizedTransactions = useMemo(() => {
+    const grouped = {};
+
+    filteredTransactions.forEach((transaction) => {
+      const dateObj = new Date(transaction.createdAt);
+      const dateKey = dateObj.toISOString().split('T')[0];
+      const typeKey = transaction.type || 'unknown';
+      const key = `${dateKey}-${typeKey}`;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          date: dateObj,
+          type: typeKey,
+          amount: 0,
+          details: new Set(),
+        };
+      }
+
+      grouped[key].amount += Number(transaction.amount) || 0;
+
+      const detail = transaction.reason || transaction.metadata?.reason || '-';
+      if (detail && detail !== '-') {
+        grouped[key].details.add(detail);
+      }
+    });
+
+    return Object.values(grouped).sort((a, b) => {
+      const dateDiff = new Date(b.date) - new Date(a.date);
+      if (dateDiff !== 0) return dateDiff;
+      return getTransactionTypeLabel(a.type).localeCompare(getTransactionTypeLabel(b.type));
+    });
+  }, [filteredTransactions]);
+
   // Export handlers
   const handleExcelExport = useCallback(() => {
-    const exportData = filteredTransactions.map(transaction => ({
-      'Date & Time': formatDate(transaction.createdAt),
+    const exportData = summarizedTransactions.map(transaction => ({
+      'Date & Time': transaction.date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }),
       'Type': getTransactionTypeLabel(transaction.type),
-      'Amount': Number(transaction.amount).toFixed(2),
-      'Details': transaction.reason || transaction.metadata?.reason || '-'
+      'Amount': formatInt(transaction.amount),
+      'Details': transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-'
     }));
 
     // Add total consumed row
@@ -252,7 +299,7 @@ const CouponRecords = () => {
     exportData.push({
       'Date & Time': 'Total Consumed',
       'Type': '',
-      'Amount': totalConsumed.toFixed(2),
+      'Amount': formatInt(totalConsumed),
       'Details': ''
     });
 
@@ -261,7 +308,7 @@ const CouponRecords = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Coupon Transactions');
     XLSX.writeFile(wb, `coupon-transactions-${new Date().toISOString().split('T')[0]}.xlsx`);
     showMessage('✓ Excel file exported successfully!', 'success');
-  }, [filteredTransactions, totalConsumed, formatDate, showMessage]);
+  }, [summarizedTransactions, totalConsumed, showMessage, formatInt]);
 
   const handlePDFExport = useCallback(() => {
     const doc = new jsPDF();
@@ -288,11 +335,15 @@ const CouponRecords = () => {
     doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 36);
 
     // Transaction table
-    const tableData = filteredTransactions.map(transaction => [
-      formatDate(transaction.createdAt),
+    const tableData = summarizedTransactions.map(transaction => [
+      transaction.date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }),
       getTransactionTypeLabel(transaction.type),
-      Number(transaction.amount).toFixed(2),
-      transaction.reason || transaction.metadata?.reason || '-'
+      formatInt(transaction.amount),
+      transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-'
     ]);
 
     autoTable(doc, {
@@ -311,11 +362,11 @@ const CouponRecords = () => {
     doc.text('Summary:', 14, finalY);
     
     doc.setFont(undefined, 'normal');
-    doc.text(`Total Consumed: ${totalConsumed.toFixed(2)}`, 14, finalY + 7);
+    doc.text(`Total Consumed: ${formatInt(totalConsumed)}`, 14, finalY + 7);
 
     doc.save(`coupon-transactions-${new Date().toISOString().split('T')[0]}.pdf`);
     showMessage('✓ PDF file exported successfully!', 'success');
-  }, [filteredTransactions, totalConsumed, dateFrom, dateTo, formatDate, showMessage]);
+  }, [summarizedTransactions, totalConsumed, dateFrom, dateTo, showMessage, formatInt]);
 
   const handleExport = useCallback((options) => {
     const { format } = options;
@@ -332,7 +383,7 @@ const CouponRecords = () => {
   // Ensure balance is always a number for rendering
   let balance = 0;
   if (balanceData && balanceData.data && typeof balanceData.data.balance !== 'undefined' && balanceData.data.balance !== null) {
-    const parsed = parseFloat(balanceData.data.balance);
+    const parsed = toInt(balanceData.data.balance);
     balance = isNaN(parsed) ? 0 : parsed;
   }
   
@@ -385,9 +436,9 @@ const CouponRecords = () => {
               </span>
             </div>
             <div className="text-3xl font-bold text-gray-900 mb-1">
-              {balance.toFixed(2)}
+              {formatInt(balance)}
             </div>
-            <div className="text-sm font-medium text-gray-700">Current Balance</div>
+            <div className="text-sm font-medium text-gray-700">Coupon Balance</div>
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 p-5">
@@ -398,7 +449,7 @@ const CouponRecords = () => {
               </span>
             </div>
             <div className="text-3xl font-bold text-gray-900 mb-1">
-              {totalConsumed.toFixed(2)}
+              {formatInt(totalConsumed)}
             </div>
             <div className="text-sm font-medium text-gray-700">Total Consumed</div>
           </div>
@@ -411,7 +462,7 @@ const CouponRecords = () => {
               </span>
             </div>
             <div className="text-3xl font-bold text-gray-900 mb-1">
-              {totalEarned.toFixed(2)}
+              {formatInt(totalEarned)}
             </div>
             <div className="text-sm font-medium text-gray-700">Total Earned</div>
           </div>
@@ -439,10 +490,16 @@ const CouponRecords = () => {
             <div className="flex-1 min-w-[200px]">
               <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={adjustmentAmount}
-                onChange={(e) => setAdjustmentAmount(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (/^\d*$/.test(value)) {
+                    setAdjustmentAmount(value);
+                  }
+                }}
                 placeholder="Enter amount"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
@@ -450,8 +507,8 @@ const CouponRecords = () => {
             <button 
               type="button"
               onClick={() => {
-                const amount = parseFloat(adjustmentAmount);
-                if (isNaN(amount) || amount === 0) {
+                const amount = toInt(adjustmentAmount);
+                if (amount <= 0) {
                   showMessage('Please enter a valid amount', 'error');
                   return;
                 }
@@ -466,8 +523,8 @@ const CouponRecords = () => {
             <button 
               type="button"
               onClick={() => {
-                const amount = parseFloat(adjustmentAmount);
-                if (isNaN(amount) || amount === 0) {
+                const amount = toInt(adjustmentAmount);
+                if (amount <= 0) {
                   showMessage('Please enter a valid amount', 'error');
                   return;
                 }
@@ -655,9 +712,7 @@ const CouponRecords = () => {
                           Number(transaction.amount) >= 0 ? 'text-emerald-600' : 'text-red-600'
                         }`}>
                           {Number(transaction.amount) >= 0 ? '+' : ''}
-                          {typeof transaction.amount === 'number' && !isNaN(transaction.amount)
-                            ? transaction.amount.toFixed(2)
-                            : (Number(transaction.amount) ? Number(transaction.amount).toFixed(2) : '0.00')}
+                          {formatInt(transaction.amount)}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600">

@@ -170,6 +170,30 @@ const AnalyticsDashboard = () => {
     refetchBin();
   }, [refetchWaste, refetchBin]);
 
+  const aggregateWasteByDay = useCallback((records) => {
+    const grouped = {};
+
+    records.forEach((record) => {
+      const dateObj = new Date(record.date);
+      const dateKey = dateObj.toISOString().split('T')[0];
+
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {
+          date: dateObj,
+          recyclable: 0,
+          biodegradable: 0,
+          nonBiodegradable: 0,
+        };
+      }
+
+      grouped[dateKey].recyclable += record.recyclable || 0;
+      grouped[dateKey].biodegradable += record.biodegradable || 0;
+      grouped[dateKey].nonBiodegradable += record.nonBiodegradable || 0;
+    });
+
+    return Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, []);
+
   // Export to Excel function with separate sheets per waste type
   const exportToExcel = useCallback(async (dateFilters = {}, typesToExport = null) => {
     // Use passed types or fall back to current state
@@ -244,13 +268,15 @@ const AnalyticsDashboard = () => {
         return;
       }
 
+      const summarizedData = aggregateWasteByDay(allData);
+
       // Create workbook
       const wb = XLSX.utils.book_new();
       
       // Create sheet for each waste type if selected
       if (types.RECYCLABLE) {
-        const recyclableData = allData.map(record => ({
-          'Date': new Date(record.date).toLocaleDateString(),
+        const recyclableData = summarizedData.map(record => ({
+          'Date': record.date.toLocaleDateString(),
           'Recyclable Wastes (pcs)': record.recyclable || 0,
           'Total': record.recyclable || 0
         }));
@@ -259,8 +285,8 @@ const AnalyticsDashboard = () => {
       }
       
       if (types.WET) {
-        const wetData = allData.map(record => ({
-          'Date': new Date(record.date).toLocaleDateString(),
+        const wetData = summarizedData.map(record => ({
+          'Date': record.date.toLocaleDateString(),
           'Wet Wastes (pcs)': record.biodegradable || 0,
           'Total': record.biodegradable || 0
         }));
@@ -269,8 +295,8 @@ const AnalyticsDashboard = () => {
       }
       
       if (types.DRY) {
-        const dryData = allData.map(record => ({
-          'Date': new Date(record.date).toLocaleDateString(),
+        const dryData = summarizedData.map(record => ({
+          'Date': record.date.toLocaleDateString(),
           'Dry Wastes (pcs)': record.nonBiodegradable || 0,
           'Total': record.nonBiodegradable || 0
         }));
@@ -279,9 +305,9 @@ const AnalyticsDashboard = () => {
       }
       
       // Add summary sheet with only selected types
-      const summaryData = allData.map(record => {
+      const summaryData = summarizedData.map(record => {
         const row = {
-          'Date': new Date(record.date).toLocaleDateString()
+          'Date': record.date.toLocaleDateString()
         };
         if (types.RECYCLABLE) row['Recyclable (pcs)'] = record.recyclable || 0;
         if (types.WET) row['Wet (pcs)'] = record.biodegradable || 0;
@@ -303,7 +329,7 @@ const AnalyticsDashboard = () => {
       
       setToast({ 
         type: 'success', 
-        message: `Excel file exported successfully! ${allData.length} records exported.` 
+        message: `Excel file exported successfully! ${summarizedData.length} daily summaries exported.` 
       });
       setTimeout(() => setToast(null), 4000);
       
@@ -317,7 +343,7 @@ const AnalyticsDashboard = () => {
     } finally {
       setExporting(false);
     }
-  }, [selectedTypes]);
+  }, [selectedTypes, aggregateWasteByDay]);
 
   // PDF Export function
   const exportToPDF = useCallback(async (dateFilters = {}, typesToExport = null) => {
@@ -393,6 +419,7 @@ const AnalyticsDashboard = () => {
         return;
       }
 
+      const summarizedData = aggregateWasteByDay(allData);
       const doc = new jsPDF();
       
       // Title
@@ -408,8 +435,8 @@ const AnalyticsDashboard = () => {
       
       // Create tables for each selected waste type
       if (types.RECYCLABLE) {
-        const recyclableData = allData.filter(r => (r.recyclable || 0) > 0).map(record => [
-          new Date(record.date).toLocaleDateString(),
+        const recyclableData = summarizedData.filter(r => (r.recyclable || 0) > 0).map(record => [
+          record.date.toLocaleDateString(),
           (record.recyclable || 0).toFixed(2)
         ]);
         
@@ -431,8 +458,8 @@ const AnalyticsDashboard = () => {
       }
       
       if (types.WET) {
-        const wetData = allData.filter(r => (r.biodegradable || 0) > 0).map(record => [
-          new Date(record.date).toLocaleDateString(),
+        const wetData = summarizedData.filter(r => (r.biodegradable || 0) > 0).map(record => [
+          record.date.toLocaleDateString(),
           (record.biodegradable || 0).toFixed(2)
         ]);
         
@@ -454,8 +481,8 @@ const AnalyticsDashboard = () => {
       }
       
       if (types.DRY) {
-        const dryData = allData.filter(r => (r.nonBiodegradable || 0) > 0).map(record => [
-          new Date(record.date).toLocaleDateString(),
+        const dryData = summarizedData.filter(r => (r.nonBiodegradable || 0) > 0).map(record => [
+          record.date.toLocaleDateString(),
           (record.nonBiodegradable || 0).toFixed(2)
         ]);
         
@@ -492,7 +519,7 @@ const AnalyticsDashboard = () => {
     } finally {
       setExporting(false);
     }
-  }, [selectedTypes]);
+  }, [selectedTypes, aggregateWasteByDay]);
 
   // Unified export handler
   const handleExport = useCallback(async (options) => {
@@ -990,19 +1017,19 @@ const AnalyticsDashboard = () => {
               <div className="text-xs text-gray-500">Compostable</div>
             </div>
 
-            {/* Bin Events */}
+            {/* Dry Waste */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
               <div className="flex justify-between items-start mb-3">
                 <span className="text-2xl">🗑</span>
-                <span className="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-700">
-                  Events
+                <span className="text-xs font-medium px-2 py-1 rounded bg-slate-100 text-slate-700">
+                  {analyticsData.percentages.nonBiodegradable}%
                 </span>
               </div>
               <div className="text-3xl font-bold text-gray-900 mb-1">
-                {binAnalytics ? binAnalytics.total : binData.length}
+                {analyticsData.totals.nonBiodegradable.toLocaleString()}
               </div>
-              <div className="text-sm font-medium text-gray-700 mb-1">Bin Full Events</div>
-              <div className="text-xs text-gray-500">In selected period</div>
+              <div className="text-sm font-medium text-gray-700 mb-1">Dry Wastes</div>
+              <div className="text-xs text-gray-500">Residual waste stream</div>
             </div>
           </div>
         )}

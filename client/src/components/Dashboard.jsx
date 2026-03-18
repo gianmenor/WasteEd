@@ -8,6 +8,7 @@ import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumb
 import MonetizationOnOutlinedIcon from '@mui/icons-material/MonetizationOnOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import { API_ENDPOINTS } from '../config/api';
 import brandLogo from '../assets/brandName.png';
 
 // Lazy load BinFullModal for code splitting
@@ -40,7 +41,7 @@ const BOTTOM_NAV_META = {
   dashboard: { label: 'Home', icon: <DashboardOutlinedIcon fontSize="inherit" /> },
   waste: { label: 'Waste', icon: <RecyclingOutlinedIcon fontSize="inherit" /> },
   coupons: { label: 'Coupons', icon: <ConfirmationNumberOutlinedIcon fontSize="inherit" /> },
-  profit: { label: 'Profit', icon: <MonetizationOnOutlinedIcon fontSize="inherit" /> },
+  profit: { label: 'Rewards', icon: <MonetizationOnOutlinedIcon fontSize="inherit" /> },
   inventory: { label: 'Inventory', icon: <Inventory2OutlinedIcon fontSize="inherit" /> },
   settings: { label: 'Settings', icon: <SettingsOutlinedIcon fontSize="inherit" /> },
 };
@@ -109,6 +110,7 @@ const Dashboard = ({ user, onLogout, children }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [couponLowStockNotification, setCouponLowStockNotification] = useState(null);
   
   // Refs for click-outside detection
   const userMenuRef = useRef(null);
@@ -129,6 +131,8 @@ const Dashboard = ({ user, onLogout, children }) => {
   
   const navigate = useNavigate();
   const location = useLocation();
+
+  const getCouponSeenStorageKey = useCallback((level) => `couponStockNotificationSeen:${level}`, []);
 
   // Memoize menu items - include admin items if user is admin
   const menuItems = useMemo(() => {
@@ -157,13 +161,37 @@ const Dashboard = ({ user, onLogout, children }) => {
   }, []);
 
   const handleNotificationClick = useCallback((notification) => {
+    if (notification.type === 'coupon_low_stock') {
+      setCouponLowStockNotification((prev) => {
+        if (!prev) return prev;
+        localStorage.setItem(getCouponSeenStorageKey(prev.level), '1');
+        return { ...prev, isRead: true };
+      });
+      setNotificationMenuOpen(false);
+      navigate('/coupons');
+      return;
+    }
+
     markAsRead(notification.id);
     setNotificationMenuOpen(false);
     
     if (notification.type === 'bin_full') {
       navigate('/waste');
     }
-  }, [markAsRead, navigate]);
+  }, [markAsRead, navigate, getCouponSeenStorageKey]);
+
+  const handleMarkAllNotificationsRead = useCallback(() => {
+    markAllAsRead();
+    setCouponLowStockNotification((prev) => {
+      if (!prev) return prev;
+      localStorage.setItem(getCouponSeenStorageKey(prev.level), '1');
+      return { ...prev, isRead: true };
+    });
+  }, [markAllAsRead, getCouponSeenStorageKey]);
+
+  const handleNotificationRefresh = useCallback(() => {
+    forceRefresh();
+  }, [forceRefresh]);
 
   const formatNotificationTime = useCallback((timestamp) => {
     const now = new Date();
@@ -213,10 +241,23 @@ const Dashboard = ({ user, onLogout, children }) => {
   );
 
   // Memoize notification list (show max 10)
+  const mergedNotifications = useMemo(() => {
+    if (!couponLowStockNotification) {
+      return notifications;
+    }
+
+    return [couponLowStockNotification, ...notifications];
+  }, [couponLowStockNotification, notifications]);
+
   const displayNotifications = useMemo(() => 
-    notifications.slice(0, 10),
-    [notifications]
+    mergedNotifications.slice(0, 10),
+    [mergedNotifications]
   );
+
+  const computedUnreadCount = useMemo(() => {
+    const couponUnread = couponLowStockNotification && !couponLowStockNotification.isRead ? 1 : 0;
+    return unreadCount + couponUnread;
+  }, [unreadCount, couponLowStockNotification]);
 
   // Memoize settings object
   const settingsValue = useMemo(() => ({
@@ -257,6 +298,64 @@ const Dashboard = ({ user, onLogout, children }) => {
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  // Poll coupon balance and raise low-stock notifications.
+  useEffect(() => {
+    let intervalId;
+
+    const fetchCouponBalance = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch(API_ENDPOINTS.COUPON_BALANCE, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) return;
+
+        const result = await response.json();
+        const balance = Number(result?.data?.balance ?? 0);
+
+        if (Number.isNaN(balance)) return;
+
+        const level = balance <= 0 ? 'no_stock' : balance < 20 ? 'low_stock' : null;
+
+        if (!level) {
+          setCouponLowStockNotification(null);
+          return;
+        }
+
+        const isRead = localStorage.getItem(getCouponSeenStorageKey(level)) === '1';
+
+        setCouponLowStockNotification({
+          id: `coupon-${level}`,
+          type: 'coupon_low_stock',
+          level,
+          title: level === 'no_stock' ? 'Coupon stock depleted' : 'Coupon stock is low',
+          message: level === 'no_stock'
+            ? 'Coupon balance is 0. Add stock to continue rewards redemption.'
+            : `Coupon balance is ${Math.floor(balance)}. Consider replenishing soon.`,
+          timestamp: new Date().toISOString(),
+          icon: '🎟️',
+          priority: 'high',
+          isRead,
+        });
+      } catch (error) {
+        console.error('Failed to check coupon stock:', error);
+      }
+    };
+
+    fetchCouponBalance();
+    intervalId = setInterval(fetchCouponBalance, 60000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [getCouponSeenStorageKey]);
 
   return (
     <SettingsContext.Provider value={settingsValue}>
@@ -321,16 +420,37 @@ const Dashboard = ({ user, onLogout, children }) => {
                     onClick={toggleNotificationMenu}
                   >
                     <span className="text-xl">🔔</span>
+                    {computedUnreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] leading-[18px] text-center font-semibold">
+                        {computedUnreadCount > 99 ? '99+' : computedUnreadCount}
+                      </span>
+                    )}
                   </button>
 
                   {notificationMenuOpen && (
                     <div className="absolute top-full right-0 mt-2 w-[360px] max-h-[500px] bg-white border border-gray-200 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-[20px] z-[1000] overflow-hidden animate-slideDown md:fixed md:top-auto md:bottom-[76px] md:right-0 md:left-0 md:w-full md:max-w-full md:max-h-[70vh] md:m-0 md:rounded-t-2xl md:rounded-b-none md:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] max-[480px]:max-h-[75vh]">
                       <div className="p-4 md:p-4 md:sticky md:top-0 md:bg-white md:z-[1] max-[480px]:p-3 border-b border-gray-200 flex items-center justify-between">
                         <h3 className="m-0 text-base md:text-base max-[480px]:text-[0.9rem] font-semibold text-gray-900">Notifications</h3>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="text-xs text-gray-600 hover:text-gray-900"
+                            onClick={handleNotificationRefresh}
+                          >
+                            Refresh
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-gray-600 hover:text-gray-900"
+                            onClick={handleMarkAllNotificationsRead}
+                          >
+                            Mark all read
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="max-h-[400px] md:max-h-[calc(70vh-70px)] max-[480px]:max-h-[calc(75vh-65px)] overflow-y-auto">
-                        {notifications.length === 0 ? (
+                        {displayNotifications.length === 0 ? (
                           <div className="p-8 text-center text-gray-600">
                             <span className="text-3xl mb-2 block">🔕</span>
                             <p>No notifications</p>
