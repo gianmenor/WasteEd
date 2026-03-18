@@ -1,9 +1,12 @@
 import React, { useState, useMemo, useCallback, memo } from 'react';
+import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
 import LoadingSpinner from './LoadingSpinner';
 
 const Settings = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { preferences, updatePreference, isLoading: prefsLoading } = usePreferences();
   
@@ -99,6 +102,10 @@ const Settings = () => {
       setIsLoading(false);
     }
   }, [profile, user.id, showMessage]);
+
+  const handleLaunchKiosk = useCallback(() => {
+    navigate('/kiosk');
+  }, [navigate]);
 
   // Memoize tabs array - removed accounts tab per PRD (single admin user)
   const tabs = useMemo(() => [
@@ -201,6 +208,25 @@ const Settings = () => {
                       }`}
                       onClick={() => handleSettingChange('autoRefresh', !preferences.autoRefresh)}
                     >
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between p-4 px-5 gap-3 md:gap-0">
+                  <div className="flex-1 md:mr-4">
+                    <label className="text-sm font-semibold text-[#1f2328] mb-1 block">Launch Kiosk</label>
+                    <p className="text-[13px] text-[#656d76] m-0 leading-snug">
+                      Open kiosk mode for Raspberry Pi display with idle and waste-triggered videos.
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 flex items-center">
+                    <button
+                      type="button"
+                      className="border rounded-md cursor-pointer text-sm font-medium py-2 px-3 transition-all duration-150 inline-flex items-center gap-2 bg-[#0969da] border-[#0969da] text-white hover:bg-[#0860ca] hover:border-[#0860ca]"
+                      onClick={handleLaunchKiosk}
+                    >
+                      <OpenInNewOutlinedIcon fontSize="small" />
+                      Launch Kiosk
                     </button>
                   </div>
                 </div>

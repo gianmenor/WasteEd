@@ -18,6 +18,8 @@ import DashboardSkeleton from './components/DashboardSkeleton';
 import DevPage from './components/DevPage';
 import LandingPage from './components/LandingPage';
 import InventoryManagement from './components/InventoryManagement';
+import KioskMode from './components/KioskMode';
+import KioskAdminLogin from './components/KioskAdminLogin';
 import './App.css';
 
 // Create query client
@@ -70,6 +72,16 @@ const AppContent = () => {
                   <Navigate to="/dashboard" replace /> : 
                   <Login />
                 } 
+              />
+
+              <Route
+                path="/kiosk"
+                element={<KioskMode />}
+              />
+
+              <Route
+                path="/kiosk-admin"
+                element={<KioskAdminLogin />}
               />
           
             <Route 

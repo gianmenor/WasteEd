@@ -10,9 +10,8 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import brandLogo from '../assets/brandName.png';
 
-// Lazy load BinFullModal and WasteNotificationModal for code splitting
+// Lazy load BinFullModal for code splitting
 const BinFullModal = lazy(() => import('./BinFullModal'));
-const WasteNotificationModal = lazy(() => import('./WasteNotificationModal'));
 
 // Theme Context
 const ThemeContext = createContext();
@@ -125,10 +124,7 @@ const Dashboard = ({ user, onLogout, children }) => {
     markAsRead, 
     markAllAsRead, 
     clearAllNotifications,
-    forceRefresh,
-    showWasteModal,
-    latestWasteNotification,
-    closeWasteModal
+    forceRefresh
   } = useBinNotifications();
   
   const navigate = useNavigate();
@@ -394,16 +390,6 @@ const Dashboard = ({ user, onLogout, children }) => {
         {/* Bin Full Modal - Lazy loaded */}
         <Suspense fallback={null}>
           <BinFullModal />
-        </Suspense>
-
-        {/* Waste Notification Modal - Lazy loaded */}
-        <Suspense fallback={null}>
-          {showWasteModal && latestWasteNotification && (
-            <WasteNotificationModal 
-              notification={latestWasteNotification}
-              onClose={closeWasteModal}
-            />
-          )}
         </Suspense>
 
         {/* Logout Confirmation Modal */}
