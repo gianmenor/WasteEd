@@ -1,4 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import RecyclingOutlinedIcon from '@mui/icons-material/RecyclingOutlined';
+import SpaOutlinedIcon from '@mui/icons-material/SpaOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import LoadingSpinner from './LoadingSpinner';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
 
@@ -54,7 +59,7 @@ export default function DevPage() {
     return (
       <div className="min-h-[calc(100vh-100px)] flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl p-10 shadow-lg">
-          <div className="text-5xl text-center mb-4">🔒</div>
+          <div className="text-5xl text-center mb-4"><LockOutlinedIcon fontSize="inherit" /></div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">Developer Access</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 text-center mb-8">Enter password to access developer tools</p>
           
@@ -156,7 +161,7 @@ export default function DevPage() {
           <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700">Env: {import.meta.env.MODE}</span>
           <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700">API: {API_BASE_URL || 'relative'}</span>
           <button onClick={handleLogout} className="px-2.5 py-1 text-xs font-medium rounded-md bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 cursor-pointer transition-all duration-150 hover:bg-red-100 dark:hover:bg-red-900/50" title="Lock developer tools">
-            🔒 Lock
+            <span className="inline-flex items-center gap-1"><LockOutlinedIcon fontSize="inherit" /> Lock</span>
           </button>
         </div>
       </div>
@@ -274,7 +279,7 @@ export default function DevPage() {
                 body: { recyclable: recyclableForm.recyclable, biodegradable: 0, nonBiodegradable: 0 }
               })}
             >
-              ♻️ Add Recyclable Waste
+              <RecyclingOutlinedIcon fontSize="small" /> Add Recyclable Waste
             </button>
           </div>
         </section>
@@ -325,7 +330,7 @@ export default function DevPage() {
                 body: { recyclable: 0, biodegradable: wetForm.biodegradable, nonBiodegradable: 0 }
               })}
             >
-              🍎 Add Wet Waste
+              <SpaOutlinedIcon fontSize="small" /> Add Wet Waste
             </button>
           </div>
         </section>
@@ -376,7 +381,7 @@ export default function DevPage() {
                 body: { recyclable: 0, biodegradable: 0, nonBiodegradable: dryForm.nonBiodegradable }
               })}
             >
-              🗑️ Add Dry Waste
+              <DeleteOutlineOutlinedIcon fontSize="small" /> Add Dry Waste
             </button>
           </div>
         </section>
@@ -529,7 +534,7 @@ export default function DevPage() {
                     className="px-4 py-2 text-sm font-medium rounded-md border cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={() => navigator.clipboard.writeText(buildCurl(lastRequest))}
                   >
-                    📋 Copy cURL
+                    <ContentCopyOutlinedIcon fontSize="small" /> Copy cURL
                   </button>
                 </div>
               </div>

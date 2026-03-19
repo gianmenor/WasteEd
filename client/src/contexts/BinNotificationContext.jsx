@@ -6,6 +6,31 @@ import { API_ENDPOINTS } from '../config/api';
 
 export const BinNotificationContext = createContext();
 
+const SEEN_NOTIFICATIONS_KEY = 'seenBinNotifications';
+
+const loadSeenNotifications = () => {
+  try {
+    const seen = localStorage.getItem(SEEN_NOTIFICATIONS_KEY);
+    if (!seen) {
+      return new Set();
+    }
+
+    const seenArray = JSON.parse(seen);
+    return new Set(Array.isArray(seenArray) ? seenArray.map((id) => id.toString()) : []);
+  } catch (error) {
+    console.error('Error loading seen notifications:', error);
+    return new Set();
+  }
+};
+
+const persistSeenNotifications = (seenSet) => {
+  try {
+    localStorage.setItem(SEEN_NOTIFICATIONS_KEY, JSON.stringify(Array.from(seenSet)));
+  } catch (error) {
+    console.error('Error saving seen notifications:', error);
+  }
+};
+
 export const useBinNotifications = () => {
   const context = useContext(BinNotificationContext);
   if (!context) {
@@ -25,7 +50,6 @@ const getBinName = (binType) => {
 };
 
 export const BinNotificationProvider = ({ children }) => {
-  const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.MODE === 'development';
   const { user } = useAuth();
   const { preferences } = usePreferences();
   const [notifications, setNotifications] = useState([]);
@@ -39,6 +63,7 @@ export const BinNotificationProvider = ({ children }) => {
   // Use refs to store current values without causing re-renders
   const userRef = useRef(user);
   const preferencesRef = useRef(preferences);
+  const seenNotifications = useRef(loadSeenNotifications());
   
   // Update refs when values change
   useEffect(() => { userRef.current = user; }, [user]);
@@ -72,8 +97,7 @@ export const BinNotificationProvider = ({ children }) => {
             title: `${binName} Bin Full Alert`,
             message: `The ${binName.toLowerCase()} bin is full and needs to be emptied.`,
             timestamp: new Date(record.fullAt),
-            // In development, always show as unread for easier testing
-            isRead: isDev ? false : seenNotifications.current.has(record.id.toString()),
+            isRead: seenNotifications.current.has(record.id.toString()),
             icon: '🗑️',
             priority: 'high',
             binType: binType,
@@ -82,7 +106,6 @@ export const BinNotificationProvider = ({ children }) => {
         });
 
         setNotifications(binRecords);
-        setUnreadCount(binRecords.filter(notif => !notif.isRead).length);
       }
     } catch (error) {
       console.error('Error fetching bin notifications:', error);
@@ -93,23 +116,19 @@ export const BinNotificationProvider = ({ children }) => {
 
   // Mark notification as read
   const markAsRead = useCallback((notificationId) => {
+    const normalizedId = notificationId.toString();
+
     setNotifications(prev => 
       prev.map(notif => 
-        notif.id === notificationId 
+        notif.id.toString() === normalizedId
           ? { ...notif, isRead: true }
           : notif
       )
     );
-    setUnreadCount(prev => Math.max(0, prev - 1));
     
     // Also mark as seen so it won't show modal again
-    seenNotifications.current.add(notificationId.toString());
-    try {
-      const seenArray = Array.from(seenNotifications.current);
-      localStorage.setItem('seenBinNotifications', JSON.stringify(seenArray));
-    } catch (error) {
-      console.error('Error saving seen notification:', error);
-    }
+    seenNotifications.current.add(normalizedId);
+    persistSeenNotifications(seenNotifications.current);
   }, []);
 
   // Mark all notifications as read
@@ -119,16 +138,10 @@ export const BinNotificationProvider = ({ children }) => {
     setNotifications(prev => 
       prev.map(notif => ({ ...notif, isRead: true }))
     );
-    setUnreadCount(0);
     
     // Mark all as seen so they won't show modals again
     allIds.forEach(id => seenNotifications.current.add(id));
-    try {
-      const seenArray = Array.from(seenNotifications.current);
-      localStorage.setItem('seenBinNotifications', JSON.stringify(seenArray));
-    } catch (error) {
-      console.error('Error saving seen notifications:', error);
-    }
+    persistSeenNotifications(seenNotifications.current);
   }, [notifications]);
 
   // Close modal and mark notification as seen permanently
@@ -137,13 +150,7 @@ export const BinNotificationProvider = ({ children }) => {
     if (latestNotification) {
       // Mark as seen in memory and localStorage
       seenNotifications.current.add(latestNotification.id.toString());
-      
-      try {
-        const seenArray = Array.from(seenNotifications.current);
-        localStorage.setItem('seenBinNotifications', JSON.stringify(seenArray));
-      } catch (error) {
-        console.error('Error saving seen notification:', error);
-      }
+      persistSeenNotifications(seenNotifications.current);
       
       // Also mark as read in current session
       markAsRead(latestNotification.id);
@@ -179,22 +186,10 @@ export const BinNotificationProvider = ({ children }) => {
     return null;
   }, []);
 
-  // Store seen notifications in a ref to avoid dependency issues
-  const seenNotifications = useRef(new Set());
-
-  // Load seen notifications from localStorage on mount
+  // Keep unread count in sync with source-of-truth notifications state
   useEffect(() => {
-    try {
-      const seen = localStorage.getItem('seenBinNotifications');
-      if (seen) {
-        const seenArray = JSON.parse(seen);
-        seenNotifications.current = new Set(seenArray);
-        console.log('Loaded seen notifications:', seenArray.length);
-      }
-    } catch (error) {
-      console.error('Error loading seen notifications:', error);
-    }
-  }, []);
+    setUnreadCount(notifications.filter((notif) => !notif.isRead).length);
+  }, [notifications]);
 
   // SSE connection for real-time bin notifications
   useEffect(() => {
@@ -261,7 +256,7 @@ export const BinNotificationProvider = ({ children }) => {
           title: `${binName} Bin Full Alert`,
           message: `The ${binName.toLowerCase()} bin is full and needs to be emptied.`,
           timestamp: new Date(binRecord.fullAt),
-          isRead: false,
+          isRead: seenNotifications.current.has(binRecord.id.toString()),
           icon: '🗑️',
           priority: 'high',
           binType: binType,
@@ -270,16 +265,19 @@ export const BinNotificationProvider = ({ children }) => {
         
         // Check if we've already seen this notification
         const notificationId = binRecord.id.toString();
-        if (seenNotifications.current.has(notificationId) && !isDev) {
+        if (seenNotifications.current.has(notificationId)) {
           console.log('Notification already seen, skipping:', notificationId);
           return;
-        } else if (seenNotifications.current.has(notificationId) && isDev) {
-          console.log('Dev mode: ignoring seen check for notification', notificationId);
         }
         
-        // Add to notifications list
-        setNotifications(prev => [notification, ...prev]);
-        setUnreadCount(prev => prev + 1);
+        // Add to notifications list (dedupe by ID)
+        setNotifications(prev => {
+          const exists = prev.some((notif) => notif.id.toString() === notificationId);
+          if (exists) {
+            return prev;
+          }
+          return [notification, ...prev];
+        });
         
         // Show modal if auto-notifications enabled
         console.log('Preferences check - binFullAlert:', preferences.binFullAlert);
@@ -323,7 +321,7 @@ export const BinNotificationProvider = ({ children }) => {
   const clearSeenNotifications = useCallback(() => {
     try {
       seenNotifications.current.clear();
-      localStorage.removeItem('seenBinNotifications');
+      localStorage.removeItem(SEEN_NOTIFICATIONS_KEY);
       console.log('Cleared all seen notifications - modals will show again');
       forceRefresh();
     } catch (error) {

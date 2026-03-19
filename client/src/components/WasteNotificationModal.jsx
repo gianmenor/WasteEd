@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import RecyclingOutlinedIcon from '@mui/icons-material/RecyclingOutlined';
+import SpaOutlinedIcon from '@mui/icons-material/SpaOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 
 const WasteNotificationModal = ({ notification, onClose }) => {
   const [videoUrl, setVideoUrl] = useState(null);
@@ -78,11 +86,11 @@ const WasteNotificationModal = ({ notification, onClose }) => {
 
   const getWasteTypeIcon = (type) => {
     const icons = {
-      'RECYCLABLE': '♻️',
-      'WET': '🍎',
-      'DRY': '🗑️'
+      'RECYCLABLE': <RecyclingOutlinedIcon fontSize="inherit" />, 
+      'WET': <SpaOutlinedIcon fontSize="inherit" />,
+      'DRY': <DeleteOutlineOutlinedIcon fontSize="inherit" />
     };
-    return icons[type] || '📦';
+    return icons[type] || <Inventory2OutlinedIcon fontSize="inherit" />;
   };
 
   const getWasteTypeColor = (type) => {
@@ -125,7 +133,7 @@ const WasteNotificationModal = ({ notification, onClose }) => {
               onClick={onClose}
               aria-label="Close notification"
             >
-              ✕
+              <CloseRoundedIcon fontSize="small" />
             </button>
           </div>
 
@@ -138,7 +146,7 @@ const WasteNotificationModal = ({ notification, onClose }) => {
               </div>
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-12 px-6 text-center bg-gray-50 rounded-lg mb-6">
-                <span className="text-5xl mb-3 opacity-50">⚠️</span>
+                <span className="text-5xl mb-3 opacity-50"><WarningAmberOutlinedIcon fontSize="inherit" /></span>
                 <p className="m-0 font-semibold text-gray-700">{error}</p>
                 <small className="block mt-2 text-gray-500">Contact administrator to upload videos for this waste type</small>
               </div>
@@ -162,7 +170,7 @@ const WasteNotificationModal = ({ notification, onClose }) => {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 px-6 text-center bg-gray-50 rounded-lg mb-6">
-                <span className="text-5xl mb-3 opacity-50">ℹ️</span>
+                <span className="text-5xl mb-3 opacity-50"><InfoOutlinedIcon fontSize="inherit" /></span>
                 <p className="m-0 font-semibold text-gray-700">No instructional video available for this waste type</p>
               </div>
             )}
@@ -172,7 +180,7 @@ const WasteNotificationModal = ({ notification, onClose }) => {
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2">Waste Type</div>
                 <div className="text-base text-gray-800 font-semibold">
-                  {getWasteTypeIcon(notification.wasteType)} {formatWasteType(notification.wasteType)}
+                  <span className="inline-flex items-center gap-1.5">{getWasteTypeIcon(notification.wasteType)} {formatWasteType(notification.wasteType)}</span>
                 </div>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -184,7 +192,7 @@ const WasteNotificationModal = ({ notification, onClose }) => {
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2">Status</div>
                 <div className="text-base text-gray-800 font-semibold">
-                  ✅ Recorded Successfully
+                  <span className="inline-flex items-center gap-1.5"><TaskAltOutlinedIcon fontSize="small" className="text-green-600" /> Recorded Successfully</span>
                 </div>
               </div>
             </div>

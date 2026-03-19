@@ -1,5 +1,9 @@
 import { useEffect } from 'react';
 import { useBinNotifications } from '../contexts/BinNotificationContext';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import ChecklistRtlOutlinedIcon from '@mui/icons-material/ChecklistRtlOutlined';
+import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 
 const BinFullModal = () => {
   const { showModal, latestNotification, closeModal } = useBinNotifications();
@@ -54,7 +58,7 @@ const BinFullModal = () => {
           {/* Header */}
           <div className="flex items-center gap-4 px-6 pt-6 pb-4 border-b border-gray-200 relative bg-white">
             <div className="relative flex items-center justify-center">
-              <span className="text-[2.5rem] z-[1] relative">🗑️</span>
+              <span className="text-[2.5rem] z-[1] relative text-red-500"><DeleteOutlineOutlinedIcon fontSize="inherit" /></span>
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60px] h-[60px] bg-red-500/20 rounded-full animate-pulseRing"></div>
             </div>
             <div className="flex-1">
@@ -66,7 +70,7 @@ const BinFullModal = () => {
               onClick={closeModal}
               aria-label="Close notification"
             >
-              ✕
+              <CloseRoundedIcon fontSize="small" />
             </button>
           </div>
 
@@ -102,7 +106,7 @@ const BinFullModal = () => {
                 className="flex-1 px-4 py-3 rounded-lg border border-gray-200 font-medium cursor-pointer transition-all duration-200 text-sm bg-gray-100 text-gray-900 hover:bg-gray-200"
                 onClick={closeModal}
               >
-                📋 Mark as Acknowledged
+                <span className="inline-flex items-center gap-1.5"><ChecklistRtlOutlinedIcon fontSize="small" /> Mark as Acknowledged</span>
               </button>
               <button 
                 className="flex-1 px-4 py-3 rounded-lg border-none font-medium cursor-pointer transition-all duration-200 text-sm bg-red-500 text-white hover:bg-red-600"
@@ -112,13 +116,13 @@ const BinFullModal = () => {
                   window.location.href = '/waste';
                 }}
               >
-                🗑️ Go to Waste Management
+                <span className="inline-flex items-center gap-1.5"><DeleteOutlineOutlinedIcon fontSize="small" /> Go to Waste Management</span>
               </button>
             </div>
             
             <div className="text-center">
               <small className="text-gray-400 text-xs">
-                🔔 You will continue to receive notifications until the bin is emptied
+                <span className="inline-flex items-center gap-1"><NotificationsOutlinedIcon fontSize="inherit" /> You will continue to receive notifications until the bin is emptied</span>
               </small>
             </div>
           </div>

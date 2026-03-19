@@ -7,6 +7,7 @@ import { PreferencesProvider } from './contexts/PreferencesContext';
 import { BinNotificationProvider } from './contexts/BinNotificationContext';
 import ThemeProvider from './contexts/ThemeProvider';
 import Login from './components/Login';
+import ForgotPassword from './components/ForgotPassword';
 import Dashboard from './components/Dashboard';
 import WasteTable from './components/WasteTable';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
@@ -63,6 +64,14 @@ const AppContent = () => {
                   isAuthenticated ? 
                   <Navigate to="/dashboard" replace /> : 
                   <Login />
+                } 
+              />
+              <Route 
+                path="/forgot-password" 
+                element={
+                  isAuthenticated ? 
+                  <Navigate to="/dashboard" replace /> : 
+                  <ForgotPassword />
                 } 
               />
               <Route 

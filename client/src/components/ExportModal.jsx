@@ -3,6 +3,10 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TextField } from '@mui/material';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import RecyclingOutlinedIcon from '@mui/icons-material/RecyclingOutlined';
+import SpaOutlinedIcon from '@mui/icons-material/SpaOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 
 const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWasteTypes = true, showDateRange = true }) => {
   const [exportFormat, setExportFormat] = useState('excel');
@@ -33,8 +37,8 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
       <div className="bg-white rounded-xl max-w-[500px] w-full max-h-[90vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.3)] animate-slideIn max-sm:max-w-full max-sm:max-h-screen max-sm:rounded-none" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900 m-0">{title}</h2>
-          <button className="bg-transparent border-none text-2xl text-gray-500 cursor-pointer p-1 leading-none transition-all duration-200 rounded-md hover:bg-gray-100 hover:text-gray-900" onClick={onClose}>
-            ✕
+          <button className="bg-transparent border-none text-2xl text-gray-500 cursor-pointer p-1 leading-none transition-all duration-200 rounded-md hover:bg-gray-100 hover:text-gray-900 inline-flex items-center justify-center" onClick={onClose}>
+            <CloseRoundedIcon fontSize="small" />
           </button>
         </div>
 
@@ -47,8 +51,8 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
               value={exportFormat}
               onChange={(e) => setExportFormat(e.target.value)}
             >
-              <option value="excel">📊 Excel (XLSX) - Spreadsheet format</option>
-              <option value="pdf">📄 PDF - Formatted report with charts</option>
+              <option value="excel">Excel (XLSX) - Spreadsheet format</option>
+              <option value="pdf">PDF - Formatted report with charts</option>
             </select>
           </div>
 
@@ -64,7 +68,7 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
                     checked={includeTypes.recyclable}
                     onChange={(e) => setIncludeTypes(prev => ({ ...prev, recyclable: e.target.checked }))}
                   />
-                  <span>♻️ Recyclable Wastes</span>
+                  <span className="inline-flex items-center gap-1.5"><RecyclingOutlinedIcon fontSize="small" /> Recyclable Wastes</span>
                 </label>
                 
                 <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-900">
@@ -74,7 +78,7 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
                     checked={includeTypes.wet}
                     onChange={(e) => setIncludeTypes(prev => ({ ...prev, wet: e.target.checked }))}
                   />
-                  <span>🍃 Wet Wastes</span>
+                  <span className="inline-flex items-center gap-1.5"><SpaOutlinedIcon fontSize="small" /> Wet Wastes</span>
                 </label>
                 
                 <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-900">
@@ -84,7 +88,7 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
                     checked={includeTypes.dry}
                     onChange={(e) => setIncludeTypes(prev => ({ ...prev, dry: e.target.checked }))}
                   />
-                  <span>🗑️ Dry Wastes</span>
+                  <span className="inline-flex items-center gap-1.5"><DeleteOutlineOutlinedIcon fontSize="small" /> Dry Wastes</span>
                 </label>
               </div>
             </div>

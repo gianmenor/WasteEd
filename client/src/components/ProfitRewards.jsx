@@ -4,6 +4,10 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -75,6 +79,7 @@ const ProfitRewards = () => {
   const { preferences } = usePreferences();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
+  const todayDateString = new Date().toISOString().split('T')[0];
   
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -402,6 +407,36 @@ const ProfitRewards = () => {
     return yearList.reverse();
   }, [currentYear]);
 
+  const monthOptions = useMemo(() => {
+    const maxMonth = selectedYear === currentYear ? currentMonth : 12;
+    return [
+      { value: 1, label: 'January' },
+      { value: 2, label: 'February' },
+      { value: 3, label: 'March' },
+      { value: 4, label: 'April' },
+      { value: 5, label: 'May' },
+      { value: 6, label: 'June' },
+      { value: 7, label: 'July' },
+      { value: 8, label: 'August' },
+      { value: 9, label: 'September' },
+      { value: 10, label: 'October' },
+      { value: 11, label: 'November' },
+      { value: 12, label: 'December' },
+    ].filter((month) => month.value <= maxMonth);
+  }, [selectedYear, currentYear, currentMonth]);
+
+  useEffect(() => {
+    if (selectedYear === currentYear && selectedMonth > currentMonth) {
+      setSelectedMonth(currentMonth);
+    }
+  }, [selectedYear, selectedMonth, currentYear, currentMonth]);
+
+  const getValidDateValue = useCallback((value, maxDate) => {
+    if (!value) return '';
+    if (value > maxDate) return maxDate;
+    return value;
+  }, []);
+
   return (
     <div className={`max-w-[1400px] mx-auto p-4 md:p-8 bg-[var(--bg-primary)] min-h-screen ${uiSizeClass}`}>
       {loading && <LoadingSpinner fullscreen message="Loading data..." />}
@@ -496,18 +531,9 @@ const ProfitRewards = () => {
                   onChange={(e) => setSelectedMonth(e.target.value === '' ? '' : parseInt(e.target.value))}
                 >
                   <option value="">All</option>
-                  <option value="1">January</option>
-                  <option value="2">February</option>
-                  <option value="3">March</option>
-                  <option value="4">April</option>
-                  <option value="5">May</option>
-                  <option value="6">June</option>
-                  <option value="7">July</option>
-                  <option value="8">August</option>
-                  <option value="9">September</option>
-                  <option value="10">October</option>
-                  <option value="11">November</option>
-                  <option value="12">December</option>
+                  {monthOptions.map((month) => (
+                    <option key={month.value} value={month.value}>{month.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -519,8 +545,13 @@ const ProfitRewards = () => {
                   type="date"
                   className="w-full px-4 py-2 border border-[var(--border-color)] rounded-sm text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] cursor-pointer transition-all hover:border-[var(--primary-color)] focus:outline-none focus:border-[var(--border-focus)] focus:shadow-[0_0_0_3px_rgba(34,197,94,0.1)]"
                   value={customDateFrom}
-                  onChange={(e) => setCustomDateFrom(e.target.value)}
-                  max={customDateTo || undefined}
+                  onChange={(e) => {
+                    const maxFrom = customDateTo
+                      ? (customDateTo < todayDateString ? customDateTo : todayDateString)
+                      : todayDateString;
+                    setCustomDateFrom(getValidDateValue(e.target.value, maxFrom));
+                  }}
+                  max={customDateTo ? (customDateTo < todayDateString ? customDateTo : todayDateString) : todayDateString}
                 />
               </div>
               <div className="flex flex-col gap-1 flex-1">
@@ -529,8 +560,9 @@ const ProfitRewards = () => {
                   type="date"
                   className="w-full px-4 py-2 border border-[var(--border-color)] rounded-sm text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] cursor-pointer transition-all hover:border-[var(--primary-color)] focus:outline-none focus:border-[var(--border-focus)] focus:shadow-[0_0_0_3px_rgba(34,197,94,0.1)]"
                   value={customDateTo}
-                  onChange={(e) => setCustomDateTo(e.target.value)}
+                  onChange={(e) => setCustomDateTo(getValidDateValue(e.target.value, todayDateString))}
                   min={customDateFrom || undefined}
+                  max={todayDateString}
                 />
               </div>
               {(customDateFrom || customDateTo) && (
@@ -547,7 +579,7 @@ const ProfitRewards = () => {
 
         {records.length === 0 ? (
           <div className="text-center py-16 text-[var(--text-muted)]">
-            <span className="text-5xl block mb-4">📭</span>
+            <span className="text-5xl block mb-4"><InboxOutlinedIcon fontSize="inherit" /></span>
             <p>No records found for the selected period</p>
           </div>
         ) : (
@@ -670,7 +702,9 @@ const ProfitRewards = () => {
           <div className="bg-[var(--bg-secondary)] rounded-lg max-w-[420px] w-full max-h-[90vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.3)] animate-slideIn" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center p-8 border-b border-[var(--border-color)]">
               <h2 className="text-2xl font-semibold text-[var(--text-primary)] m-0">Export Records</h2>
-              <button className="bg-transparent border-none text-2xl text-[var(--text-secondary)] cursor-pointer p-2 leading-none transition-all rounded hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]" onClick={() => setShowExportModal(false)}>✕</button>
+              <button className="bg-transparent border-none text-2xl text-[var(--text-secondary)] cursor-pointer p-2 leading-none transition-all rounded hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] inline-flex items-center justify-center" onClick={() => setShowExportModal(false)}>
+                <CloseRoundedIcon fontSize="small" />
+              </button>
             </div>
             <div className="p-8 flex flex-col gap-6">
               <div className="flex flex-col gap-2">
@@ -681,14 +715,20 @@ const ProfitRewards = () => {
                     className={`flex-1 px-4 py-2.5 border-2 rounded-md font-medium text-sm cursor-pointer transition-all text-center ${exportFormat === 'excel' ? 'border-[var(--primary-color)] bg-[rgba(34,197,94,0.08)] text-[var(--primary-color)]' : 'border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:border-[var(--text-secondary)]'}`}
                     onClick={() => setExportFormat('excel')}
                   >
-                    📊 Excel (.xlsx)
+                    <span className="inline-flex items-center gap-1.5">
+                      <TableChartOutlinedIcon fontSize="small" />
+                      Excel (.xlsx)
+                    </span>
                   </button>
                   <button
                     type="button"
                     className={`flex-1 px-4 py-2.5 border-2 rounded-md font-medium text-sm cursor-pointer transition-all text-center ${exportFormat === 'pdf' ? 'border-[var(--primary-color)] bg-[rgba(34,197,94,0.08)] text-[var(--primary-color)]' : 'border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:border-[var(--text-secondary)]'}`}
                     onClick={() => setExportFormat('pdf')}
                   >
-                    📄 PDF
+                    <span className="inline-flex items-center gap-1.5">
+                      <PictureAsPdfOutlinedIcon fontSize="small" />
+                      PDF
+                    </span>
                   </button>
                 </div>
               </div>
@@ -720,7 +760,7 @@ const ProfitRewards = () => {
                 onClick={handleCancelEdit}
                 disabled={isSubmitting}
               >
-                ✕
+                <CloseRoundedIcon fontSize="small" />
               </button>
             </div>
             

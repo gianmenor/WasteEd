@@ -1,5 +1,11 @@
-import React, { useState, useContext, useRef, useEffect } from 'react';
-import { BinNotificationContext } from '../contexts/BinNotificationContext';
+import React from 'react';
+import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined';
+import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
+import MarkEmailReadOutlinedIcon from '@mui/icons-material/MarkEmailReadOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import RestoreOutlinedIcon from '@mui/icons-material/RestoreOutlined';
+import NotificationImportantOutlinedIcon from '@mui/icons-material/NotificationImportantOutlined';
+import { useBinNotifications } from '../contexts/BinNotificationContext';
 import { API_ENDPOINTS } from '../config/api';
 
 const NotificationTest = () => {
@@ -17,7 +23,7 @@ const NotificationTest = () => {
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial' }}>
-      <h2>🧪 Bin Notification Test Panel</h2>
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><ScienceOutlinedIcon fontSize="small" /> Bin Notification Test Panel</h2>
       
       <div style={{ marginBottom: '20px' }}>
         <h3>Status</h3>
@@ -34,25 +40,25 @@ const NotificationTest = () => {
           onClick={forceRefresh}
           style={{ marginRight: '10px', padding: '10px' }}
         >
-          🔄 Force Refresh
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><RefreshOutlinedIcon fontSize="small" /> Force Refresh</span>
         </button>
         <button 
           onClick={markAllAsRead}
           style={{ marginRight: '10px', padding: '10px' }}
         >
-          ✅ Mark All Read
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><MarkEmailReadOutlinedIcon fontSize="small" /> Mark All Read</span>
         </button>
         <button 
           onClick={clearAllNotifications}
           style={{ padding: '10px' }}
         >
-          🗑️ Clear All
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><DeleteOutlineOutlinedIcon fontSize="small" /> Clear All</span>
         </button>
         <button 
           onClick={clearSeenNotifications}
           style={{ marginLeft: '10px', padding: '10px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px' }}
         >
-          🔄 Reset Seen (Testing)
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><RestoreOutlinedIcon fontSize="small" /> Reset Seen (Testing)</span>
         </button>
       </div>
 
@@ -93,7 +99,7 @@ const NotificationTest = () => {
           }}
           style={{ padding: '10px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px' }}
         >
-          🗑️ Trigger Bin Full
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><NotificationImportantOutlinedIcon fontSize="small" /> Trigger Bin Full</span>
         </button>
       </div>
     </div>

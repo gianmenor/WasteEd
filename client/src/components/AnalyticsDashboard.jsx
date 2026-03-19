@@ -4,6 +4,19 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TextField } from '@mui/material';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
+import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
+import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import RecyclingOutlinedIcon from '@mui/icons-material/RecyclingOutlined';
+import SpaOutlinedIcon from '@mui/icons-material/SpaOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import EmojiEventsOutlinedIcon from '@mui/icons-material/EmojiEventsOutlined';
+import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
+import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -791,14 +804,14 @@ const AnalyticsDashboard = () => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center p-8 bg-white rounded-lg border border-gray-200 max-w-md">
-          <div className="text-5xl mb-4">⚠️</div>
+          <div className="text-5xl mb-4 text-amber-500"><WarningAmberOutlinedIcon fontSize="inherit" /></div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">Failed to Load Analytics</h3>
           <p className="text-gray-600 mb-6">{error?.message || 'Unknown error'}</p>
           <button 
             onClick={handleRefresh} 
-            className="bg-gray-900 text-white px-6 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors"
+            className="bg-gray-900 text-white px-6 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors inline-flex items-center gap-1.5"
           >
-            🔄 Retry
+            <RefreshOutlinedIcon fontSize="small" /> Retry
           </button>
         </div>
       </div>
@@ -817,14 +830,14 @@ const AnalyticsDashboard = () => {
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span>{toast.type === 'success' ? '✓' : '✕'}</span>
+                <span>{toast.type === 'success' ? <CheckCircleOutlineOutlinedIcon fontSize="small" /> : <ErrorOutlineOutlinedIcon fontSize="small" />}</span>
                 <span className="font-medium text-sm">{toast.message}</span>
               </div>
               <button 
                 className="text-gray-500 hover:text-gray-700 ml-4" 
                 onClick={() => setToast(null)}
               >
-                ×
+                <CloseRoundedIcon fontSize="small" />
               </button>
             </div>
           </div>
@@ -836,9 +849,9 @@ const AnalyticsDashboard = () => {
           <div className="flex gap-2">
             <button 
               onClick={handleRefresh} 
-              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors inline-flex items-center gap-1.5"
             >
-              ↻ Refresh
+              <RefreshOutlinedIcon fontSize="small" /> Refresh
             </button>
             <button 
               onClick={() => setShowExportModal(true)} 
@@ -932,7 +945,7 @@ const AnalyticsDashboard = () => {
                   }`}
                   onClick={() => setSelectedTypes(prev => ({ ...prev, RECYCLABLE: !prev.RECYCLABLE }))}
                 >
-                  ♻ Recyclable
+                  <span className="inline-flex items-center gap-1.5"><RecyclingOutlinedIcon fontSize="small" /> Recyclable</span>
                 </button>
                 <button 
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -942,7 +955,7 @@ const AnalyticsDashboard = () => {
                   }`}
                   onClick={() => setSelectedTypes(prev => ({ ...prev, WET: !prev.WET }))}
                 >
-                  🌿 Wet
+                  <span className="inline-flex items-center gap-1.5"><SpaOutlinedIcon fontSize="small" /> Wet</span>
                 </button>
                 <button 
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -952,7 +965,7 @@ const AnalyticsDashboard = () => {
                   }`}
                   onClick={() => setSelectedTypes(prev => ({ ...prev, DRY: !prev.DRY }))}
                 >
-                  🗑 Dry
+                  <span className="inline-flex items-center gap-1.5"><DeleteOutlineOutlinedIcon fontSize="small" /> Dry</span>
                 </button>
               </div>
             </div>
@@ -973,7 +986,7 @@ const AnalyticsDashboard = () => {
             {/* Total Items */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
               <div className="flex justify-between items-start mb-3">
-                <span className="text-2xl">📊</span>
+                <span className="text-2xl"><BarChartOutlinedIcon fontSize="inherit" /></span>
                 <span className={`text-xs font-medium px-2 py-1 rounded ${
                   analyticsData.trend >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                 }`}>
@@ -990,7 +1003,7 @@ const AnalyticsDashboard = () => {
             {/* Recyclable */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
               <div className="flex justify-between items-start mb-3">
-                <span className="text-2xl">♻</span>
+                <span className="text-2xl"><RecyclingOutlinedIcon fontSize="inherit" /></span>
                 <span className="text-xs font-medium px-2 py-1 rounded bg-emerald-100 text-emerald-700">
                   {analyticsData.percentages.recyclable}%
                 </span>
@@ -1005,7 +1018,7 @@ const AnalyticsDashboard = () => {
             {/* Wet Waste */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
               <div className="flex justify-between items-start mb-3">
-                <span className="text-2xl">🌿</span>
+                <span className="text-2xl"><SpaOutlinedIcon fontSize="inherit" /></span>
                 <span className="text-xs font-medium px-2 py-1 rounded bg-amber-100 text-amber-700">
                   {analyticsData.percentages.biodegradable}%
                 </span>
@@ -1020,7 +1033,7 @@ const AnalyticsDashboard = () => {
             {/* Dry Waste */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
               <div className="flex justify-between items-start mb-3">
-                <span className="text-2xl">🗑</span>
+                <span className="text-2xl"><DeleteOutlineOutlinedIcon fontSize="inherit" /></span>
                 <span className="text-xs font-medium px-2 py-1 rounded bg-slate-100 text-slate-700">
                   {analyticsData.percentages.nonBiodegradable}%
                 </span>
@@ -1117,16 +1130,16 @@ const AnalyticsDashboard = () => {
               <h3 className="text-base font-semibold text-gray-900 mb-4">Key Insights</h3>
               <div className="space-y-2">
                 <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span>🏆</span>
+                  <span><EmojiEventsOutlinedIcon fontSize="small" /></span>
                   <span>Peak day: {analyticsData.peakDay ? formatDate(analyticsData.peakDay.date) : 'N/A'}</span>
                 </div>
                 <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span>📈</span>
+                  <span><TrendingUpOutlinedIcon fontSize="small" /></span>
                   <span>Recycling rate: {analyticsData.percentages.recyclable}%</span>
                 </div>
                 {binAnalytics && (
                   <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                    <span>🗑</span>
+                    <span><DeleteOutlineOutlinedIcon fontSize="small" /></span>
                     <span>Bin events: {binAnalytics.total}</span>
                   </div>
                 )}
@@ -1136,7 +1149,7 @@ const AnalyticsDashboard = () => {
               <h3 className="text-base font-semibold text-gray-900 mb-4">Activity</h3>
               <div className="space-y-2">
                 <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span>📅</span>
+                  <span><CalendarMonthOutlinedIcon fontSize="small" /></span>
                   <span>Most active day: {(() => {
                     if (!analyticsData.dailyTrends?.length) return 'No data';
                     const mostActive = analyticsData.dailyTrends.reduce((max, day) => 
@@ -1146,7 +1159,7 @@ const AnalyticsDashboard = () => {
                   })()}</span>
                 </div>
                 <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span>📊</span>
+                  <span><InsightsOutlinedIcon fontSize="small" /></span>
                   <span>Most active month: {(() => {
                     if (!analyticsData.monthlyData?.length) return 'No data';
                     const mostActive = analyticsData.monthlyData.reduce((max, month) => 
@@ -1156,7 +1169,7 @@ const AnalyticsDashboard = () => {
                   })()}</span>
                 </div>
                 <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span>♻</span>
+                  <span><RecyclingOutlinedIcon fontSize="small" /></span>
                   <span>Top category: {(() => {
                     const totals = analyticsData.totals;
                     const categories = [

@@ -29,7 +29,8 @@ export const API_ENDPOINTS = {
   VALIDATE_TOKEN: `${API_BASE_URL}/api/accounts/validate`,
   LOGIN: `${API_BASE_URL}/api/accounts/login`,
   LOGOUT: `${API_BASE_URL}/api/accounts/logout`,
-  FORGOT_PASSWORD: `${API_BASE_URL}/api/accounts/forgot-password`,
+  FORGOT_PASSWORD_REQUEST_OTP: `${API_BASE_URL}/api/accounts/forgot-password/request-otp`,
+  FORGOT_PASSWORD_VERIFY_OTP: `${API_BASE_URL}/api/accounts/forgot-password/verify-otp`,
   DEV_CLEAR_DATA: `${API_BASE_URL}/api/accounts/dev/clear-data`,
   USER_ROLE: `${API_BASE_URL}/api/accounts/role`,
   

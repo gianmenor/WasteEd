@@ -10,6 +10,12 @@ import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
+import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -72,7 +78,7 @@ const CouponRecords = () => {
   const [typeFilter, setTypeFilter] = useState('all');
 
   const toInt = useCallback((value) => {
-    const parsed = parseInt(value, 10);
+    const parsed = parseInt(String(value ?? '').replace(/,/g, ''), 10);
     return Number.isNaN(parsed) ? 0 : parsed;
   }, []);
 
@@ -125,9 +131,9 @@ const CouponRecords = () => {
       // Show specific message based on whether it was add or subtract
       const absAmount = Math.abs(toInt(amount));
       if (amount > 0) {
-        showMessage(`✓ Added ${absAmount} coupons successfully!`, 'success');
+        showMessage(`Added ${absAmount} coupons successfully.`, 'success');
       } else {
-        showMessage(`✓ Deducted ${absAmount} coupons successfully!`, 'success');
+        showMessage(`Deducted ${absAmount} coupons successfully.`, 'success');
       }
     },
     onError: (error) => {
@@ -232,13 +238,6 @@ const CouponRecords = () => {
       .reduce((sum, t) => sum + Number(t.amount), 0));
   }, [filteredTransactions]);
 
-  // Calculate total earned
-  const totalEarned = useMemo(() => {
-    return filteredTransactions
-      .filter(t => Number(t.amount) > 0)
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-  }, [filteredTransactions]);
-  
   // Clear all filters
   const clearFilters = useCallback(() => {
     setDateFrom(null);
@@ -307,7 +306,7 @@ const CouponRecords = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Coupon Transactions');
     XLSX.writeFile(wb, `coupon-transactions-${new Date().toISOString().split('T')[0]}.xlsx`);
-    showMessage('✓ Excel file exported successfully!', 'success');
+    showMessage('Excel file exported successfully.', 'success');
   }, [summarizedTransactions, totalConsumed, showMessage, formatInt]);
 
   const handlePDFExport = useCallback(() => {
@@ -365,7 +364,7 @@ const CouponRecords = () => {
     doc.text(`Total Consumed: ${formatInt(totalConsumed)}`, 14, finalY + 7);
 
     doc.save(`coupon-transactions-${new Date().toISOString().split('T')[0]}.pdf`);
-    showMessage('✓ PDF file exported successfully!', 'success');
+    showMessage('PDF file exported successfully.', 'success');
   }, [summarizedTransactions, totalConsumed, dateFrom, dateTo, showMessage, formatInt]);
 
   const handleExport = useCallback((options) => {
@@ -406,12 +405,15 @@ const CouponRecords = () => {
               : 'bg-green-50 border-green-200 text-green-800'
           }`}>
             <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">{message}</span>
+              <div className="inline-flex items-center gap-2">
+                {messageType === 'error' ? <ErrorOutlineOutlinedIcon fontSize="small" /> : <CheckCircleOutlineOutlinedIcon fontSize="small" />}
+                <span className="font-medium text-sm">{message}</span>
+              </div>
               <button 
-                className="text-gray-500 hover:text-gray-700 ml-4" 
+                className="text-gray-500 hover:text-gray-700 ml-4 inline-flex items-center" 
                 onClick={() => setMessage('')}
               >
-                ×
+                <CloseRoundedIcon fontSize="small" />
               </button>
             </div>
           </div>
@@ -420,17 +422,17 @@ const CouponRecords = () => {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <span>🎟</span>
+            <ConfirmationNumberOutlinedIcon fontSize="medium" className="text-emerald-600" />
             Coupon Records
           </h1>
           <p className="text-sm text-gray-500 mt-1">Manage and track your coupon balance</p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-lg border border-gray-200 p-5">
             <div className="flex items-start justify-between mb-3">
-              <span className="text-2xl">💰</span>
+              <SavingsOutlinedIcon fontSize="large" className="text-emerald-600" />
               <span className="text-xs font-medium px-2 py-1 rounded bg-emerald-100 text-emerald-700">
                 Balance
               </span>
@@ -443,7 +445,7 @@ const CouponRecords = () => {
 
           <div className="bg-white rounded-lg border border-gray-200 p-5">
             <div className="flex items-start justify-between mb-3">
-              <span className="text-2xl">📊</span>
+              <BarChartOutlinedIcon fontSize="large" className="text-red-600" />
               <span className="text-xs font-medium px-2 py-1 rounded bg-red-100 text-red-700">
                 Used
               </span>
@@ -456,20 +458,7 @@ const CouponRecords = () => {
 
           <div className="bg-white rounded-lg border border-gray-200 p-5">
             <div className="flex items-start justify-between mb-3">
-              <span className="text-2xl">✨</span>
-              <span className="text-xs font-medium px-2 py-1 rounded bg-blue-100 text-blue-700">
-                Earned
-              </span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 mb-1">
-              {formatInt(totalEarned)}
-            </div>
-            <div className="text-sm font-medium text-gray-700">Total Earned</div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <div className="flex items-start justify-between mb-3">
-              <span className="text-2xl">📝</span>
+              <ListAltOutlinedIcon fontSize="large" className="text-gray-700" />
               <span className="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-700">
                 Count
               </span>
@@ -492,15 +481,20 @@ const CouponRecords = () => {
               <input
                 type="text"
                 inputMode="numeric"
-                pattern="[0-9]*"
                 value={adjustmentAmount}
                 onChange={(e) => {
                   const value = e.target.value;
-                  if (/^\d*$/.test(value)) {
+                  if (/^[\d,]*$/.test(value) && String(value).replace(/,/g, '').length <= 4) {
                     setAdjustmentAmount(value);
                   }
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === '-' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                    e.preventDefault();
+                  }
+                }}
                 placeholder="Enter amount"
+                maxLength={6}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
@@ -508,7 +502,7 @@ const CouponRecords = () => {
               type="button"
               onClick={() => {
                 const amount = toInt(adjustmentAmount);
-                if (amount <= 0) {
+                if (amount <= 0 || amount > 9999) {
                   showMessage('Please enter a valid amount', 'error');
                   return;
                 }
@@ -524,7 +518,7 @@ const CouponRecords = () => {
               type="button"
               onClick={() => {
                 const amount = toInt(adjustmentAmount);
-                if (amount <= 0) {
+                if (amount <= 0 || amount > 9999) {
                   showMessage('Please enter a valid amount', 'error');
                   return;
                 }

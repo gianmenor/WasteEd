@@ -4,6 +4,19 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TextField } from '@mui/material';
+import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import RecyclingOutlinedIcon from '@mui/icons-material/RecyclingOutlined';
+import SpaOutlinedIcon from '@mui/icons-material/SpaOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import ArrowUpwardOutlinedIcon from '@mui/icons-material/ArrowUpwardOutlined';
+import ArrowDownwardOutlinedIcon from '@mui/icons-material/ArrowDownwardOutlined';
+import FirstPageOutlinedIcon from '@mui/icons-material/FirstPageOutlined';
+import NavigateBeforeOutlinedIcon from '@mui/icons-material/NavigateBeforeOutlined';
+import NavigateNextOutlinedIcon from '@mui/icons-material/NavigateNextOutlined';
+import LastPageOutlinedIcon from '@mui/icons-material/LastPageOutlined';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -928,9 +941,7 @@ const WasteTable = () => {
                   onClick={refetch}
                   className="mt-3 inline-flex items-center px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors duration-200"
                 >
-                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  <RefreshOutlinedIcon fontSize="small" className="mr-2" />
                   Try Again
                 </button>
               </div>
@@ -939,9 +950,7 @@ const WasteTable = () => {
                 className="ml-4 text-red-400 hover:text-red-600 transition-colors duration-200"
                 aria-label="Dismiss error"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <CloseRoundedIcon fontSize="small" />
               </button>
             </div>
           </div>
@@ -952,9 +961,7 @@ const WasteTable = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-lg">
-                <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                <RecyclingOutlinedIcon className="text-emerald-600" />
               </div>
             </div>
             <div className="text-2xl font-bold text-gray-900">{statistics.recyclable.toLocaleString()}</div>
@@ -964,9 +971,7 @@ const WasteTable = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
-                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                </svg>
+                <SpaOutlinedIcon className="text-green-600" />
               </div>
             </div>
             <div className="text-2xl font-bold text-gray-900">{statistics.biodegradable.toLocaleString()}</div>
@@ -976,9 +981,7 @@ const WasteTable = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-lg">
-                <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
+                <DeleteOutlineOutlinedIcon className="text-gray-600" />
               </div>
             </div>
             <div className="text-2xl font-bold text-gray-900">{statistics.nonBiodegradable.toLocaleString()}</div>
@@ -988,9 +991,7 @@ const WasteTable = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
-                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
+                <BarChartOutlinedIcon className="text-blue-600" />
               </div>
             </div>
             <div className="text-2xl font-bold text-gray-900">{statistics.total.toLocaleString()}</div>
@@ -1010,14 +1011,7 @@ const WasteTable = () => {
                   className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                   aria-label="Refresh data"
                 >
-                  <svg
-                    className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  <RefreshOutlinedIcon className={`mr-2 ${loading ? 'animate-spin' : ''}`} fontSize="small" />
                   Refresh
                 </button>
                 <span className="text-sm text-gray-600">
@@ -1029,9 +1023,7 @@ const WasteTable = () => {
 
           {processedData.length === 0 ? (
             <div className="p-12 text-center">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+              <DescriptionOutlinedIcon className="mx-auto text-gray-400" style={{ fontSize: 48 }} />
               <h3 className="mt-4 text-lg font-medium text-gray-900">No Records Found</h3>
               <p className="mt-2 text-sm text-gray-500">
                 No waste collection data is currently available. Try adjusting your filters.
@@ -1049,7 +1041,7 @@ const WasteTable = () => {
                       >
                         <div className="flex items-center gap-2">
                           {sortBy === 'date' && (
-                            <span>{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                            sortOrder === 'asc' ? <ArrowUpwardOutlinedIcon fontSize="inherit" /> : <ArrowDownwardOutlinedIcon fontSize="inherit" />
                           )}
                           <span>Date</span>
                         </div>
@@ -1060,7 +1052,7 @@ const WasteTable = () => {
                       >
                         <div className="flex items-center gap-2">
                           {sortBy === 'time' && (
-                            <span>{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                            sortOrder === 'asc' ? <ArrowUpwardOutlinedIcon fontSize="inherit" /> : <ArrowDownwardOutlinedIcon fontSize="inherit" />
                           )}
                           <span>Time</span>
                         </div>
@@ -1072,7 +1064,7 @@ const WasteTable = () => {
                         <div className="flex items-center gap-2">
                           <span>Type</span>
                           {sortBy === 'type' && (
-                            <span>{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                            sortOrder === 'asc' ? <ArrowUpwardOutlinedIcon fontSize="inherit" /> : <ArrowDownwardOutlinedIcon fontSize="inherit" />
                           )}
                         </div>
                       </th>
@@ -1082,7 +1074,7 @@ const WasteTable = () => {
                       >
                         <div className="flex items-center gap-2">
                           {sortBy === 'quantity' && (
-                            <span>{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                            sortOrder === 'asc' ? <ArrowUpwardOutlinedIcon fontSize="inherit" /> : <ArrowDownwardOutlinedIcon fontSize="inherit" />
                           )}
                           <span>Quantity (pcs)</span>
                         </div>
@@ -1166,18 +1158,18 @@ const WasteTable = () => {
                       <button
                         onClick={() => goToPage(1)}
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
                         aria-label="First page"
                       >
-                        «
+                        <FirstPageOutlinedIcon fontSize="small" />
                       </button>
                       <button
                         onClick={goToPrevPage}
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
                         aria-label="Previous page"
                       >
-                        ‹
+                        <NavigateBeforeOutlinedIcon fontSize="small" />
                       </button>
 
                       {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -1212,18 +1204,18 @@ const WasteTable = () => {
                       <button
                         onClick={goToNextPage}
                         disabled={currentPage === totalPages}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
                         aria-label="Next page"
                       >
-                        ›
+                        <NavigateNextOutlinedIcon fontSize="small" />
                       </button>
                       <button
                         onClick={() => goToPage(totalPages)}
                         disabled={currentPage === totalPages}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
                         aria-label="Last page"
                       >
-                        »
+                        <LastPageOutlinedIcon fontSize="small" />
                       </button>
                     </div>
                   )}

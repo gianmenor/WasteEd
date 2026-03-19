@@ -15,8 +15,10 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 const JWT_EXPIRES_IN = '7d';
 const SALT_ROUNDS = 10;
-const DEFAULT_FORGOT_CODE = '1234';
-const DEFAULT_FORGOT_EMAIL = 'wasteed277@gmail.com';
+const DEFAULT_FORGOT_EMAIL = 'wasteed1234@gmail.com';
+const FORGOT_OTP_EXPIRY_MS = 10 * 60 * 1000;
+
+let forgotPasswordOtpState = null;
 
 const verifyAdmin = async (req, res, next) => {
   try {
@@ -72,6 +74,8 @@ const createMailerTransport = () => {
     }
   });
 };
+
+const generateSixDigitOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 
 // Setup login system with database
 router.post('/login', async (req, res) => {
@@ -185,22 +189,104 @@ router.post('/logout', async (req, res) => {
   return res.json({ message: 'Logged out successfully' });
 });
 
-// Forgot password flow: requires username, a 4-digit recovery code, and a new password.
-router.post('/forgot-password', async (req, res) => {
+// Step 1: Send OTP to configured recipient email.
+router.post('/forgot-password/request-otp', async (req, res) => {
   try {
-    const { username, recoveryCode, newPassword } = req.body;
+    const user = await prisma.account.findFirst({
+      orderBy: { id: 'asc' }
+    });
 
-    if (!username || !recoveryCode || !newPassword) {
-      return res.status(400).json({
+    if (!user) {
+      return res.status(404).json({
         success: false,
-        message: 'Username, recovery code, and new password are required'
+        message: 'Account not found'
       });
     }
 
-    if (!/^\d{4}$/.test(String(recoveryCode))) {
+    const recipient = process.env.FORGOT_PASSWORD_TO || user.email || DEFAULT_FORGOT_EMAIL;
+    const sender = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
+    const transporter = createMailerTransport();
+
+    if (!transporter || !sender) {
+      console.error('Forgot password OTP not sent: SMTP config is missing.');
+      return res.status(500).json({
+        success: false,
+        message: 'Cannot send OTP because SMTP is not configured.'
+      });
+    }
+
+    const otp = generateSixDigitOtp();
+    const expiresAt = Date.now() + FORGOT_OTP_EXPIRY_MS;
+
+    forgotPasswordOtpState = {
+      otp,
+      expiresAt,
+      userId: user.id
+    };
+
+    await transporter.sendMail({
+      from: sender,
+      to: recipient,
+      subject: '[Waste-Ed] Your Password Reset OTP',
+      text: `Waste-Ed Password Reset\n\nOTP: ${otp}\nValid for: 10 minutes\n\nIf you did not request this, please ignore this email.`,
+      html: `
+        <div style="margin:0;padding:24px;background:#f4f7fb;font-family:Segoe UI,Arial,sans-serif;color:#0f172a;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="background:linear-gradient(90deg,#047857,#0f766e);padding:22px 26px;color:#ffffff;">
+                <div style="font-size:20px;font-weight:700;letter-spacing:.2px;">Waste-Ed Security</div>
+                <div style="opacity:.9;font-size:13px;margin-top:4px;">Password Reset Verification</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:26px;">
+                <p style="margin:0 0 12px 0;font-size:15px;line-height:1.5;color:#334155;">A password reset request was made for your account. Use the one-time password below to continue:</p>
+                <div style="margin:18px 0 16px 0;text-align:center;">
+                  <span style="display:inline-block;padding:14px 24px;border-radius:10px;background:#ecfeff;border:1px solid #99f6e4;font-size:28px;letter-spacing:6px;font-weight:700;color:#0f766e;">${otp}</span>
+                </div>
+                <p style="margin:0 0 10px 0;font-size:14px;color:#475569;">This OTP is valid for <strong>10 minutes</strong>.</p>
+                <p style="margin:0;font-size:14px;color:#64748b;">If you did not request this reset, you can safely ignore this email.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 26px;border-top:1px solid #e2e8f0;background:#f8fafc;font-size:12px;color:#64748b;">
+                This is an automated security email from Waste-Ed. Please do not reply.
+              </td>
+            </tr>
+          </table>
+        </div>
+      `
+    });
+
+    return res.json({
+      success: true,
+      message: `OTP sent to ${recipient}.`
+    });
+  } catch (error) {
+    console.error('Forgot password OTP request error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send OTP'
+    });
+  }
+});
+
+// Step 2: Verify OTP and update password.
+router.post('/forgot-password/verify-otp', async (req, res) => {
+  try {
+    const { otp, newPassword } = req.body;
+
+    if (!otp || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Recovery code must be exactly 4 digits'
+        message: 'OTP and new password are required'
+      });
+    }
+
+    if (!/^\d{6}$/.test(String(otp))) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP must be exactly 6 digits'
       });
     }
 
@@ -211,61 +297,58 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
-    const expectedCode = process.env.FORGOT_PASSWORD_CODE || DEFAULT_FORGOT_CODE;
-    if (String(recoveryCode) !== String(expectedCode)) {
-      return res.status(401).json({
+    if (!forgotPasswordOtpState) {
+      return res.status(400).json({
         success: false,
-        message: 'Invalid recovery code'
+        message: 'No OTP request found. Please request an OTP first.'
       });
     }
 
-    const user = await prisma.account.findFirst({
-      where: { username }
+    if (Date.now() > forgotPasswordOtpState.expiresAt) {
+      forgotPasswordOtpState = null;
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new OTP.'
+      });
+    }
+
+    if (String(otp) !== forgotPasswordOtpState.otp) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid OTP'
+      });
+    }
+
+    const user = await prisma.account.findUnique({
+      where: { id: forgotPasswordOtpState.userId }
     });
 
     if (!user) {
+      forgotPasswordOtpState = null;
       return res.status(404).json({
         success: false,
         message: 'Account not found'
       });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(String(newPassword), SALT_ROUNDS);
 
     await prisma.account.update({
       where: { id: user.id },
       data: { password: hashedPassword }
     });
 
-    const recipient = process.env.FORGOT_PASSWORD_TO || DEFAULT_FORGOT_EMAIL;
-    const sender = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
-    const transporter = createMailerTransport();
-
-    if (!transporter || !sender) {
-      console.error('Forgot password email not sent: SMTP config is missing.');
-      return res.status(500).json({
-        success: false,
-        message: 'Password changed, but email notification could not be sent. Configure SMTP settings.'
-      });
-    }
-
-    await transporter.sendMail({
-      from: sender,
-      to: recipient,
-      subject: '[Waste-Ed] Password Reset Notification',
-      text: `Password reset completed for username: ${username}\nTime: ${new Date().toISOString()}`,
-      html: `<p>Password reset completed for username: <strong>${username}</strong></p><p>Time: ${new Date().toISOString()}</p>`
-    });
+    forgotPasswordOtpState = null;
 
     return res.json({
       success: true,
-      message: 'Password reset successful. Notification email sent.'
+      message: 'Password reset successful.'
     });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error('Forgot password OTP verify error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to process forgot password request'
+      message: 'Failed to verify OTP'
     });
   }
 });

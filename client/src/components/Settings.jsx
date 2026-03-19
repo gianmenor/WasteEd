@@ -1,5 +1,9 @@
 import React, { useState, useMemo, useCallback, memo } from 'react';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
@@ -109,8 +113,8 @@ const Settings = () => {
 
   // Memoize tabs array - removed accounts tab per PRD (single admin user)
   const tabs = useMemo(() => [
-    { id: 'system', label: 'System', icon: '' },
-    { id: 'profile', label: 'Profile', icon: '' },
+    { id: 'system', label: 'System', icon: <SettingsOutlinedIcon fontSize="small" /> },
+    { id: 'profile', label: 'Profile', icon: <PersonOutlineOutlinedIcon fontSize="small" /> },
   ], []);
 
   // Memoize UI size class
@@ -152,7 +156,10 @@ const Settings = () => {
                   }`}
                   onClick={() => setActiveTab(tab.id)}
                 >
-                  {tab.label}
+                  <span className="inline-flex items-center gap-2">
+                    {tab.icon}
+                    {tab.label}
+                  </span>
                 </button>
               </li>
             ))}
@@ -269,7 +276,7 @@ const Settings = () => {
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
                         onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showPassword ? '👁️' : '👁️‍🗨️'}
+                        {showPassword ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
                       </button>
                     </div>
                     {profile.password && (
@@ -292,7 +299,7 @@ const Settings = () => {
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       >
-                        {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+                        {showConfirmPassword ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
                       </button>
                     </div>
                   </div>

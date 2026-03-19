@@ -1,5 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getInventoryItems, createInventoryItem, updateInventoryItem, updateItemStock, deleteInventoryItem } from '../config/api';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 
 export default function InventoryManagement() {
   const [items, setItems] = useState([]);
@@ -36,15 +39,35 @@ export default function InventoryManagement() {
     return Number.isFinite(parsed) ? parsed : fallback;
   };
 
-  const normalizeStock = (stock) => {
+  const parseWholeNumber = useCallback((value, fallback = 0) => {
+    const normalized = String(value ?? '').replace(/,/g, '').trim();
+    if (!normalized) return fallback;
+    const parsed = Number.parseInt(normalized, 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }, []);
+
+  const formatWholeNumberInput = useCallback((value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    const safe = parseWholeNumber(value, 0);
+    return safe.toLocaleString('en-US');
+  }, [parseWholeNumber]);
+
+  const sanitizeWholeNumberInput = useCallback((rawValue, max = 9999) => {
+    const cleaned = String(rawValue ?? '').replace(/[^\d,]/g, '');
+    if (!cleaned) return '';
+    const parsed = parseWholeNumber(cleaned, 0);
+    return Math.min(Math.max(parsed, 0), max);
+  }, [parseWholeNumber]);
+
+  const normalizeStock = useCallback((stock) => {
     const safeStock = Math.floor(toSafeNumber(stock, 0));
     return safeStock < 0 ? 0 : safeStock;
-  };
+  }, []);
 
   const formatPrice = (price) => {
     const safePrice = toSafeNumber(price, null);
     if (safePrice === null) return null;
-    return `₱${safePrice.toFixed(2)}`;
+    return `₱${Math.floor(safePrice).toLocaleString('en-US')}`;
   };
 
   useEffect(() => {
@@ -231,12 +254,12 @@ export default function InventoryManagement() {
     });
 
     return filtered;
-  }, [items, filters]);
+  }, [items, filters, normalizeStock]);
 
   const getStockStatus = (item) => {
     const safeStock = normalizeStock(item?.stock);
-    if (!item?.isActive || safeStock === 0) return { label: 'No stock', class: 'no-stock' };
-    if (safeStock < 20) return { label: 'Low on stock', class: 'low-stock' };
+    if (safeStock === 0) return { label: 'No stock', class: 'no-stock' };
+    if (safeStock < 20) return { label: 'Low Stocks', class: 'low-stock' };
     return { label: 'Available', class: 'available' };
   };
 
@@ -295,7 +318,7 @@ export default function InventoryManagement() {
             >
               <option value="all">All Status</option>
               <option value="available">Available</option>
-              <option value="low-stock">Low on stock (&lt;20)</option>
+              <option value="low-stock">Low Stocks (&lt;20)</option>
               <option value="no-stock">No stock</option>
             </select>
           </div>
@@ -412,10 +435,10 @@ export default function InventoryManagement() {
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-center gap-2">
                         <button className="p-2 border border-orange-300 bg-white rounded-md text-xs font-medium cursor-pointer transition-all hover:bg-orange-50 hover:border-orange-500 hover:shadow-md" onClick={() => openEditModal(item)} title="Edit">
-                          ✏️ Edit
+                          <span className="inline-flex items-center gap-1"><EditOutlinedIcon fontSize="small" /> Edit</span>
                         </button>
                         <button className="p-2 border border-red-300 bg-white rounded-md text-xs font-medium cursor-pointer transition-all hover:bg-red-50 hover:border-red-500 hover:shadow-md" onClick={() => handleDeleteItem(item.id)} title="Delete">
-                          🗑️
+                          <DeleteOutlineIcon fontSize="small" />
                         </button>
                       </div>
                     </td>
@@ -479,10 +502,10 @@ export default function InventoryManagement() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <button className="py-2.5 px-2 border border-orange-300 bg-white rounded-lg text-xs font-medium cursor-pointer transition-all hover:bg-orange-50 hover:border-orange-500 hover:shadow-md" onClick={() => openEditModal(item)}>
-                    ✏️ Edit
+                    <span className="inline-flex items-center gap-1"><EditOutlinedIcon fontSize="small" /> Edit</span>
                   </button>
                   <button className="py-2.5 px-2 border border-red-300 bg-white rounded-lg text-xs font-medium cursor-pointer transition-all hover:bg-red-50 hover:border-red-500 hover:shadow-md" onClick={() => handleDeleteItem(item.id)}>
-                    🗑️ Delete
+                    <span className="inline-flex items-center gap-1"><DeleteOutlineIcon fontSize="small" /> Delete</span>
                   </button>
                 </div>
               </div>
@@ -492,7 +515,7 @@ export default function InventoryManagement() {
 
         {filteredAndSortedItems.length === 0 && !loading && (
           <div className="text-center py-16 px-5 bg-white border border-gray-200 rounded-xl">
-            <div className="text-5xl mb-4">📦</div>
+            <div className="text-5xl mb-4 text-gray-400"><Inventory2OutlinedIcon fontSize="inherit" /></div>
             <p className="text-lg text-gray-600 font-medium mb-2">No items found</p>
             {(filters.search || filters.status !== 'all' || filters.costRange !== 'all') && (
               <button className="mt-4 py-2 px-5 border-none rounded-lg text-sm font-medium cursor-pointer transition-all bg-gray-600 text-white hover:bg-gray-700" onClick={resetFilters}>
@@ -534,14 +557,16 @@ export default function InventoryManagement() {
                 <div className="mb-5">
                   <label className="block mb-2 font-medium text-gray-900">Cost (coupons) *</label>
                   <input
-                    type="number"
-                    min="1"
-                    max="999"
-                    value={formData.cost}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatWholeNumberInput(formData.cost)}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 999)) {
-                        setFormData({ ...formData, cost: value === '' ? '' : parseInt(value) });
+                      const value = sanitizeWholeNumberInput(e.target.value, 9999);
+                      setFormData({ ...formData, cost: value === '' ? '' : value });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === '-' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                        e.preventDefault();
                       }
                     }}
                     required
@@ -552,15 +577,16 @@ export default function InventoryManagement() {
                 <div className="mb-5">
                   <label className="block mb-2 font-medium text-gray-900">Price (₱)</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="999"
-                    step="0.01"
-                    value={formData.price}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatWholeNumberInput(formData.price)}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '' || parseFloat(value) <= 999) {
-                        setFormData({ ...formData, price: value });
+                      const value = sanitizeWholeNumberInput(e.target.value, 9999);
+                      setFormData({ ...formData, price: value === '' ? '' : value });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === '-' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                        e.preventDefault();
                       }
                     }}
                     placeholder="Optional"
@@ -572,14 +598,16 @@ export default function InventoryManagement() {
               <div className="mb-5">
                 <label className="block mb-2 font-medium text-gray-900">Initial Stock</label>
                 <input
-                  type="number"
-                  min="0"
-                  max="999"
-                  value={formData.stock}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatWholeNumberInput(formData.stock)}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 999)) {
-                      setFormData({ ...formData, stock: value === '' ? 0 : parseInt(value) });
+                    const value = sanitizeWholeNumberInput(e.target.value, 9999);
+                    setFormData({ ...formData, stock: value === '' ? 0 : value });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === '-' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                      e.preventDefault();
                     }
                   }}
                   className="w-full py-2.5 px-2 border border-gray-300 rounded-md text-sm transition-colors bg-white text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
@@ -642,14 +670,16 @@ export default function InventoryManagement() {
                 <div className="mb-5">
                   <label className="block mb-2 font-medium text-gray-900">Cost (coupons) *</label>
                   <input
-                    type="number"
-                    min="1"
-                    max="999"
-                    value={formData.cost}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatWholeNumberInput(formData.cost)}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 999)) {
-                        setFormData({ ...formData, cost: value === '' ? '' : parseInt(value) });
+                      const value = sanitizeWholeNumberInput(e.target.value, 9999);
+                      setFormData({ ...formData, cost: value === '' ? '' : value });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === '-' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                        e.preventDefault();
                       }
                     }}
                     required
@@ -660,15 +690,16 @@ export default function InventoryManagement() {
                 <div className="mb-5">
                   <label className="block mb-2 font-medium text-gray-900">Price (₱)</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="999"
-                    step="0.01"
-                    value={formData.price}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatWholeNumberInput(formData.price)}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '' || parseFloat(value) <= 999) {
-                        setFormData({ ...formData, price: value });
+                      const value = sanitizeWholeNumberInput(e.target.value, 9999);
+                      setFormData({ ...formData, price: value === '' ? '' : value });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === '-' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                        e.preventDefault();
                       }
                     }}
                     placeholder="Optional"
@@ -680,14 +711,16 @@ export default function InventoryManagement() {
               <div className="mb-5">
                 <label className="block mb-2 font-medium text-gray-900">Current Stock</label>
                 <input
-                  type="number"
-                  min="0"
-                  max="999"
-                  value={formData.stock}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatWholeNumberInput(formData.stock)}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 999)) {
-                      setFormData({ ...formData, stock: value === '' ? 0 : parseInt(value) });
+                    const value = sanitizeWholeNumberInput(e.target.value, 9999);
+                    setFormData({ ...formData, stock: value === '' ? 0 : value });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === '-' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                      e.preventDefault();
                     }
                   }}
                   className="w-full py-2.5 px-2 border border-gray-300 rounded-md text-sm transition-colors bg-white text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"

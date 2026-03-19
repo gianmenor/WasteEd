@@ -8,6 +8,13 @@ import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumb
 import MonetizationOnOutlinedIcon from '@mui/icons-material/MonetizationOnOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined';
+import NotificationsOffOutlinedIcon from '@mui/icons-material/NotificationsOffOutlined';
+import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import ConfirmationNumberOutlinedIcon2 from '@mui/icons-material/ConfirmationNumberOutlined';
 import { API_ENDPOINTS } from '../config/api';
 import brandLogo from '../assets/brandName.png';
 
@@ -52,6 +59,13 @@ const NotificationItem = memo(({ notification, onClick, formatTime }) => {
     onClick(notification);
   }, [notification, onClick]);
 
+  const icon = useMemo(() => {
+    if (notification.type === 'coupon_low_stock') {
+      return <ConfirmationNumberOutlinedIcon2 fontSize="medium" className="text-amber-600" />;
+    }
+    return <DeleteOutlineOutlinedIcon fontSize="medium" className="text-red-600" />;
+  }, [notification.type]);
+
   return (
     <div
       className={`p-4 md:p-5 border-b border-gray-200 cursor-pointer transition-all duration-200 hover:bg-green-50 last:border-b-0 ${!notification.isRead ? 'bg-green-50' : ''}`}
@@ -59,9 +73,7 @@ const NotificationItem = memo(({ notification, onClick, formatTime }) => {
     >
       <div className="flex gap-3 items-start">
         <div className="relative flex-shrink-0">
-          <span className="text-2xl md:text-xl block">
-            {notification.icon}
-          </span>
+          <span className="text-2xl md:text-xl block">{icon}</span>
           {!notification.isRead && (
             <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></div>
           )}
@@ -340,7 +352,6 @@ const Dashboard = ({ user, onLogout, children }) => {
             ? 'Coupon balance is 0. Add stock to continue rewards redemption.'
             : `Coupon balance is ${Math.floor(balance)}. Consider replenishing soon.`,
           timestamp: new Date().toISOString(),
-          icon: '🎟️',
           priority: 'high',
           isRead,
         });
@@ -405,7 +416,7 @@ const Dashboard = ({ user, onLogout, children }) => {
             <header className="bg-white border-b border-gray-200 py-3 px-6 md:px-4 flex justify-between items-center shadow-[0_2px_4px_rgba(0,0,0,0.1)] z-[100]">
               <div className="flex items-center gap-4">
                 <button className="md:hidden bg-none border-none p-2 rounded-md cursor-pointer text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-900" onClick={toggleSidebar}>
-                  <span className="text-xl">☰</span>
+                  <MenuRoundedIcon fontSize="medium" />
                 </button>
                 <h2 className="text-2xl md:text-[1.1rem] font-semibold m-0 text-gray-900">
                   {currentPageTitle}
@@ -419,7 +430,7 @@ const Dashboard = ({ user, onLogout, children }) => {
                     title="Notifications"
                     onClick={toggleNotificationMenu}
                   >
-                    <span className="text-xl">🔔</span>
+                    <NotificationsOutlinedIcon fontSize="medium" />
                     {computedUnreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] leading-[18px] text-center font-semibold">
                         {computedUnreadCount > 99 ? '99+' : computedUnreadCount}
@@ -428,9 +439,16 @@ const Dashboard = ({ user, onLogout, children }) => {
                   </button>
 
                   {notificationMenuOpen && (
-                    <div className="absolute top-full right-0 mt-2 w-[360px] max-h-[500px] bg-white border border-gray-200 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-[20px] z-[1000] overflow-hidden animate-slideDown md:fixed md:top-auto md:bottom-[76px] md:right-0 md:left-0 md:w-full md:max-w-full md:max-h-[70vh] md:m-0 md:rounded-t-2xl md:rounded-b-none md:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] max-[480px]:max-h-[75vh]">
-                      <div className="p-4 md:p-4 md:sticky md:top-0 md:bg-white md:z-[1] max-[480px]:p-3 border-b border-gray-200 flex items-center justify-between">
-                        <h3 className="m-0 text-base md:text-base max-[480px]:text-[0.9rem] font-semibold text-gray-900">Notifications</h3>
+                    <div
+                      className="fixed inset-0 bg-black/20 z-[995] md:hidden"
+                      onClick={() => setNotificationMenuOpen(false)}
+                    ></div>
+                  )}
+
+                  {notificationMenuOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-[360px] max-h-[500px] bg-white border border-gray-200 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] z-[1000] overflow-hidden animate-slideDown max-md:fixed max-md:left-2 max-md:right-2 max-md:top-[72px] max-md:bottom-[84px] max-md:w-auto max-md:max-h-none max-md:mt-0 max-md:rounded-xl max-md:shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
+                      <div className="p-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-[1]">
+                        <h3 className="m-0 text-base font-semibold text-gray-900">Notifications</h3>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -449,10 +467,10 @@ const Dashboard = ({ user, onLogout, children }) => {
                         </div>
                       </div>
                       
-                      <div className="max-h-[400px] md:max-h-[calc(70vh-70px)] max-[480px]:max-h-[calc(75vh-65px)] overflow-y-auto">
+                      <div className="max-h-[400px] max-md:max-h-[calc(100%-64px)] overflow-y-auto">
                         {displayNotifications.length === 0 ? (
                           <div className="p-8 text-center text-gray-600">
-                            <span className="text-3xl mb-2 block">🔕</span>
+                            <NotificationsOffOutlinedIcon fontSize="large" className="mb-2 text-gray-400" />
                             <p>No notifications</p>
                           </div>
                         ) : (
@@ -475,7 +493,7 @@ const Dashboard = ({ user, onLogout, children }) => {
                     className="flex items-center gap-2 bg-none border-none py-2 px-3 rounded-md cursor-pointer text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-900"
                     onClick={toggleUserMenu}
                   >
-                    <span className="text-xl">👤</span>
+                    <AccountCircleOutlinedIcon fontSize="medium" />
                     <span className="font-medium text-[0.9rem] md:hidden">{user?.username || 'User'}</span>
                     <span className="text-xs transition-transform duration-200">▼</span>
                   </button>
@@ -487,11 +505,11 @@ const Dashboard = ({ user, onLogout, children }) => {
                       </div>
                       <div className="h-px bg-gray-200 m-0"></div>
                       <button className="flex items-center gap-2 py-3 px-4 bg-none border-none w-full text-left cursor-pointer text-gray-600 transition-all duration-200 text-[0.9rem] hover:bg-green-50 hover:text-gray-900" onClick={handleSettingsClick}>
-                        <span className="text-base">⚙️</span>
+                        <SettingsOutlinedIcon fontSize="small" />
                         Settings
                       </button>
                       <button className="flex items-center gap-2 py-3 px-4 bg-none border-none w-full text-left cursor-pointer text-gray-600 transition-all duration-200 text-[0.9rem] rounded-b-lg hover:bg-green-50 hover:text-gray-900" onClick={handleLogout}>
-                        <span className="text-base">⏻</span>
+                        <LogoutOutlinedIcon fontSize="small" />
                         Logout
                       </button>
                     </div>
