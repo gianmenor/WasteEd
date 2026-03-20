@@ -147,7 +147,7 @@ const getWasteRecords = async (req, res) => {
 
     // Get records and total count with retry logic
     const [allRecords, totalCount] = await retryOperation(async () => {
-      return await Promise.all([
+      return await prisma.$transaction([
         prisma.waste_items.findMany(queryOptions),
         prisma.waste_items.count({ where: whereClause })
       ]);
@@ -397,7 +397,7 @@ const getWasteSummary = async (req, res) => {
     }
 
     const [records, totalRecords] = await retryOperation(async () => {
-      return await Promise.all([
+      return await prisma.$transaction([
         prisma.waste_items.findMany({
           where: whereClause,
           orderBy: { date: 'desc' }

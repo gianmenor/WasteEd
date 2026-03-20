@@ -332,11 +332,7 @@ router.get('/summary', async (req, res) => {
       thisMonth.setDate(1);
       thisMonth.setHours(0, 0, 0, 0);
 
-      return await Promise.all([
-        // Total count
-        prisma.bin.count(),
-        
-        // Today count
+      return await prisma.$transaction([
         prisma.bin.count({
           where: {
             fullAt: {

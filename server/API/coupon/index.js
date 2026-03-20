@@ -97,19 +97,17 @@ router.get('/transactions', async (req, res) => {
       where.type = type;
     }
 
-    const [transactions, total] = await Promise.all([
-      retryOperation(async () => {
-        return await prisma.couponTransaction.findMany({
+    const [transactions, total] = await retryOperation(async () => {
+      return await prisma.$transaction([
+        prisma.couponTransaction.findMany({
           where,
           orderBy: { createdAt: 'desc' },
           skip,
           take: limitNum
-        });
-      }),
-      retryOperation(async () => {
-        return await prisma.couponTransaction.count({ where });
-      })
-    ]);
+        }),
+        prisma.couponTransaction.count({ where })
+      ]);
+    });
 
     res.json({
       success: true,
@@ -162,15 +160,13 @@ router.post('/add', async (req, res) => {
     const newBalance = coupon.balance + amount;
 
     // Update balance and create transaction
-    const [updatedCoupon, transaction] = await Promise.all([
-      retryOperation(async () => {
-        return await prisma.coupon.update({
+    const [updatedCoupon, transaction] = await retryOperation(async () => {
+      return await prisma.$transaction([
+        prisma.coupon.update({
           where: { id: coupon.id },
           data: { balance: newBalance }
-        });
-      }),
-      retryOperation(async () => {
-        return await prisma.couponTransaction.create({
+        }),
+        prisma.couponTransaction.create({
           data: {
             type: 'ADD',
             amount,
@@ -178,9 +174,9 @@ router.post('/add', async (req, res) => {
             reason: 'Admin added coupons',
             notes
           }
-        });
-      })
-    ]);
+        })
+      ]);
+    });
 
     res.json({
       success: true,
@@ -244,15 +240,13 @@ router.post('/adjust', async (req, res) => {
       });
     }
 
-    const [updatedCoupon, transaction] = await Promise.all([
-      retryOperation(async () => {
-        return await prisma.coupon.update({
+    const [updatedCoupon, transaction] = await retryOperation(async () => {
+      return await prisma.$transaction([
+        prisma.coupon.update({
           where: { id: coupon.id },
           data: { balance: newBalance }
-        });
-      }),
-      retryOperation(async () => {
-        return await prisma.couponTransaction.create({
+        }),
+        prisma.couponTransaction.create({
           data: {
             type: 'ADJUST',
             amount,
@@ -260,9 +254,9 @@ router.post('/adjust', async (req, res) => {
             reason,
             notes
           }
-        });
-      })
-    ]);
+        })
+      ]);
+    });
 
     res.json({
       success: true,
@@ -379,29 +373,27 @@ export const consumeCoupons = async (wasteRecordId, amount = 1) => {
     const newBalance = coupon.balance - amount;
     const newUsed = coupon.used + amount;
 
-    const [updatedCoupon, transaction] = await Promise.all([
-      retryOperation(async () => {
-        return await prisma.coupon.update({
+const [updatedCoupon, transaction] = await retryOperation(async () => {
+      return await prisma.$transaction([
+        prisma.coupon.update({
           where: { id: coupon.id },
-          data: { 
+          data: {
             balance: newBalance,
             used: newUsed
           }
-        });
-      }),
-      retryOperation(async () => {
-        return await prisma.couponTransaction.create({
+        }),
+        prisma.couponTransaction.create({
           data: {
             type: 'USE',
             amount: -amount,
             balance: newBalance,
             reason: 'Waste record processed',
             wasteRecordId,
-            notes: `Auto-consumed ${amount} coupon(s) for waste processing`
+            notes: `Auto-consumed ${amount} coupon(s) for waste processing`     
           }
-        });
-      })
-    ]);
+        })
+      ]);
+    });
 
     return { updatedCoupon, transaction };
   } catch (error) {

@@ -45,19 +45,17 @@ router.get('/records', async (req, res) => {
       where.date = dateFilter;
     }
 
-    const [records, total] = await Promise.all([
-      retryOperation(async () => {
-        return await prisma.profitReward.findMany({
+    const [records, total] = await retryOperation(async () => {
+      return await prisma.$transaction([
+        prisma.profitReward.findMany({
           where,
           orderBy: { date: 'desc' },
           skip,
           take: limitNum
-        });
-      }),
-      retryOperation(async () => {
-        return await prisma.profitReward.count({ where });
-      })
-    ]);
+        }),
+        prisma.profitReward.count({ where })
+      ]);
+    });
 
     res.json({
       success: true,

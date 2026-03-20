@@ -471,9 +471,9 @@ router.get('/redemptions/history', verifyToken, async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    const [redemptions, total] = await Promise.all([
-      retryOperation(async () => {
-        return await prisma.inventoryRedemption.findMany({
+    const [redemptions, total] = await retryOperation(async () => {
+      return await prisma.$transaction([
+        prisma.inventoryRedemption.findMany({
           include: {
             item: {
               select: {
@@ -485,12 +485,10 @@ router.get('/redemptions/history', verifyToken, async (req, res) => {
           orderBy: { createdAt: 'desc' },
           skip,
           take: limitNum
-        });
-      }),
-      retryOperation(async () => {
-        return await prisma.inventoryRedemption.count();
-      })
-    ]);
+        }),
+        prisma.inventoryRedemption.count()
+      ]);
+    });
 
     res.json({
       success: true,

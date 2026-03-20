@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
 
     // Get records with retry operation for reliability
     const [records, totalCount] = await retryOperation(async () => {
-      return await Promise.all([
+      return await prisma.$transaction([
         prisma.bin.findMany({
           where: dateFilter,
           orderBy: {
