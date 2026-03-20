@@ -11,7 +11,6 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined';
 import NotificationsOffOutlinedIcon from '@mui/icons-material/NotificationsOffOutlined';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
-import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import ConfirmationNumberOutlinedIcon2 from '@mui/icons-material/ConfirmationNumberOutlined';
@@ -118,7 +117,6 @@ const SidebarNav = memo(({ items, currentPath, onItemClick }) => (
 SidebarNav.displayName = 'SidebarNav';
 
 const Dashboard = ({ user, onLogout, children }) => {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -158,14 +156,7 @@ const Dashboard = ({ user, onLogout, children }) => {
   // Memoize callbacks to prevent re-renders
   const handleMenuClick = useCallback((path) => {
     navigate(path);
-    if (window.innerWidth <= 768) {
-      setMobileOpen(false);
-    }
   }, [navigate]);
-
-  const toggleSidebar = useCallback(() => {
-    setMobileOpen(prev => !prev);
-  }, []);
 
   const toggleNotificationMenu = useCallback(() => {
     setNotificationMenuOpen(prev => !prev);
@@ -306,11 +297,6 @@ const Dashboard = ({ user, onLogout, children }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close mobile menu on route change
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [location.pathname]);
-
   // Poll coupon balance and raise low-stock notifications.
   useEffect(() => {
     let intervalId;
@@ -372,13 +358,8 @@ const Dashboard = ({ user, onLogout, children }) => {
     <SettingsContext.Provider value={settingsValue}>
       <ThemeContext.Provider value={themeValue}>
         <div className="flex h-screen bg-[#f8fdf8] text-gray-900 font-['Inter',-apple-system,BlinkMacSystemFont,sans-serif] transition-all duration-300">
-          {/* Mobile Overlay */}
-          {mobileOpen && (
-            <div className="fixed top-0 left-0 w-full h-full bg-black/50 z-[998] md:hidden" onClick={() => setMobileOpen(false)}></div>
-          )}
-
           {/* Sidebar */}
-          <aside className={`w-[280px] bg-white border-r border-gray-200 flex-col transition-all duration-300 shadow-[2px_0_8px_rgba(0,0,0,0.1)] z-[999] fixed top-0 h-screen ${mobileOpen ? 'left-0' : '-left-[280px]'} md:left-0 hidden md:flex`}>
+          <aside className="w-[280px] bg-white border-r border-gray-200 flex-col transition-all duration-300 shadow-[2px_0_8px_rgba(0,0,0,0.1)] z-[999] fixed top-0 h-screen left-0 hidden md:flex">
             <div className="p-5 border-b-2 border-gray-200 bg-gradient-to-br from-green-600/5 to-green-500/5">
               <img src={brandLogo} alt="Waste-Ed" className="w-[90px] h-auto block m-0" />
             </div>
@@ -413,12 +394,9 @@ const Dashboard = ({ user, onLogout, children }) => {
           {/* Main Content */}
           <div className="flex-1 flex flex-col overflow-hidden pb-[76px] md:pb-0 md:ml-[280px]">
             {/* Top Bar */}
-            <header className="bg-white border-b border-gray-200 py-3 px-6 md:px-4 flex justify-between items-center shadow-[0_2px_4px_rgba(0,0,0,0.1)] z-[100]">
+            <header className="bg-white border-b border-gray-200 py-3 px-4 md:px-6 flex justify-between items-center shadow-[0_2px_4px_rgba(0,0,0,0.1)] z-[100]">
               <div className="flex items-center gap-4">
-                <button className="md:hidden bg-none border-none p-2 rounded-md cursor-pointer text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-900" onClick={toggleSidebar}>
-                  <MenuRoundedIcon fontSize="medium" />
-                </button>
-                <h2 className="text-2xl md:text-[1.1rem] font-semibold m-0 text-gray-900">
+                <h2 className="text-lg sm:text-xl font-semibold m-0 text-gray-900 truncate max-w-[150px] sm:max-w-xs md:max-w-none">
                   {currentPageTitle}
                 </h2>
               </div>
@@ -490,11 +468,11 @@ const Dashboard = ({ user, onLogout, children }) => {
 
                 <div className="relative" ref={userMenuRef}>
                   <button
-                    className="flex items-center gap-2 bg-none border-none py-2 px-3 rounded-md cursor-pointer text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-900"
+                    className="flex items-center gap-1.5 sm:gap-2 bg-none border-none py-1.5 sm:py-2 px-2 sm:px-3 rounded-md cursor-pointer text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-900"
                     onClick={toggleUserMenu}
                   >
                     <AccountCircleOutlinedIcon fontSize="medium" />
-                    <span className="font-medium text-[0.9rem] md:hidden">{user?.username || 'User'}</span>
+                    <span className="font-medium text-[0.9rem] hidden sm:inline">{user?.username || 'User'}</span>
                     <span className="text-xs transition-transform duration-200">▼</span>
                   </button>
 

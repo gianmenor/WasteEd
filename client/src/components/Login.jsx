@@ -164,14 +164,14 @@ const Login = () => {
               <label htmlFor="password" className="text-sm font-medium text-gray-800">
                 Password
               </label>
-              <div className="relative flex">
+              <div className="relative flex w-full">
                 <input
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   value={credentials.password}
                   onChange={handleChange}
-                  className="flex-1 pr-12 px-4 py-3 border border-gray-200 rounded-lg text-base bg-white text-gray-800 transition-all duration-200 focus:outline-none focus:border-green-600 focus:ring-[3px] focus:ring-green-600/10 placeholder:text-gray-400"
+                  className="w-full min-w-0 pr-12 px-4 py-3 border border-gray-200 rounded-lg text-base bg-white text-gray-800 transition-all duration-200 focus:outline-none focus:border-green-600 focus:ring-[3px] focus:ring-green-600/10 placeholder:text-gray-400"
                   placeholder="Enter your password"
                   required
                   autoComplete="current-password"

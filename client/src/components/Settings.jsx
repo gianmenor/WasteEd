@@ -223,7 +223,7 @@ const Settings = () => {
                   <div className="flex-1 md:mr-4">
                     <label className="text-sm font-semibold text-[#1f2328] mb-1 block">Launch Kiosk</label>
                     <p className="text-[13px] text-[#656d76] m-0 leading-snug">
-                      Open kiosk mode for Raspberry Pi display with idle and waste-triggered videos.
+                      Open kiosk mode for Screen display with idle and waste-triggered videos.
                     </p>
                   </div>
                   <div className="flex-shrink-0 flex items-center">

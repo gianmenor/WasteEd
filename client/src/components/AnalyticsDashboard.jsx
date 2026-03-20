@@ -27,9 +27,9 @@ import LoadingSpinner from './LoadingSpinner';
 
 // Skeleton loading component
 const ChartSkeleton = memo(() => (
-  <div className="bg-white rounded-lg p-6 border border-gray-200">
-    <div className="h-4 bg-gray-100 rounded w-1/3 mb-4 animate-pulse"></div>
-    <div className="h-64 bg-gray-50 rounded animate-pulse"></div>
+  <div className="bg-white rounded-lg p-3 sm:p-5 border border-gray-200">
+    <div className="h-4 sm:h-5 bg-gray-100 rounded w-1/3 mb-4 animate-pulse"></div>
+    <div className="h-48 sm:h-64 bg-gray-50 rounded animate-pulse"></div>
   </div>
 ));
 
@@ -37,9 +37,9 @@ ChartSkeleton.displayName = 'ChartSkeleton';
 
 // Metric card skeleton
 const MetricSkeleton = memo(() => (
-  <div className="bg-white rounded-lg p-6 border border-gray-200">
-    <div className="h-12 bg-gray-100 rounded mb-2 animate-pulse"></div>
-    <div className="h-6 bg-gray-50 rounded w-2/3 animate-pulse"></div>
+  <div className="bg-white rounded-lg p-3 sm:p-5 border border-gray-200">
+    <div className="h-6 sm:h-12 bg-gray-100 rounded mb-2 animate-pulse"></div>
+    <div className="h-4 sm:h-6 bg-gray-50 rounded w-2/3 animate-pulse"></div>
   </div>
 ));
 
@@ -459,7 +459,7 @@ const AnalyticsDashboard = () => {
           doc.text('Recyclable Wastes', 14, startY);
           
           autoTable(doc, {
-            head: [['Date', 'Amount (pcs)']],
+            head: [['Date', 'Count']],
             body: recyclableData,
             startY: startY + 5,
             headStyles: { fillColor: [34, 197, 94] },
@@ -482,7 +482,7 @@ const AnalyticsDashboard = () => {
           doc.text('Wet Wastes', 14, startY);
           
           autoTable(doc, {
-            head: [['Date', 'Amount (pcs)']],
+            head: [['Date', 'Count']],
             body: wetData,
             startY: startY + 5,
             headStyles: { fillColor: [132, 204, 22] },
@@ -505,7 +505,7 @@ const AnalyticsDashboard = () => {
           doc.text('Dry Wastes', 14, startY);
           
           autoTable(doc, {
-            head: [['Date', 'Amount (pcs)']],
+            head: [['Date', 'Count']],
             body: dryData,
             startY: startY + 5,
             headStyles: { fillColor: [249, 115, 22] },
@@ -777,21 +777,21 @@ const AnalyticsDashboard = () => {
   // Show skeleton while loading
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6">
-            <div className="h-8 bg-gray-100 rounded w-64 mb-4 animate-pulse"></div>
+          <div className="mb-4 sm:mb-6 bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+            <div className="h-8 bg-gray-100 rounded w-48 sm:w-64 mb-4 animate-pulse"></div>
             <div className="h-10 bg-gray-50 rounded animate-pulse"></div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
             <MetricSkeleton />
             <MetricSkeleton />
             <MetricSkeleton />
             <MetricSkeleton />
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             <ChartSkeleton />
             <ChartSkeleton />
           </div>
@@ -819,11 +819,11 @@ const AnalyticsDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6 pb-20 sm:pb-6">
       <div className="max-w-7xl mx-auto">
         {/* Toast Notification */}
         {toast && (
-          <div className={`fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg border transition-all ${
+          <div className={`fixed top-4 right-4 z-50 max-w-sm sm:max-w-md p-3 sm:p-4 rounded-lg border transition-all ${
             toast.type === 'success' 
               ? 'bg-green-50 border-green-200 text-green-800' 
               : 'bg-red-50 border-red-200 text-red-800'
@@ -831,10 +831,10 @@ const AnalyticsDashboard = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span>{toast.type === 'success' ? <CheckCircleOutlineOutlinedIcon fontSize="small" /> : <ErrorOutlineOutlinedIcon fontSize="small" />}</span>
-                <span className="font-medium text-sm">{toast.message}</span>
+                <span className="font-medium text-xs sm:text-sm">{toast.message}</span>
               </div>
               <button 
-                className="text-gray-500 hover:text-gray-700 ml-4" 
+                className="text-gray-500 hover:text-gray-700 ml-3 sm:ml-4" 
                 onClick={() => setToast(null)}
               >
                 <CloseRoundedIcon fontSize="small" />
@@ -844,18 +844,18 @@ const AnalyticsDashboard = () => {
         )}
 
         {/* Header */}
-        <div className="mb-6 flex justify-between items-center flex-wrap gap-4">
-          <h1 className="text-2xl font-semibold text-gray-900">Analytics Dashboard</h1>
-          <div className="flex gap-2">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Analytics Dashboard</h1>
+          <div className="flex gap-2 w-full sm:w-auto">
             <button 
               onClick={handleRefresh} 
-              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors inline-flex items-center gap-1.5"
+              className="flex-1 sm:flex-none justify-center bg-white border border-gray-300 text-gray-700 px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-50 transition-colors inline-flex items-center gap-1.5"
             >
               <RefreshOutlinedIcon fontSize="small" /> Refresh
             </button>
             <button 
               onClick={() => setShowExportModal(true)} 
-              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="flex-1 sm:flex-none justify-center bg-gray-900 text-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
               disabled={exporting}
             >
               {exporting ? 'Exporting...' : 'Export'}
@@ -864,12 +864,12 @@ const AnalyticsDashboard = () => {
         </div>
 
         {/* Filters */}
-        <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6">
+        <div className="mb-4 sm:mb-6 bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
           <div className="space-y-4">
             {/* Timeframe Presets */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Timeframe</label>
-              <div className="flex flex-wrap gap-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Timeframe</label>
+              <div className="flex flex-row overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0 sm:overflow-visible sm:flex-wrap sm:pb-0 gap-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                 {[
                   { value: 'today', label: 'Today' },
                   { value: '7d', label: 'Last 7 Days' },
@@ -880,7 +880,7 @@ const AnalyticsDashboard = () => {
                 ].map((option) => (
                   <button 
                     key={option.value}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`whitespace-nowrap px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                       timeframe === option.value 
                         ? 'bg-gray-900 text-white' 
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -896,9 +896,9 @@ const AnalyticsDashboard = () => {
             {/* Custom Date Range */}
             {timeframe === 'custom' && (
               <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <div className="flex gap-4 flex-wrap p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-gray-700">From</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                    <label className="text-xs sm:text-sm font-medium text-gray-700">From</label>
                     <DatePicker
                       value={dateFrom}
                       onChange={(newValue) => setDateFrom(newValue)}
@@ -907,14 +907,15 @@ const AnalyticsDashboard = () => {
                         textField: {
                           size: 'small',
                           placeholder: 'Start Date',
-                          sx: { minWidth: '160px', backgroundColor: 'white' }
+                          fullWidth: true,
+                          sx: { backgroundColor: 'white' }
                         },
                       }}
                       enableAccessibleFieldDOMStructure={false}
                     />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-gray-700">To</label>
+                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                    <label className="text-xs sm:text-sm font-medium text-gray-700">To</label>
                     <DatePicker
                       value={dateTo}
                       onChange={(newValue) => setDateTo(newValue)}
@@ -923,7 +924,8 @@ const AnalyticsDashboard = () => {
                         textField: {
                           size: 'small',
                           placeholder: 'End Date',
-                          sx: { minWidth: '160px', backgroundColor: 'white' }
+                          fullWidth: true,
+                          sx: { backgroundColor: 'white' }
                         },
                       }}
                       enableAccessibleFieldDOMStructure={false}
@@ -935,37 +937,46 @@ const AnalyticsDashboard = () => {
             
             {/* Waste Type Filters */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Waste Types</label>
-              <div className="flex gap-2 flex-wrap">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Waste Types</label>
+              <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2">
                 <button 
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full sm:w-auto px-2 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                     selectedTypes.RECYCLABLE 
                       ? 'bg-emerald-600 text-white' 
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                   onClick={() => setSelectedTypes(prev => ({ ...prev, RECYCLABLE: !prev.RECYCLABLE }))}
                 >
-                  <span className="inline-flex items-center gap-1.5"><RecyclingOutlinedIcon fontSize="small" /> Recyclable</span>
+                  <span className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5">
+                    <RecyclingOutlinedIcon fontSize="small" /> 
+                    <span>Recyclable</span>
+                  </span>
                 </button>
                 <button 
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full sm:w-auto px-2 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                     selectedTypes.WET 
                       ? 'bg-amber-600 text-white' 
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                   onClick={() => setSelectedTypes(prev => ({ ...prev, WET: !prev.WET }))}
                 >
-                  <span className="inline-flex items-center gap-1.5"><SpaOutlinedIcon fontSize="small" /> Wet</span>
+                  <span className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5">
+                    <SpaOutlinedIcon fontSize="small" /> 
+                    <span>Wet</span>
+                  </span>
                 </button>
                 <button 
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full sm:w-auto px-2 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                     selectedTypes.DRY 
                       ? 'bg-slate-600 text-white' 
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                   onClick={() => setSelectedTypes(prev => ({ ...prev, DRY: !prev.DRY }))}
                 >
-                  <span className="inline-flex items-center gap-1.5"><DeleteOutlineOutlinedIcon fontSize="small" /> Dry</span>
+                  <span className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5">
+                    <DeleteOutlineOutlinedIcon fontSize="small" /> 
+                    <span>Dry</span>
+                  </span>
                 </button>
               </div>
             </div>
@@ -982,195 +993,212 @@ const AnalyticsDashboard = () => {
 
         {/* Metrics */}
         {analyticsData && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
             {/* Total Items */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <div className="flex justify-between items-start mb-3">
-                <span className="text-2xl"><BarChartOutlinedIcon fontSize="inherit" /></span>
-                <span className={`text-xs font-medium px-2 py-1 rounded ${
+            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5 flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-2 sm:mb-3">
+                <span className="text-xl sm:text-2xl text-gray-500"><BarChartOutlinedIcon fontSize="inherit" /></span>
+                <span className={`text-[10px] sm:text-xs font-medium px-1.5 py-0.5 sm:px-2 sm:py-1 rounded ${
                   analyticsData.trend >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                 }`}>
                   {analyticsData.trend >= 0 ? '↑' : '↓'} {Math.abs(analyticsData.trend)}%
                 </span>
               </div>
-              <div className="text-3xl font-bold text-gray-900 mb-1">
-                {analyticsData.totals.total.toLocaleString()}
+              <div>
+                <div className="text-xl sm:text-3xl font-bold text-gray-900 mb-0.5 sm:mb-1">
+                  {analyticsData.totals.total.toLocaleString()}
+                </div>
+                <div className="text-[11px] sm:text-sm font-medium text-gray-700 mb-0.5 sm:mb-1 leading-tight">Total Collected</div>
+                <div className="text-[9px] sm:text-xs text-gray-500">Avg {analyticsData.averageDaily}/day</div>
               </div>
-              <div className="text-sm font-medium text-gray-700 mb-1">Total Items Collected</div>
-              <div className="text-xs text-gray-500">Avg {analyticsData.averageDaily}/day</div>
             </div>
 
             {/* Recyclable */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <div className="flex justify-between items-start mb-3">
-                <span className="text-2xl"><RecyclingOutlinedIcon fontSize="inherit" /></span>
-                <span className="text-xs font-medium px-2 py-1 rounded bg-emerald-100 text-emerald-700">
+            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5 flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-2 sm:mb-3">
+                <span className="text-xl sm:text-2xl text-emerald-500"><RecyclingOutlinedIcon fontSize="inherit" /></span>
+                <span className="text-[10px] sm:text-xs font-medium px-1.5 py-0.5 sm:px-2 sm:py-1 rounded bg-emerald-100 text-emerald-700">
                   {analyticsData.percentages.recyclable}%
                 </span>
               </div>
-              <div className="text-3xl font-bold text-gray-900 mb-1">
-                {analyticsData.totals.recyclable.toLocaleString()}
+              <div>
+                <div className="text-xl sm:text-3xl font-bold text-gray-900 mb-0.5 sm:mb-1">
+                  {analyticsData.totals.recyclable.toLocaleString()}
+                </div>
+                <div className="text-[11px] sm:text-sm font-medium text-gray-700 mb-0.5 sm:mb-1 leading-tight">Recyclable</div>
+                <div className="text-[9px] sm:text-xs text-gray-500">Most sustainable</div>
               </div>
-              <div className="text-sm font-medium text-gray-700 mb-1">Recyclable Wastes</div>
-              <div className="text-xs text-gray-500">Most sustainable</div>
             </div>
 
             {/* Wet Waste */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <div className="flex justify-between items-start mb-3">
-                <span className="text-2xl"><SpaOutlinedIcon fontSize="inherit" /></span>
-                <span className="text-xs font-medium px-2 py-1 rounded bg-amber-100 text-amber-700">
+            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5 flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-2 sm:mb-3">
+                <span className="text-xl sm:text-2xl text-amber-500"><SpaOutlinedIcon fontSize="inherit" /></span>
+                <span className="text-[10px] sm:text-xs font-medium px-1.5 py-0.5 sm:px-2 sm:py-1 rounded bg-amber-100 text-amber-700">
                   {analyticsData.percentages.biodegradable}%
                 </span>
               </div>
-              <div className="text-3xl font-bold text-gray-900 mb-1">
-                {analyticsData.totals.biodegradable.toLocaleString()}
+              <div>
+                <div className="text-xl sm:text-3xl font-bold text-gray-900 mb-0.5 sm:mb-1">
+                  {analyticsData.totals.biodegradable.toLocaleString()}
+                </div>
+                <div className="text-[11px] sm:text-sm font-medium text-gray-700 mb-0.5 sm:mb-1 leading-tight">Wet Wastes</div>
+                <div className="text-[9px] sm:text-xs text-gray-500">Compostable</div>
               </div>
-              <div className="text-sm font-medium text-gray-700 mb-1">Wet Wastes</div>
-              <div className="text-xs text-gray-500">Compostable</div>
             </div>
 
             {/* Dry Waste */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <div className="flex justify-between items-start mb-3">
-                <span className="text-2xl"><DeleteOutlineOutlinedIcon fontSize="inherit" /></span>
-                <span className="text-xs font-medium px-2 py-1 rounded bg-slate-100 text-slate-700">
+            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5 flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-2 sm:mb-3">
+                <span className="text-xl sm:text-2xl text-slate-500"><DeleteOutlineOutlinedIcon fontSize="inherit" /></span>
+                <span className="text-[10px] sm:text-xs font-medium px-1.5 py-0.5 sm:px-2 sm:py-1 rounded bg-slate-100 text-slate-700">
                   {analyticsData.percentages.nonBiodegradable}%
                 </span>
               </div>
-              <div className="text-3xl font-bold text-gray-900 mb-1">
-                {analyticsData.totals.nonBiodegradable.toLocaleString()}
+              <div>
+                <div className="text-xl sm:text-3xl font-bold text-gray-900 mb-0.5 sm:mb-1">
+                  {analyticsData.totals.nonBiodegradable.toLocaleString()}
+                </div>
+                <div className="text-[11px] sm:text-sm font-medium text-gray-700 mb-0.5 sm:mb-1 leading-tight">Dry Wastes</div>
+                <div className="text-[9px] sm:text-xs text-gray-500">Residual waste</div>
               </div>
-              <div className="text-sm font-medium text-gray-700 mb-1">Dry Wastes</div>
-              <div className="text-xs text-gray-500">Residual waste stream</div>
             </div>
           </div>
         )}
 
         {/* Charts */}
         {analyticsData && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
             {/* Daily Waste Chart */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5">
+              <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">
                 Daily Waste Items
-                <span className="text-xs font-normal text-gray-500 ml-2">(Avg {analyticsData.averageDaily}/day)</span>
+                <span className="text-[10px] sm:text-xs font-normal text-gray-500 ml-1 sm:ml-2">(Avg {analyticsData.averageDaily}/day)</span>
               </h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={analyticsData.dailyTrends.map(item => ({
-                  date: formatDate(item.date),
-                  Recyclable: item.recyclable || 0,
-                  Wet: item.biodegradable || 0,
-                  Dry: item.nonBiodegradable || 0,
-                }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={70}
-                  />
-                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#fff', 
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '12px'
-                    }} 
-                  />
-                  <Legend 
-                    wrapperStyle={{ fontSize: '12px' }}
-                    iconType="square"
-                  />
-                  <Bar dataKey="Recyclable" stackId="a" fill="#10b981" />
-                  <Bar dataKey="Wet" stackId="a" fill="#f59e0b" />
-                  <Bar dataKey="Dry" stackId="a" fill="#6b7280" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="w-full -ml-3 sm:ml-0 overflow-hidden pr-2 sm:pr-0">
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={analyticsData.dailyTrends.map(item => ({
+                    date: formatDate(item.date),
+                    Recyclable: item.recyclable || 0,
+                    Wet: item.biodegradable || 0,
+                    Dry: item.nonBiodegradable || 0,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 10, fill: '#6b7280' }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      tickMargin={5}
+                    />
+                    <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} width={35} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        padding: '8px'
+                      }} 
+                    />
+                    <Legend 
+                      wrapperStyle={{ fontSize: '11px' }}
+                      iconType="square"
+                      iconSize={8}
+                    />
+                    <Bar dataKey="Recyclable" stackId="a" fill="#10b981" />
+                    <Bar dataKey="Wet" stackId="a" fill="#f59e0b" />
+                    <Bar dataKey="Dry" stackId="a" fill="#6b7280" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             {/* Monthly Waste Chart */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5">
+              <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">
                 Monthly Waste
-                <span className="text-xs font-normal text-gray-500 ml-2">(Avg {analyticsData.monthlyAverage}/mo)</span>
+                <span className="text-[10px] sm:text-xs font-normal text-gray-500 ml-1 sm:ml-2">(Avg {analyticsData.monthlyAverage}/mo)</span>
               </h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={(analyticsData.monthlyData || []).map(item => ({
-                  month: item.month,
-                  Total: item.total || 0,
-                }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="month" 
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                  />
-                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#fff', 
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '12px'
-                    }} 
-                  />
-                  <Bar dataKey="Total" fill="#3b82f6" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="w-full -ml-3 sm:ml-0 overflow-hidden pr-2 sm:pr-0">
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={(analyticsData.monthlyData || []).map(item => ({
+                    month: item.month,
+                    Total: item.total || 0,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                    <XAxis 
+                      dataKey="month" 
+                      tick={{ fontSize: 10, fill: '#6b7280' }}
+                      tickMargin={5}
+                    />
+                    <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} width={35} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        padding: '8px'
+                      }} 
+                    />
+                    <Bar dataKey="Total" fill="#3b82f6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}
 
         {/* Insights */}
         {analyticsData && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">Key Insights</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-2">
+            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5">
+              <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">Key Insights</h3>
               <div className="space-y-2">
-                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span><EmojiEventsOutlinedIcon fontSize="small" /></span>
-                  <span>Peak day: {analyticsData.peakDay ? formatDate(analyticsData.peakDay.date) : 'N/A'}</span>
+                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                  <span><EmojiEventsOutlinedIcon fontSize="small" className="text-amber-500" /></span>
+                  <span className="flex-1 mt-0.5">Peak day: <span className="font-medium">{analyticsData.peakDay ? formatDate(analyticsData.peakDay.date) : 'N/A'}</span></span>
                 </div>
-                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span><TrendingUpOutlinedIcon fontSize="small" /></span>
-                  <span>Recycling rate: {analyticsData.percentages.recyclable}%</span>
+                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                  <span><TrendingUpOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
+                  <span className="flex-1 mt-0.5">Recycling rate: <span className="font-medium">{analyticsData.percentages.recyclable}%</span></span>
                 </div>
                 {binAnalytics && (
-                  <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                    <span><DeleteOutlineOutlinedIcon fontSize="small" /></span>
-                    <span>Bin events: {binAnalytics.total}</span>
+                  <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                    <span><DeleteOutlineOutlinedIcon fontSize="small" className="text-slate-500" /></span>
+                    <span className="flex-1 mt-0.5">Bin events: <span className="font-medium">{binAnalytics.total}</span></span>
                   </div>
                 )}
               </div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">Activity</h3>
+            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5">
+              <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">Activity</h3>
               <div className="space-y-2">
-                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span><CalendarMonthOutlinedIcon fontSize="small" /></span>
-                  <span>Most active day: {(() => {
+                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                  <span><CalendarMonthOutlinedIcon fontSize="small" className="text-blue-500" /></span>
+                  <span className="flex-1 mt-0.5">Most active day: <span className="font-medium">{(() => {
                     if (!analyticsData.dailyTrends?.length) return 'No data';
                     const mostActive = analyticsData.dailyTrends.reduce((max, day) => 
                       (day.total || 0) > (max.total || 0) ? day : max
                     );
                     return `${formatDate(mostActive.date)} (${mostActive.total})`;
-                  })()}</span>
+                  })()}</span></span>
                 </div>
-                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span><InsightsOutlinedIcon fontSize="small" /></span>
-                  <span>Most active month: {(() => {
+                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                  <span><InsightsOutlinedIcon fontSize="small" className="text-purple-500" /></span>
+                  <span className="flex-1 mt-0.5">Most active month: <span className="font-medium">{(() => {
                     if (!analyticsData.monthlyData?.length) return 'No data';
                     const mostActive = analyticsData.monthlyData.reduce((max, month) => 
                       (month.total || 0) > (max.total || 0) ? month : max
                     );
-                    return `${mostActive.month} (${mostActive.total})`;
-                  })()}</span>
+                    return `${formatMonth(mostActive.month)} (${mostActive.total})`;
+                  })()}</span></span>
                 </div>
-                <div className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm text-gray-700">
-                  <span><RecyclingOutlinedIcon fontSize="small" /></span>
-                  <span>Top category: {(() => {
+                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                  <span><RecyclingOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
+                  <span className="flex-1 mt-0.5">Top category: <span className="font-medium">{(() => {
                     const totals = analyticsData.totals;
                     const categories = [
                       { name: 'Recyclable', value: totals.recyclable },
@@ -1178,8 +1206,8 @@ const AnalyticsDashboard = () => {
                       { name: 'Dry', value: totals.nonBiodegradable }
                     ];
                     const top = categories.reduce((max, cat) => cat.value > max.value ? cat : max);
-                    return `${top.name} (${top.value})`;
-                  })()}</span>
+                    return `${top.name} (${top.value.toLocaleString()})`;
+                  })()}</span></span>
                 </div>
               </div>
             </div>
