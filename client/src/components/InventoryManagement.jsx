@@ -3,6 +3,11 @@ import { getInventoryItems, createInventoryItem, updateInventoryItem, updateItem
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import ExportModal from './ExportModal';
 
 export default function InventoryManagement() {
   const [items, setItems] = useState([]);
@@ -16,6 +21,7 @@ export default function InventoryManagement() {
   const [showQuickStockConfirm, setShowQuickStockConfirm] = useState(false);
   const [quickStockChange, setQuickStockChange] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -263,6 +269,67 @@ export default function InventoryManagement() {
     return { label: 'Available', class: 'available' };
   };
 
+  const handleExcelExport = useCallback(() => {
+    const exportData = filteredAndSortedItems.map(item => ({
+      'Item Name': item.name,
+      'Description': item.description || '-',
+      'Cost (Coupons)': item.cost,
+      'Price (PHP)': item.price || '-',
+      'Stock': normalizeStock(item.stock),
+      'Status': item.isActive ? 'Active' : 'Inactive',
+      'Created At': new Date(item.createdAt).toLocaleDateString()
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
+    XLSX.writeFile(wb, `inventory-${new Date().toISOString().split('T')[0]}.xlsx`);
+  }, [filteredAndSortedItems, normalizeStock]);
+
+  const handlePDFExport = useCallback(() => {
+    const doc = new jsPDF();
+
+    doc.setFontSize(18);
+    doc.setTextColor(22, 163, 74);
+    doc.text('Inventory Report', 14, 22);
+
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 30);
+    doc.text(`Total Items: ${filteredAndSortedItems.length}`, 14, 36);
+
+    const tableData = filteredAndSortedItems.map(item => [
+      item.name,
+      item.cost.toString(),
+      item.price ? item.price.toString() : '-',
+      normalizeStock(item.stock).toString(),
+      item.isActive ? 'Active' : 'Inactive',
+      new Date(item.createdAt).toLocaleDateString()
+    ]);
+
+    autoTable(doc, {
+      startY: 45,
+      head: [['Item Name', 'Cost (Coupons)', 'Price (PHP)', 'Stock', 'Status', 'Created At']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [22, 163, 74] },
+      styles: { fontSize: 9 },
+      alternateRowStyles: { fillColor: [249, 250, 251] }
+    });
+
+    doc.save(`inventory-${new Date().toISOString().split('T')[0]}.pdf`);
+  }, [filteredAndSortedItems, normalizeStock]);
+
+  const handleExport = useCallback((options) => {
+    const { format } = options;
+    if (format === 'excel') {
+      handleExcelExport();
+    } else if (format === 'pdf') {
+      handlePDFExport();
+    }
+    setShowExportModal(false);
+  }, [handleExcelExport, handlePDFExport]);
+
   if (loading) {
     return <div className="p-4 md:p-6 max-w-7xl mx-auto"><div className="text-center py-10 text-lg text-gray-600">Loading inventory...</div></div>;
   }
@@ -275,9 +342,23 @@ export default function InventoryManagement() {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Inventory Management</h1>
           <p className="text-sm text-gray-600 mt-1">{filteredAndSortedItems.length} item{filteredAndSortedItems.length !== 1 ? 's' : ''} found</p>
         </div>
-        <button className="px-5 py-2.5 border-none rounded-lg text-sm font-semibold cursor-pointer bg-green-600 text-white whitespace-nowrap transition-all hover:bg-green-700 hover:shadow-lg shadow-green-600/20 w-full sm:w-auto" onClick={() => setShowAddModal(true)}>
-          + Add New Item
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setShowExportModal(true)}
+            disabled={loading || filteredAndSortedItems.length === 0}
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+          >
+            <FileDownloadOutlinedIcon fontSize="small" />
+            <span className="hidden sm:inline">Export</span>
+            <span className="sm:hidden">Export</span>
+          </button>
+          <button 
+            className="flex-1 sm:flex-none px-5 py-2.5 border-none rounded-lg text-sm font-semibold cursor-pointer bg-green-600 text-white whitespace-nowrap transition-all hover:bg-green-700 hover:shadow-lg shadow-green-600/20" 
+            onClick={() => setShowAddModal(true)}
+          >
+            + Add New Item
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -804,6 +885,16 @@ export default function InventoryManagement() {
           </div>
         </div>
       )}
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        title="Export Inventory"
+        showWasteTypes={false}
+        showDateRange={false}
+      />
     </div>
   );
 }
