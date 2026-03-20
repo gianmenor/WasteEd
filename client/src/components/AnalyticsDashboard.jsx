@@ -459,13 +459,13 @@ const AnalyticsDashboard = () => {
           doc.text('Recyclable Wastes', 14, startY);
           
           autoTable(doc, {
-            head: [['Date', 'Count']],
+            head: [['Date', 'Count (pcs)']],
             body: recyclableData,
             startY: startY + 5,
             headStyles: { fillColor: [34, 197, 94] },
             margin: { top: 10 }
           });
-          
+
           startY = doc.lastAutoTable.finalY + 10;
         }
       }
@@ -482,13 +482,13 @@ const AnalyticsDashboard = () => {
           doc.text('Wet Wastes', 14, startY);
           
           autoTable(doc, {
-            head: [['Date', 'Count']],
+            head: [['Date', 'Count (pcs)']],
             body: wetData,
             startY: startY + 5,
             headStyles: { fillColor: [132, 204, 22] },
             margin: { top: 10 }
           });
-          
+
           startY = doc.lastAutoTable.finalY + 10;
         }
       }
@@ -505,12 +505,14 @@ const AnalyticsDashboard = () => {
           doc.text('Dry Wastes', 14, startY);
           
           autoTable(doc, {
-            head: [['Date', 'Count']],
+            head: [['Date', 'Count (pcs)']],
             body: dryData,
             startY: startY + 5,
             headStyles: { fillColor: [249, 115, 22] },
             margin: { top: 10 }
           });
+
+          startY = doc.lastAutoTable.finalY + 10;
         }
       }
       
