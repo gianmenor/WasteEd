@@ -507,15 +507,20 @@ export default function RewardsShop() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="px-5 py-4 border-t border-gray-200 flex items-center justify-between">
-                  <div className="text-sm text-gray-700">
+                <div className="px-5 py-4 border-t border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-xs sm:text-sm text-gray-700">
                     Showing <span className="font-medium">{((currentPage - 1) * itemsPerPage) + 1}</span> to{' '}
                     <span className="font-medium">
                       {Math.min(currentPage * itemsPerPage, filteredAndSortedItems.length)}
                     </span> of{' '}
                     <span className="font-medium">{filteredAndSortedItems.length}</span> results
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
+                    <span className="text-xs text-gray-600 sm:hidden">
+                      Page {currentPage} of {totalPages}
+                    </span>
+
+                    <div className="flex items-center gap-2 ml-auto sm:ml-0">
                     <button
                       onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                       disabled={currentPage === 1}
@@ -524,7 +529,7 @@ export default function RewardsShop() {
                       <ChevronLeftIcon fontSize="small" />
                     </button>
                     
-                    <div className="flex items-center gap-1">
+                    <div className="hidden sm:flex items-center gap-1">
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
                         // Show first page, last page, current page, and pages around current
                         if (
@@ -559,6 +564,7 @@ export default function RewardsShop() {
                     >
                       <ChevronRightIcon fontSize="small" />
                     </button>
+                    </div>
                   </div>
                 </div>
               )}

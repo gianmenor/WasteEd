@@ -36,7 +36,7 @@ export default function InventoryManagement() {
     search: '',
     status: 'all', // all, available, low-stock, no-stock
     costRange: 'all', // all, low, medium, high
-    sortBy: 'name', // name, cost, stock, createdAt
+    sortBy: 'name', // name, cost, stock
     sortOrder: 'asc' // asc, desc
   });
 
@@ -211,6 +211,13 @@ export default function InventoryManagement() {
     });
   };
 
+  const getStockStatus = useCallback((item) => {
+    const safeStock = normalizeStock(item?.stock);
+    if (safeStock === 0) return { label: 'No stock', class: 'no-stock' };
+    if (safeStock < 20) return { label: 'Low Stocks', class: 'low-stock' };
+    return { label: 'Available', class: 'available' };
+  }, [normalizeStock]);
+
   // Filter and sort items
   const filteredAndSortedItems = useMemo(() => {
     let filtered = [...items];
@@ -226,12 +233,7 @@ export default function InventoryManagement() {
 
     // Status filter
     if (filters.status !== 'all') {
-      filtered = filtered.filter(item => {
-        const stock = normalizeStock(item.stock);
-        if (!item.isActive || stock === 0) return filters.status === 'no-stock';
-        if (stock < 20) return filters.status === 'low-stock';
-        return filters.status === 'available';
-      });
+      filtered = filtered.filter(item => getStockStatus(item).class === filters.status);
     }
 
     // Cost range filter
@@ -260,31 +262,26 @@ export default function InventoryManagement() {
     });
 
     return filtered;
-  }, [items, filters, normalizeStock]);
-
-  const getStockStatus = (item) => {
-    const safeStock = normalizeStock(item?.stock);
-    if (safeStock === 0) return { label: 'No stock', class: 'no-stock' };
-    if (safeStock < 20) return { label: 'Low Stocks', class: 'low-stock' };
-    return { label: 'Available', class: 'available' };
-  };
+  }, [items, filters, getStockStatus]);
 
   const handleExcelExport = useCallback(() => {
-    const exportData = filteredAndSortedItems.map(item => ({
-      'Item Name': item.name,
-      'Description': item.description || '-',
-      'Cost (Coupons)': item.cost,
-      'Price (PHP)': item.price || '-',
-      'Stock': normalizeStock(item.stock),
-      'Status': item.isActive ? 'Active' : 'Inactive',
-      'Created At': new Date(item.createdAt).toLocaleDateString()
-    }));
+    const exportData = filteredAndSortedItems.map(item => {
+      const stockStatus = getStockStatus(item);
+      return {
+        'Item Name': item.name,
+        'Description': item.description || '-',
+        'Cost (Coupons)': item.cost,
+        'Price (PHP)': item.price || '-',
+        'Stock (pcs)': normalizeStock(item.stock),
+        'Status': stockStatus.label
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
     XLSX.writeFile(wb, `inventory-${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [filteredAndSortedItems, normalizeStock]);
+  }, [filteredAndSortedItems, getStockStatus, normalizeStock]);
 
   const handlePDFExport = useCallback(() => {
     const doc = new jsPDF();
@@ -298,18 +295,20 @@ export default function InventoryManagement() {
     doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 30);
     doc.text(`Total Items: ${filteredAndSortedItems.length}`, 14, 36);
 
-    const tableData = filteredAndSortedItems.map(item => [
-      item.name,
-      item.cost.toString(),
-      item.price ? item.price.toString() : '-',
-      normalizeStock(item.stock).toString(),
-      item.isActive ? 'Active' : 'Inactive',
-      new Date(item.createdAt).toLocaleDateString()
-    ]);
+    const tableData = filteredAndSortedItems.map(item => {
+      const stockStatus = getStockStatus(item);
+      return [
+        item.name,
+        item.cost.toString(),
+        item.price ? item.price.toString() : '-',
+        normalizeStock(item.stock).toString(),
+        stockStatus.label
+      ];
+    });
 
     autoTable(doc, {
       startY: 45,
-      head: [['Item Name', 'Cost (Coupons)', 'Price (PHP)', 'Stock', 'Status', 'Created At']],
+      head: [['Item Name', 'Cost (Coupons)', 'Price (PHP)', 'Stock (pcs)', 'Status']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [22, 163, 74] },
@@ -318,7 +317,7 @@ export default function InventoryManagement() {
     });
 
     doc.save(`inventory-${new Date().toISOString().split('T')[0]}.pdf`);
-  }, [filteredAndSortedItems, normalizeStock]);
+  }, [filteredAndSortedItems, getStockStatus, normalizeStock]);
 
   const handleExport = useCallback((options) => {
     const { format } = options;
@@ -428,7 +427,6 @@ export default function InventoryManagement() {
               <option value="name">Name</option>
               <option value="cost">Cost</option>
               <option value="stock">Stock</option>
-              <option value="createdAt">Date Added</option>
             </select>
           </div>
 
@@ -462,7 +460,7 @@ export default function InventoryManagement() {
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Item</th>
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Cost</th>
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Price</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Stock</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Stock (pcs)</th>
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wide">Actions</th>
               </tr>
@@ -560,7 +558,7 @@ export default function InventoryManagement() {
                 </div>
 
                 <div className="mb-4">
-                  <div className="text-xs text-gray-500 font-medium mb-2">Stock Level</div>
+                  <div className="text-xs text-gray-500 font-medium mb-2">Stock (pcs)</div>
                   <div className="inline-flex items-center gap-2 bg-gray-50 py-2 px-3 rounded-lg border border-gray-200 w-full justify-center">
                     <button 
                       className="w-8 h-8 p-0 border border-red-400 bg-white rounded-md text-red-500 font-bold transition-all flex items-center justify-center hover:scale-110 hover:shadow-md hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed" 
@@ -581,7 +579,7 @@ export default function InventoryManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button className="py-2.5 px-2 border border-orange-300 bg-white rounded-lg text-xs font-medium cursor-pointer transition-all hover:bg-orange-50 hover:border-orange-500 hover:shadow-md" onClick={() => openEditModal(item)}>
                     <span className="inline-flex items-center gap-1"><EditOutlinedIcon fontSize="small" /> Edit</span>
                   </button>

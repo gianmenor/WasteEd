@@ -182,7 +182,7 @@ router.delete('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const accountId = parseInt(req.params.id);
-    const { username, password } = req.body;
+    const { username, password, email } = req.body;
 
     // Validate account ID
     if (isNaN(accountId)) {
@@ -244,6 +244,19 @@ router.put('/:id', async (req, res) => {
       updateData.password = await bcrypt.hash(password, SALT_ROUNDS);
     }
 
+    if (email !== undefined) {
+      const normalizedEmail = String(email).trim();
+
+      if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid email address'
+        });
+      }
+
+      updateData.email = normalizedEmail || null;
+    }
+
     // Update account
     const updatedAccount = await prisma.account.update({
       where: { id: accountId },
@@ -251,6 +264,7 @@ router.put('/:id', async (req, res) => {
       select: {
         id: true,
         username: true,
+        email: true,
         createdAt: true,
         updatedAt: true
       }

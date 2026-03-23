@@ -7,6 +7,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import RecyclingOutlinedIcon from '@mui/icons-material/RecyclingOutlined';
 import SpaOutlinedIcon from '@mui/icons-material/SpaOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import { formatLocalDateForApi } from '../utils/date';
 
 const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWasteTypes = true, showDateRange = true }) => {
   const [exportFormat, setExportFormat] = useState('excel');
@@ -26,8 +27,8 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
       format: exportFormat,
       includeTypes,
       dateRange,
-      customDateFrom: customDateFrom ? customDateFrom.toISOString().split('T')[0] : null,
-      customDateTo: customDateTo ? customDateTo.toISOString().split('T')[0] : null
+      customDateFrom: customDateFrom ? formatLocalDateForApi(customDateFrom) : null,
+      customDateTo: customDateTo ? formatLocalDateForApi(customDateTo) : null
     });
     onClose();
   };

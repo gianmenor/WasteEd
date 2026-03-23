@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -8,7 +8,6 @@ import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
-import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
@@ -25,6 +24,7 @@ import * as XLSX from 'xlsx';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import ExportModal from './ExportModal';
+import { getLocalDateKey } from '../utils/date';
 
 // Fetch coupon balance
 const fetchCouponBalance = async () => {
@@ -68,13 +68,11 @@ const CouponRecords = () => {
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState('all');
   const [adjustmentAmount, setAdjustmentAmount] = useState('');
-  const [adjustmentReason, setAdjustmentReason] = useState('');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
 
   const toInt = useCallback((value) => {
@@ -95,11 +93,35 @@ const CouponRecords = () => {
   });
 
   // Fetch transactions
-  const { data: transactions = [], isLoading: transactionsLoading, refetch } = useQuery({
+  const { data: transactions = [], isLoading: transactionsLoading } = useQuery({
     queryKey: ['couponTransactions', period],
     queryFn: () => fetchCouponTransactions({ period }),
     staleTime: 1 * 60 * 1000,
   });
+
+  // Waste inserts already emit through the shared SSE stream, so we keep
+  // coupon balance and history in sync here without manual refresh controls.
+  useEffect(() => {
+    const eventSource = new EventSource(API_ENDPOINTS.BIN_NOTIFICATIONS_STREAM);
+
+    eventSource.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data?.type === 'WASTE_INSERTED' || data?.type === 'COUPON_UPDATED') {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['couponBalance'] }),
+            queryClient.invalidateQueries({ queryKey: ['couponTransactions'] })
+          ]);
+        }
+      } catch (parseError) {
+        console.error('Coupon SSE parse error:', parseError);
+      }
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [queryClient]);
 
   // Manual adjustment mutation
   const adjustMutation = useMutation({
@@ -123,10 +145,9 @@ const CouponRecords = () => {
     },
     onSuccess: async ({ amount }) => {
       // Refetch and wait for new data
-      await queryClient.invalidateQueries(['couponBalance']);
-      await queryClient.invalidateQueries(['couponTransactions']);
+      await queryClient.invalidateQueries({ queryKey: ['couponBalance'] });
+      await queryClient.invalidateQueries({ queryKey: ['couponTransactions'] });
       setAdjustmentAmount('');
-      setAdjustmentReason('');
       
       // Show specific message based on whether it was add or subtract
       const absAmount = Math.abs(toInt(amount));
@@ -148,11 +169,6 @@ const CouponRecords = () => {
       setMessage('');
       setMessageType('');
     }, 3000);
-  }, []);
-
-  const handleAdjustment = useCallback((e) => {
-    e.preventDefault();
-    // This function is no longer used as we handle it inline with buttons
   }, []);
 
   const formatDate = useCallback((dateString) => {
@@ -217,19 +233,8 @@ const CouponRecords = () => {
       filtered = filtered.filter(t => t.type === typeFilter);
     }
     
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(t => {
-        const reason = (t.reason || t.metadata?.reason || '').toLowerCase();
-        const type = getTransactionTypeLabel(t.type).toLowerCase();
-        const amount = String(t.amount);
-        return reason.includes(query) || type.includes(query) || amount.includes(query);
-      });
-    }
-    
     return filtered;
-  }, [transactions, dateFrom, dateTo, searchQuery, typeFilter]);
+  }, [transactions, dateFrom, dateTo, typeFilter]);
 
   // Calculate total consumed
   const totalConsumed = useMemo(() => {
@@ -242,7 +247,6 @@ const CouponRecords = () => {
   const clearFilters = useCallback(() => {
     setDateFrom(null);
     setDateTo(null);
-    setSearchQuery('');
     setTypeFilter('all');
     setPeriod('all');
   }, []);
@@ -252,7 +256,7 @@ const CouponRecords = () => {
 
     filteredTransactions.forEach((transaction) => {
       const dateObj = new Date(transaction.createdAt);
-      const dateKey = dateObj.toISOString().split('T')[0];
+      const dateKey = getLocalDateKey(dateObj);
       const typeKey = transaction.type || 'unknown';
       const key = `${dateKey}-${typeKey}`;
 
@@ -390,7 +394,7 @@ const CouponRecords = () => {
   const loading = balanceLoading || transactionsLoading || adjustMutation.isPending;
   
   // Check if any filters are active
-  const hasActiveFilters = dateFrom || dateTo || searchQuery || typeFilter !== 'all' || period !== 'all';
+  const hasActiveFilters = dateFrom || dateTo || typeFilter !== 'all' || period !== 'all';
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -534,7 +538,7 @@ const CouponRecords = () => {
           <p className="text-xs text-gray-500 mt-2">Enter an amount and click Add or Subtract to adjust the balance</p>
         </div>
 
-        {/* Filters and Search */}
+        {/* Filters */}
         <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-base font-semibold text-gray-900">Filters</h3>
@@ -549,22 +553,7 @@ const CouponRecords = () => {
             )}
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Search */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-              <div className="relative">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fontSize="small" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search transactions..."
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Type Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>

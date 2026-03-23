@@ -15,7 +15,7 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 const JWT_EXPIRES_IN = '7d';
 const SALT_ROUNDS = 10;
-const DEFAULT_FORGOT_EMAIL = 'wasteed1234@gmail.com';
+const DEFAULT_FORGOT_EMAIL = 'wasteed277@gmail.com';
 const FORGOT_OTP_EXPIRY_MS = 10 * 60 * 1000;
 
 let forgotPasswordOtpState = null;
@@ -203,7 +203,7 @@ router.post('/forgot-password/request-otp', async (req, res) => {
       });
     }
 
-    const recipient = process.env.FORGOT_PASSWORD_TO || user.email || DEFAULT_FORGOT_EMAIL;
+    const recipient = process.env.FORGOT_PASSWORD_TO || DEFAULT_FORGOT_EMAIL || user.email;
     const sender = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
     const transporter = createMailerTransport();
 

@@ -6,6 +6,8 @@ import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import { API_ENDPOINTS } from '../config/api';
 import brandLogo from '../assets/brandName.png';
 
+const RECOVERY_EMAIL = 'wasteed277@gmail.com';
+
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const [otp, setOtp] = useState('');
@@ -119,7 +121,7 @@ const ForgotPassword = () => {
                 <MarkEmailReadOutlinedIcon fontSize="small" />
                 OTP Delivery
               </div>
-              <p className="text-sm text-emerald-700">OTP will be sent to wasteed1234@gmail.com.</p>
+              <p className="text-sm text-emerald-700">OTP will be sent to {RECOVERY_EMAIL}.</p>
             </div>
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
               <div className="flex items-center gap-2 text-blue-800 font-medium mb-1">

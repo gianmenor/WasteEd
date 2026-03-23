@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { TextField } from '@mui/material';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
@@ -23,7 +22,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { API_ENDPOINTS } from '../config/api';
 import ExportModal from './ExportModal';
-import LoadingSpinner from './LoadingSpinner';
+import { getLocalDateKey, parseLocalDate, startOfLocalDay, endOfLocalDay } from '../utils/date';
 
 // Skeleton loading component
 const ChartSkeleton = memo(() => (
@@ -187,8 +186,8 @@ const AnalyticsDashboard = () => {
     const grouped = {};
 
     records.forEach((record) => {
-      const dateObj = new Date(record.date);
-      const dateKey = dateObj.toISOString().split('T')[0];
+      const dateObj = parseLocalDate(record.date);
+      const dateKey = getLocalDateKey(dateObj);
 
       if (!grouped[dateKey]) {
         grouped[dateKey] = {
@@ -254,19 +253,19 @@ const AnalyticsDashboard = () => {
         switch (dateFilters.dateRange) {
           case 'today':
             filterDate = new Date(now.setHours(0, 0, 0, 0));
-            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            allData = allData.filter(r => parseLocalDate(r.date) >= filterDate);
             break;
           case 'week':
             filterDate = new Date(now.setDate(now.getDate() - 7));
-            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            allData = allData.filter(r => parseLocalDate(r.date) >= filterDate);
             break;
           case 'month':
             filterDate = new Date(now.setMonth(now.getMonth() - 1));
-            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            allData = allData.filter(r => parseLocalDate(r.date) >= filterDate);
             break;
           case 'year':
             filterDate = new Date(now.setFullYear(now.getFullYear() - 1));
-            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            allData = allData.filter(r => parseLocalDate(r.date) >= filterDate);
             break;
         }
       }
@@ -405,19 +404,19 @@ const AnalyticsDashboard = () => {
         switch (dateFilters.dateRange) {
           case 'today':
             filterDate = new Date(now.setHours(0, 0, 0, 0));
-            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            allData = allData.filter(r => parseLocalDate(r.date) >= filterDate);
             break;
           case 'week':
             filterDate = new Date(now.setDate(now.getDate() - 7));
-            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            allData = allData.filter(r => parseLocalDate(r.date) >= filterDate);
             break;
           case 'month':
             filterDate = new Date(now.setMonth(now.getMonth() - 1));
-            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            allData = allData.filter(r => parseLocalDate(r.date) >= filterDate);
             break;
           case 'year':
             filterDate = new Date(now.setFullYear(now.getFullYear() - 1));
-            allData = allData.filter(r => new Date(r.date) >= filterDate);
+            allData = allData.filter(r => parseLocalDate(r.date) >= filterDate);
             break;
         }
       }
@@ -566,18 +565,18 @@ const AnalyticsDashboard = () => {
     const dailyMap = {};
     
     data.forEach(record => {
-      const date = record.date;
-      if (!dailyMap[date]) {
-        dailyMap[date] = { date, recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0 };
+      const dateKey = getLocalDateKey(record.date);
+      if (!dailyMap[dateKey]) {
+        dailyMap[dateKey] = { date: dateKey, recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0 };
       }
-      dailyMap[date].recyclable += record.recyclable || 0;
-      dailyMap[date].biodegradable += record.biodegradable || 0;
-      dailyMap[date].nonBiodegradable += record.nonBiodegradable || 0;
-      dailyMap[date].total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
+      dailyMap[dateKey].recyclable += record.recyclable || 0;
+      dailyMap[dateKey].biodegradable += record.biodegradable || 0;
+      dailyMap[dateKey].nonBiodegradable += record.nonBiodegradable || 0;
+      dailyMap[dateKey].total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
     });
 
     return Object.values(dailyMap)
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date))
       .slice(-30); // Last 30 days for trends
   };
 
@@ -585,7 +584,7 @@ const AnalyticsDashboard = () => {
     const monthlyMap = {};
     
     data.forEach(record => {
-      const date = new Date(record.date);
+      const date = parseLocalDate(record.date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
       if (!monthlyMap[monthKey]) {
@@ -618,7 +617,7 @@ const AnalyticsDashboard = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return parseLocalDate(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric'
     });
@@ -664,10 +663,8 @@ const AnalyticsDashboard = () => {
         return { from: lastMonthStart, to: lastMonthEnd };
       case 'custom':
         if (dateFrom && dateTo) {
-          const from = new Date(dateFrom);
-          from.setHours(0, 0, 0, 0);
-          const to = new Date(dateTo);
-          to.setHours(23, 59, 59, 999);
+          const from = startOfLocalDay(dateFrom);
+          const to = endOfLocalDay(dateTo);
           return { from, to };
         }
         return null;
@@ -686,8 +683,7 @@ const AnalyticsDashboard = () => {
     
     if (dateRange) {
       filteredData = wasteData.filter(record => {
-        const recordDate = new Date(record.date);
-        recordDate.setHours(0, 0, 0, 0);
+        const recordDate = startOfLocalDay(record.date);
         return recordDate >= dateRange.from && recordDate <= dateRange.to;
       });
     }
@@ -722,6 +718,19 @@ const AnalyticsDashboard = () => {
 
     const averageDaily = filteredData.length > 0 ? (totals.total / filteredData.length).toFixed(1) : 0;
     const monthlyAverage = monthlyData.length > 0 ? (totals.total / monthlyData.length).toFixed(1) : 0;
+    const busiestDay = dailyTrends.length > 0
+      ? dailyTrends.reduce((max, day) => (day.total || 0) > (max.total || 0) ? day : max)
+      : null;
+    const mostActiveMonth = monthlyData.length > 0
+      ? monthlyData.reduce((max, month) => (month.total || 0) > (max.total || 0) ? month : max)
+      : null;
+    const wasteCategories = [
+      { label: 'Recyclable', value: totals.recyclable },
+      { label: 'Wet Wastes', value: totals.biodegradable },
+      { label: 'Dry Wastes', value: totals.nonBiodegradable }
+    ];
+    const mostCommonWaste = wasteCategories.reduce((max, category) => category.value > max.value ? category : max, wasteCategories[0]);
+    const leastCommonWaste = wasteCategories.reduce((min, category) => category.value < min.value ? category : min, wasteCategories[0]);
     
     return {
       totals,
@@ -732,7 +741,11 @@ const AnalyticsDashboard = () => {
       averageDaily,
       monthlyAverage,
       recordCount: filteredData.length,
-      peakDay: findPeakDay(filteredData)
+      peakDay: findPeakDay(filteredData),
+      busiestDay,
+      mostActiveMonth,
+      mostCommonWaste,
+      leastCommonWaste
     };
   }, [wasteData, timeframe, dateFrom, dateTo, selectedTypes, getDateRange]);
 
@@ -849,12 +862,6 @@ const AnalyticsDashboard = () => {
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Analytics Dashboard</h1>
           <div className="flex gap-2 w-full sm:w-auto">
-            <button 
-              onClick={handleRefresh} 
-              className="flex-1 sm:flex-none justify-center bg-white border border-gray-300 text-gray-700 px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-50 transition-colors inline-flex items-center gap-1.5"
-            >
-              <RefreshOutlinedIcon fontSize="small" /> Refresh
-            </button>
             <button 
               onClick={() => setShowExportModal(true)} 
               className="flex-1 sm:flex-none justify-center bg-gray-900 text-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
@@ -1161,18 +1168,16 @@ const AnalyticsDashboard = () => {
               <div className="space-y-2">
                 <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                   <span><EmojiEventsOutlinedIcon fontSize="small" className="text-amber-500" /></span>
-                  <span className="flex-1 mt-0.5">Peak day: <span className="font-medium">{analyticsData.peakDay ? formatDate(analyticsData.peakDay.date) : 'N/A'}</span></span>
+                  <span className="flex-1 mt-0.5">Recycling efficiency: <span className="font-medium">{analyticsData.percentages.recyclable}%</span> of waste was recyclable.</span>
                 </div>
                 <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                   <span><TrendingUpOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
-                  <span className="flex-1 mt-0.5">Recycling rate: <span className="font-medium">{analyticsData.percentages.recyclable}%</span></span>
+                  <span className="flex-1 mt-0.5">Most common waste: <span className="font-medium">{analyticsData.mostCommonWaste.label} ({analyticsData.mostCommonWaste.value.toLocaleString()})</span></span>
                 </div>
-                {binAnalytics && (
-                  <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
-                    <span><DeleteOutlineOutlinedIcon fontSize="small" className="text-slate-500" /></span>
-                    <span className="flex-1 mt-0.5">Bin events: <span className="font-medium">{binAnalytics.total}</span></span>
-                  </div>
-                )}
+                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                  <span><DeleteOutlineOutlinedIcon fontSize="small" className="text-slate-500" /></span>
+                  <span className="flex-1 mt-0.5">Least common waste: <span className="font-medium">{analyticsData.leastCommonWaste.label} ({analyticsData.leastCommonWaste.value.toLocaleString()})</span></span>
+                </div>
               </div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5">
@@ -1180,37 +1185,18 @@ const AnalyticsDashboard = () => {
               <div className="space-y-2">
                 <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                   <span><CalendarMonthOutlinedIcon fontSize="small" className="text-blue-500" /></span>
-                  <span className="flex-1 mt-0.5">Most active day: <span className="font-medium">{(() => {
-                    if (!analyticsData.dailyTrends?.length) return 'No data';
-                    const mostActive = analyticsData.dailyTrends.reduce((max, day) => 
-                      (day.total || 0) > (max.total || 0) ? day : max
-                    );
-                    return `${formatDate(mostActive.date)} (${mostActive.total})`;
-                  })()}</span></span>
+                  <span className="flex-1 mt-0.5">Busiest day: <span className="font-medium">{analyticsData.busiestDay ? `${formatDate(analyticsData.busiestDay.date)} (${analyticsData.busiestDay.total} disposals)` : 'No data'}</span></span>
                 </div>
                 <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                   <span><InsightsOutlinedIcon fontSize="small" className="text-purple-500" /></span>
-                  <span className="flex-1 mt-0.5">Most active month: <span className="font-medium">{(() => {
-                    if (!analyticsData.monthlyData?.length) return 'No data';
-                    const mostActive = analyticsData.monthlyData.reduce((max, month) => 
-                      (month.total || 0) > (max.total || 0) ? month : max
-                    );
-                    return `${formatMonth(mostActive.month)} (${mostActive.total})`;
-                  })()}</span></span>
+                  <span className="flex-1 mt-0.5">Most active month: <span className="font-medium">{analyticsData.mostActiveMonth ? `${formatMonth(analyticsData.mostActiveMonth.month)} (${analyticsData.mostActiveMonth.total} disposals)` : 'No data'}</span></span>
                 </div>
-                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
-                  <span><RecyclingOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
-                  <span className="flex-1 mt-0.5">Top category: <span className="font-medium">{(() => {
-                    const totals = analyticsData.totals;
-                    const categories = [
-                      { name: 'Recyclable', value: totals.recyclable },
-                      { name: 'Wet', value: totals.biodegradable },
-                      { name: 'Dry', value: totals.nonBiodegradable }
-                    ];
-                    const top = categories.reduce((max, cat) => cat.value > max.value ? cat : max);
-                    return `${top.name} (${top.value.toLocaleString()})`;
-                  })()}</span></span>
-                </div>
+                {binAnalytics && (
+                  <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                    <span><RecyclingOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
+                    <span className="flex-1 mt-0.5">Bin full alerts triggered: <span className="font-medium">{binAnalytics.total}</span></span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

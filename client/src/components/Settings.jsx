@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, memo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, memo } from 'react';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
@@ -11,7 +11,7 @@ import LoadingSpinner from './LoadingSpinner';
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { preferences, updatePreference, isLoading: prefsLoading } = usePreferences();
   
   const [activeTab, setActiveTab] = useState('system');
@@ -21,12 +21,21 @@ const Settings = () => {
   
   const [profile, setProfile] = useState({
     username: user?.username || '',
+    email: user?.email || '',
     password: '',
     confirmPassword: ''
   });
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    setProfile((current) => ({
+      ...current,
+      username: user?.username || '',
+      email: user?.email || ''
+    }));
+  }, [user?.email, user?.username]);
 
   // Memoize message handler
   const showMessage = useCallback((text, type = 'success') => {
@@ -53,36 +62,10 @@ const Settings = () => {
     }
   }, [preferences, updatePreference, showMessage]);
 
-  const handleProfileSave = useCallback(async () => {
-    if (profile.password && profile.password !== profile.confirmPassword) {
-      showMessage('Passwords do not match', 'error');
-      return;
-    }
-
-    // Password validation
-    if (profile.password) {
-      const hasNumber = /\d/.test(profile.password);
-      const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(profile.password);
-      
-      if (!hasNumber) {
-        showMessage('Password must contain at least one number', 'error');
-        return;
-      }
-      
-      if (!hasSpecialChar) {
-        showMessage('Password must contain at least one special character', 'error');
-        return;
-      }
-    }
-
+  const saveAccountChanges = useCallback(async (updateData, successMessage, onSuccess) => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const updateData = { username: profile.username };
-      
-      if (profile.password) {
-        updateData.password = profile.password;
-      }
 
       const response = await fetch(`/api/accounts/manage/${user.id}`, {
         method: 'PUT',
@@ -93,19 +76,83 @@ const Settings = () => {
         body: JSON.stringify(updateData)
       });
 
+      const result = await response.json().catch(() => ({}));
+
       if (response.ok) {
-        showMessage('Profile updated successfully');
-        setProfile(prev => ({ ...prev, password: '', confirmPassword: '' }));
+        const updatedAccount = result.account || {};
+        const nextUser = {
+          ...user,
+          username: updatedAccount.username || profile.username,
+          name: updatedAccount.username || profile.username,
+          email: updatedAccount.email ?? profile.email
+        };
+
+        updateUser(nextUser);
+        showMessage(successMessage);
+        onSuccess?.(updatedAccount, nextUser);
       } else {
-        const error = await response.json();
-        showMessage(error.message || 'Failed to update profile', 'error');
+        showMessage(result.message || 'Failed to update profile', 'error');
       }
     } catch (error) {
       showMessage('Failed to update profile', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [profile, user.id, showMessage]);
+  }, [profile.email, profile.username, showMessage, updateUser, user]);
+
+  const handleProfileDetailsSave = useCallback(async () => {
+    await saveAccountChanges(
+      {
+        username: profile.username,
+        email: profile.email
+      },
+      'Profile updated successfully',
+      (updatedAccount) => {
+        setProfile(prev => ({
+          ...prev,
+          username: updatedAccount.username || prev.username,
+          email: updatedAccount.email ?? prev.email
+        }));
+      }
+    );
+  }, [profile.email, profile.username, saveAccountChanges]);
+
+  const handlePasswordSave = useCallback(async () => {
+    if (!profile.password) {
+      showMessage('Enter a new password first', 'error');
+      return;
+    }
+
+    if (profile.password !== profile.confirmPassword) {
+      showMessage('Passwords do not match', 'error');
+      return;
+    }
+
+    const hasNumber = /\d/.test(profile.password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>_]/.test(profile.password);
+    
+    if (!hasNumber) {
+      showMessage('Password must contain at least one number', 'error');
+      return;
+    }
+    
+    if (!hasSpecialChar) {
+      showMessage('Password must contain at least one special character', 'error');
+      return;
+    }
+
+    await saveAccountChanges(
+      { password: profile.password },
+      'Password updated successfully',
+      () => {
+        setProfile(prev => ({
+          ...prev,
+          password: '',
+          confirmPassword: ''
+        }));
+      }
+    );
+  }, [profile.confirmPassword, profile.password, saveAccountChanges, showMessage]);
 
   const handleLaunchKiosk = useCallback(() => {
     navigate('/kiosk');
@@ -246,71 +293,98 @@ const Settings = () => {
               <div className="p-4 px-5 bg-[#f6f8fa] border-b border-[#d1d9e0]">
                 <h2 className="text-base font-semibold text-[#1f2328] m-0">Profile Settings</h2>
                 <p className="text-sm text-[#656d76] mt-1 mb-0">
-                  Update your personal information and password.
+                  Update your personal information and password separately.
                 </p>
               </div>
               <div className="p-0">
                 <div className="p-5">
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-[#1f2328] mb-2">Username</label>
-                    <input
-                      type="text"
-                      className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full max-w-[320px] focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
-                      value={profile.username}
-                      onChange={(e) => setProfile(prev => ({ ...prev, username: e.target.value }))}
-                    />
-                  </div>
+                  <div className="border border-[#d1d9e0] rounded-md p-4 mb-5">
+                    <h3 className="text-sm font-semibold text-[#1f2328] mt-0 mb-4">Profile Info</h3>
 
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-[#1f2328] mb-2">New Password</label>
-                    <div className="relative max-w-[320px]">
+                    <div className="mb-4">
+                      <label className="block text-sm font-semibold text-[#1f2328] mb-2">Username</label>
                       <input
-                        type={showPassword ? "text" : "password"}
-                        className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
-                        value={profile.password}
-                        onChange={(e) => setProfile(prev => ({ ...prev, password: e.target.value }))}
-                        placeholder="Leave blank to keep current password"
+                        type="text"
+                        className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full max-w-[320px] focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
+                        value={profile.username}
+                        onChange={(e) => setProfile(prev => ({ ...prev, username: e.target.value }))}
                       />
-                      <button
-                        type="button"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
-                      </button>
                     </div>
-                    {profile.password && (
-                      <p className="text-xs text-gray-600 mt-1">Must contain at least one number and one special character</p>
-                    )}
-                  </div>
 
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-[#1f2328] mb-2">Confirm Password</label>
-                    <div className="relative max-w-[320px]">
+                    <div className="mb-4">
+                      <label className="block text-sm font-semibold text-[#1f2328] mb-2">Email</label>
                       <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
-                        value={profile.confirmPassword}
-                        onChange={(e) => setProfile(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                        placeholder="Confirm new password"
+                        type="email"
+                        className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full max-w-[320px] focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
+                        value={profile.email}
+                        onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder="Enter recovery email"
                       />
-                      <button
-                        type="button"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      >
-                        {showConfirmPassword ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
-                      </button>
                     </div>
+
+                    <button
+                      className="border rounded-md cursor-pointer text-sm font-medium py-1.5 px-4 transition-all duration-150 inline-flex items-center gap-1 bg-[#1f883d] border-[#1f883d] text-white hover:bg-[#1a7f37] hover:border-[#1a7f37] disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleProfileDetailsSave}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Saving...' : 'Save Profile'}
+                    </button>
                   </div>
 
-                  <button
-                    className="border rounded-md cursor-pointer text-sm font-medium py-1.5 px-4 transition-all duration-150 inline-flex items-center gap-1 bg-[#1f883d] border-[#1f883d] text-white hover:bg-[#1a7f37] hover:border-[#1a7f37] disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={handleProfileSave}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? 'Saving...' : 'Save Changes'}
-                  </button>
+                  <div className="border border-[#d1d9e0] rounded-md p-4">
+                    <h3 className="text-sm font-semibold text-[#1f2328] mt-0 mb-4">Change Password</h3>
+
+                    <div className="mb-4">
+                      <label className="block text-sm font-semibold text-[#1f2328] mb-2">New Password</label>
+                      <div className="relative max-w-[320px]">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
+                          value={profile.password}
+                          onChange={(e) => setProfile(prev => ({ ...prev, password: e.target.value }))}
+                          placeholder="Enter new password"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
+                        </button>
+                      </div>
+                      {profile.password && (
+                        <p className="text-xs text-gray-600 mt-1">Must contain at least one number and one special character. `_` counts as a special character.</p>
+                      )}
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-sm font-semibold text-[#1f2328] mb-2">Confirm Password</label>
+                      <div className="relative max-w-[320px]">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
+                          value={profile.confirmPassword}
+                          onChange={(e) => setProfile(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                          placeholder="Confirm new password"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        >
+                          {showConfirmPassword ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      className="border rounded-md cursor-pointer text-sm font-medium py-1.5 px-4 transition-all duration-150 inline-flex items-center gap-1 bg-[#1f883d] border-[#1f883d] text-white hover:bg-[#1a7f37] hover:border-[#1a7f37] disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handlePasswordSave}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Saving...' : 'Update Password'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

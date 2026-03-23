@@ -21,8 +21,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { API_ENDPOINTS } from '../config/api';
-import LoadingSpinner from './LoadingSpinner';
 import ExportModal from './ExportModal';
+import { formatLocalDateForApi, getLocalDateKey, parseLocalDate } from '../utils/date';
 
 // Skeleton row component
 const SkeletonRow = memo(() => (
@@ -77,7 +77,6 @@ const WasteTable = () => {
   const [dateToObj, setDateToObj] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
   const [typeFilter, setTypeFilter] = useState('all'); // all, recyclable, biodegradable, nonBiodegradable
@@ -87,11 +86,11 @@ const WasteTable = () => {
   
   // Convert Date objects to strings for API
   const dateFrom = useMemo(() => 
-    dateFromObj ? dateFromObj.toISOString().split('T')[0] : '',
+    dateFromObj ? formatLocalDateForApi(dateFromObj) : '',
     [dateFromObj]
   );
   const dateTo = useMemo(() => 
-    dateToObj ? dateToObj.toISOString().split('T')[0] : '',
+    dateToObj ? formatLocalDateForApi(dateToObj) : '',
     [dateToObj]
   );
 
@@ -114,12 +113,36 @@ const WasteTable = () => {
     };
   }, [queryError]);
 
+  // Keep waste records live so the table updates without manual refresh.
+  useEffect(() => {
+    const eventSource = new EventSource(API_ENDPOINTS.BIN_NOTIFICATIONS_STREAM);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data?.type === 'WASTE_INSERTED') {
+          refetch();
+        }
+      } catch (parseError) {
+        console.error('Waste table SSE parse error:', parseError);
+      }
+    };
+
+    eventSource.onerror = () => {
+      // Keep the stream silent here; React Query still handles recovery.
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [refetch]);
+
   // Aggregate data by month (memoized)
   const aggregateByMonth = useCallback((data) => {
     const monthlyData = {};
     
     data.forEach(record => {
-      const date = new Date(record.date);
+      const date = parseLocalDate(record.date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
       if (!monthlyData[monthKey]) {
@@ -144,7 +167,7 @@ const WasteTable = () => {
 
   // Format date based on view mode
   const formatDate = useCallback((dateString) => {
-    const date = new Date(dateString);
+    const date = parseLocalDate(dateString);
     if (viewMode === 'monthly') {
       return date.toLocaleDateString('en-US', {
         year: 'numeric',
@@ -214,7 +237,7 @@ const WasteTable = () => {
       // Compile same-day records of the same type into single rows
       const groupedMap = {};
       individualRows.forEach(row => {
-        const dateStr = new Date(row.date).toDateString();
+        const dateStr = parseLocalDate(row.date).toDateString();
         const key = `${dateStr}-${row.originalType}`;
         
         if (!groupedMap[key]) {
@@ -298,18 +321,8 @@ const WasteTable = () => {
       });
     }
     
-    // Apply search filtering
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      data = data.filter(record => {
-        const dateStr = formatDate(record.date).toLowerCase();
-        const typeStr = (record.type || '').toLowerCase();
-        return dateStr.includes(query) || typeStr.includes(query);
-      });
-    }
-    
     return data;
-  }, [viewMode, wasteData, aggregateByMonth, sortBy, sortOrder, typeFilter, searchQuery, formatDate]);
+  }, [viewMode, wasteData, aggregateByMonth, sortBy, sortOrder, typeFilter, formatDate]);
 
   // Calculate pagination (memoized)
   const { totalItems, totalPages, startIndex, endIndex, paginatedData } = useMemo(() => {
@@ -375,7 +388,7 @@ const WasteTable = () => {
     if (dateRange === 'all') return rawData;
 
     return rawData.filter(record => {
-      const d = new Date(record.date);
+      const d = parseLocalDate(record.date);
       if (dateRange === 'today') {
         const today = new Date();
         return d.toDateString() === today.toDateString();
@@ -407,7 +420,7 @@ const WasteTable = () => {
   const aggregateForExport = useCallback((rawData) => {
     const monthlyData = {};
     rawData.forEach(record => {
-      const date = new Date(record.date);
+      const date = parseLocalDate(record.date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (!monthlyData[monthKey]) {
         monthlyData[monthKey] = { date: monthKey + '-01', recyclable: 0, biodegradable: 0, nonBiodegradable: 0 };
@@ -424,8 +437,8 @@ const WasteTable = () => {
     const grouped = {};
 
     rawData.forEach(record => {
-      const dateObj = new Date(record.date);
-      const dateKey = dateObj.toISOString().split('T')[0];
+      const dateObj = parseLocalDate(record.date);
+      const dateKey = getLocalDateKey(dateObj);
 
       if ((record.recyclable || 0) > 0) {
         const key = `${dateKey}-recyclable`;
@@ -545,12 +558,12 @@ const WasteTable = () => {
 
       let currentDateKey = null;
       dailyTypeRows.forEach((entry) => {
-        const entryDateKey = new Date(entry.date).toISOString().split('T')[0];
+        const entryDateKey = getLocalDateKey(entry.date);
         const shouldShowDate = entryDateKey !== currentDateKey;
         currentDateKey = entryDateKey;
 
         const dateCell = shouldShowDate
-          ? new Date(entry.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+          ? parseLocalDate(entry.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
           : '';
 
         const timeCell = shouldShowDate ? '-' : '';
@@ -633,12 +646,12 @@ const WasteTable = () => {
       let currentDateKey = null;
 
       dailyTypeRows.forEach((entry) => {
-        const entryDateKey = new Date(entry.date).toISOString().split('T')[0];
+        const entryDateKey = getLocalDateKey(entry.date);
         const shouldShowDate = entryDateKey !== currentDateKey;
         currentDateKey = entryDateKey;
 
         const row = {
-          Date: shouldShowDate ? new Date(entry.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
+          Date: shouldShowDate ? parseLocalDate(entry.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
           Time: shouldShowDate ? '-' : '',
           Type: '',
           'Quantity (pcs)': 0,
@@ -767,7 +780,6 @@ const WasteTable = () => {
     setDateFromObj(null);
     setDateToObj(null);
     setTypeFilter('all');
-    setSearchQuery('');
     setViewMode('daily');
   }, []);
 
@@ -874,8 +886,8 @@ const WasteTable = () => {
               </div>
             </div>
 
-            {/* Row 2: Type Filter, Search & Clear */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Row 2: Type Filter & Clear */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {viewMode === 'daily' && (
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">Waste Type</label>
@@ -891,17 +903,6 @@ const WasteTable = () => {
                   </select>
                 </div>
               )}
-              
-              <div className={`space-y-2 ${viewMode === 'monthly' ? 'md:col-span-2' : ''}`}>
-                <label className="block text-sm font-medium text-gray-700">Search</label>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by date or type..."
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                />
-              </div>
 
               <div className="flex items-end">
                 <button
@@ -1005,15 +1006,6 @@ const WasteTable = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <h2 className="text-lg font-semibold text-gray-900">Waste Collection Records</h2>
               <div className="flex items-center gap-4">
-                <button
-                  onClick={refetch}
-                  disabled={loading}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                  aria-label="Refresh data"
-                >
-                  <RefreshOutlinedIcon className={`mr-2 ${loading ? 'animate-spin' : ''}`} fontSize="small" />
-                  Refresh
-                </button>
                 <span className="text-sm text-gray-600">
                   Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} {viewMode === 'monthly' ? 'months' : 'records'}
                 </span>
@@ -1135,7 +1127,7 @@ const WasteTable = () => {
               {/* Pagination Controls */}
               <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <label className="text-sm text-gray-700">Show:</label>
                     <select
                       value={itemsPerPage}
@@ -1154,11 +1146,16 @@ const WasteTable = () => {
                   </div>
 
                   {totalPages > 1 && (
-                    <div className="flex items-center gap-2">
+                    <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
+                      <span className="text-xs text-gray-600 sm:hidden">
+                        Page {currentPage} of {totalPages}
+                      </span>
+
+                      <div className="flex items-center gap-2 ml-auto sm:ml-0">
                       <button
                         onClick={() => goToPage(1)}
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+                        className="hidden sm:inline-flex px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed items-center"
                         aria-label="First page"
                       >
                         <FirstPageOutlinedIcon fontSize="small" />
@@ -1172,7 +1169,8 @@ const WasteTable = () => {
                         <NavigateBeforeOutlinedIcon fontSize="small" />
                       </button>
 
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      <div className="hidden sm:flex items-center gap-2">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                         let pageNum;
                         if (totalPages <= 5) {
                           pageNum = i + 1;
@@ -1199,7 +1197,8 @@ const WasteTable = () => {
                             {pageNum}
                           </button>
                         );
-                      })}
+                        })}
+                      </div>
 
                       <button
                         onClick={goToNextPage}
@@ -1212,11 +1211,12 @@ const WasteTable = () => {
                       <button
                         onClick={() => goToPage(totalPages)}
                         disabled={currentPage === totalPages}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+                        className="hidden sm:inline-flex px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed items-center"
                         aria-label="Last page"
                       >
                         <LastPageOutlinedIcon fontSize="small" />
                       </button>
+                      </div>
                     </div>
                   )}
                 </div>

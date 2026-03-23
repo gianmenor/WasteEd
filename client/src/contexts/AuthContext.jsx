@@ -31,8 +31,10 @@ export const AuthProvider = ({ children }) => {
           });
           
           if (response.ok) {
-            const userData = JSON.parse(savedUser);
+            const validated = await response.json().catch(() => null);
+            const userData = validated?.user || JSON.parse(savedUser);
             setUser(userData);
+            localStorage.setItem('user', JSON.stringify(userData));
             setIsAuthenticated(true);
           } else {
             // Token is invalid, clear storage

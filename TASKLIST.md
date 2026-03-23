@@ -2,6 +2,18 @@
 
 Purpose: Persistent implementation list to continue across chat/session limits.
 
+## Phase 0 - PDF Update (2026-03-23)
+- [x] Inventory: make status strictly stock-based in exports/UI and remove Created At from export output
+- [x] Inventory: improve mobile action button layout and restore `(pcs)` wording on stock/count labels
+- [x] Coupon Records: auto-refresh balance/history on waste insert without manual page refresh
+- [x] Coupon Records: remove redundant search UI noted in the PDF
+- [x] Waste Management: fix same-day custom date filtering bug caused by local date -> UTC conversion
+- [x] Waste Management: auto-refresh records on live waste inserts and remove redundant refresh/search controls
+- [x] Analytics Dashboard: remove redundant header refresh button and rewrite insights/activity wording
+- [x] Account/Email: allow profile email updates and keep auth/header state synced after save
+- [x] Forgot Password: align destination email fallback and on-screen copy with the requested address
+- [x] Run focused regression checks after changes because related screens have been moving together
+
 ## Phase 1 - Core Fixes (Do First)
 - [ ] Fix notifications tab functionality (open/read/update flow)
 - [ ] Add low stock alert notifications for coupons

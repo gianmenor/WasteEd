@@ -1,5 +1,25 @@
 import { prisma, retryOperation } from '../../utils/database.js';
 
+const parseDateOnly = (value) => {
+  if (typeof value !== 'string') return null;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day));
+};
+
+const formatDateOnly = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0')
+  ].join('-');
+};
+
 // GET /api/waste/records
 // Optimized for TanStack React Table with pagination, search, and filters
 // Query parameters: 
@@ -80,8 +100,8 @@ const getWasteRecords = async (req, res) => {
       whereClause.date = {};
       
       if (dateFrom) {
-        const fromDate = new Date(dateFrom);
-        if (isNaN(fromDate.getTime())) {
+        const fromDate = parseDateOnly(dateFrom);
+        if (!fromDate || isNaN(fromDate.getTime())) {
           return res.status(400).json({
             success: false,
             message: 'Invalid dateFrom format. Please use YYYY-MM-DD format.',
@@ -93,8 +113,8 @@ const getWasteRecords = async (req, res) => {
       }
       
       if (dateTo) {
-        const toDate = new Date(dateTo);
-        if (isNaN(toDate.getTime())) {
+        const toDate = parseDateOnly(dateTo);
+        if (!toDate || isNaN(toDate.getTime())) {
           return res.status(400).json({
             success: false,
             message: 'Invalid dateTo format. Please use YYYY-MM-DD format.',
@@ -159,7 +179,7 @@ const getWasteRecords = async (req, res) => {
       const searchTerm = search.toLowerCase();
       filteredRecords = allRecords.filter(record => {
         const total = record.recyclable + record.biodegradable + record.nonBiodegradable;
-        const dateStr = record.date.toISOString().split('T')[0]; // YYYY-MM-DD format
+        const dateStr = formatDateOnly(record.date);
         
         return (
           dateStr.includes(searchTerm) ||
@@ -216,7 +236,7 @@ const getWasteRecords = async (req, res) => {
     // Format response data for TanStack Table
     const formattedRecords = filteredRecords.map(record => ({
       id: record.id,
-      date: record.date.toISOString().split('T')[0], // YYYY-MM-DD format for frontend
+      date: formatDateOnly(record.date),
       recyclable: record.recyclable,
       biodegradable: record.biodegradable,
       nonBiodegradable: record.nonBiodegradable,
