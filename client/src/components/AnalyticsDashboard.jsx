@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -17,9 +17,6 @@ import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { API_ENDPOINTS } from '../config/api';
 import ExportModal from './ExportModal';
 import { getLocalDateKey, parseLocalDate, startOfLocalDay, endOfLocalDay } from '../utils/date';
@@ -113,11 +110,33 @@ const AnalyticsDashboard = () => {
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState(null);
   const [showExportModal, setShowExportModal] = useState(false);
+  const exportModulesRef = useRef(null);
   const [selectedTypes, setSelectedTypes] = useState({
     RECYCLABLE: true,
     WET: true,
     DRY: true
   });
+
+  const loadExportModules = useCallback(async () => {
+    if (exportModulesRef.current) {
+      return exportModulesRef.current;
+    }
+
+    const [{ default: jsPDF }, autoTableModule, xlsxModule] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+      import('xlsx'),
+    ]);
+
+    const modules = {
+      jsPDF,
+      autoTable: autoTableModule.default || autoTableModule,
+      XLSX: xlsxModule.default || xlsxModule,
+    };
+
+    exportModulesRef.current = modules;
+    return modules;
+  }, []);
 
   // Use React Query for data fetching with caching
   const { data: wasteData = [], isLoading: wasteLoading, error: wasteError, refetch: refetchWaste } = useQuery({
@@ -212,6 +231,7 @@ const AnalyticsDashboard = () => {
     const types = typesToExport || selectedTypes;
     setExporting(true);
     try {
+      const { XLSX } = await loadExportModules();
       let allData = [];
       let currentPage = 1;
       let hasMoreData = true;
@@ -355,7 +375,7 @@ const AnalyticsDashboard = () => {
     } finally {
       setExporting(false);
     }
-  }, [selectedTypes, aggregateWasteByDay]);
+  }, [selectedTypes, aggregateWasteByDay, loadExportModules]);
 
   // PDF Export function
   const exportToPDF = useCallback(async (dateFilters = {}, typesToExport = null) => {
@@ -363,6 +383,7 @@ const AnalyticsDashboard = () => {
     const types = typesToExport || selectedTypes;
     setExporting(true);
     try {
+      const { jsPDF, autoTable } = await loadExportModules();
       let allData = [];
       let currentPage = 1;
       let hasMoreData = true;
@@ -533,7 +554,7 @@ const AnalyticsDashboard = () => {
     } finally {
       setExporting(false);
     }
-  }, [selectedTypes, aggregateWasteByDay]);
+  }, [selectedTypes, aggregateWasteByDay, loadExportModules]);
 
   // Unified export handler
   const handleExport = useCallback(async (options) => {

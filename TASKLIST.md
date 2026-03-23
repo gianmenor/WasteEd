@@ -68,6 +68,37 @@ Purpose: Persistent implementation list to continue across chat/session limits.
 - [ ] Reduce redundant UI sections
 - [ ] Improve wording clarity across labels
 
+## Phase 5 - Performance + Realtime + Batch Scaling
+- [ ] Baseline profiling + budgets
+  - [ ] Capture p50/p95 API timings for `/api/waste/records`, `/api/bin/records`, `/api/coupon/balance`
+  - [ ] Add frontend performance marks for app boot, auth validation, dashboard first paint, dashboard data-ready
+  - [ ] Define performance budgets (initial JS, first contentful paint, time-to-data)
+- [ ] Frontend load optimization
+  - [x] Route-level code splitting for dashboard pages (`AnalyticsDashboard`, `WasteTable`, `CouponRecords`, `ProfitRewards`, `InventoryManagement`, `Settings`)
+  - [x] Lazy-load export-heavy libraries (`xlsx`, `jspdf`, `jspdf-autotable`) only when export modal/action is opened
+  - [x] Introduce manual chunking in Vite for chart/export/vendor bundles
+  - [x] Remove duplicate `/dashboard` route declaration
+- [ ] Data fetching optimization
+  - [ ] Replace full-history pagination loops on initial dashboard load with summary endpoints (server-side aggregate by day/range)
+  - [ ] Keep TanStack Query cache warm with incremental realtime patching instead of full `refetch` on each event
+  - [ ] De-duplicate fetch calls triggered by dev-mode StrictMode effects where applicable
+- [ ] Backend query optimization
+  - [ ] Add DB indexes for common sort/filter columns (`waste_items.date`, `waste_items.recordedAt`, `bin_records.fullAt`, `waste_notifications.createdAt`)
+  - [ ] Push search/total filter and aggregation work to SQL/Prisma query layer (avoid large post-query JS filtering)
+  - [ ] Add lightweight aggregate endpoints for dashboard cards/charts to avoid transferring raw rows on boot
+- [ ] Realtime architecture hardening (resource-intensive safe mode)
+  - [ ] Keep SSE for low-latency updates, but throttle/coalesce high-frequency events into 250-1000ms windows client-side
+  - [ ] Use event versioning / cursor IDs to avoid duplicate UI updates and redundant refetches
+  - [ ] Add reconnect backoff + heartbeat monitoring for stable long-lived SSE connections
+- [ ] Batch processing improvements
+  - [ ] Move heavy batch jobs (daily rollups, exports, reconciliation) to background workers/queues
+  - [ ] Persist precomputed hourly/daily aggregates for dashboard and reporting endpoints
+  - [ ] Add idempotent batch job keys and retry policy with dead-letter handling
+- [ ] Verification + rollback safety
+  - [ ] Add load test script for concurrent realtime events + dashboard users
+  - [ ] Track before/after metrics in this task list for each optimization batch
+  - [ ] Add feature flags for risky performance changes (aggregate endpoint switch, query strategy)
+
 ## Notes
 - Keep behavior changes backward-compatible where possible.
 - Run client build after each completed feature group.

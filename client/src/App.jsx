@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
@@ -9,19 +9,19 @@ import ThemeProvider from './contexts/ThemeProvider';
 import Login from './components/Login';
 import ForgotPassword from './components/ForgotPassword';
 import Dashboard from './components/Dashboard';
-import WasteTable from './components/WasteTable';
-import AnalyticsDashboard from './components/AnalyticsDashboard';
-import Settings from './components/Settings';
-import CouponRecords from './components/CouponRecords';
-import ProfitRewards from './components/ProfitRewards';
-import NotificationTest from './components/NotificationTest';
 import DashboardSkeleton from './components/DashboardSkeleton';
-import DevPage from './components/DevPage';
-import LandingPage from './components/LandingPage';
-import InventoryManagement from './components/InventoryManagement';
 import KioskMode from './components/KioskMode';
 import KioskAdminLogin from './components/KioskAdminLogin';
 import './App.css';
+
+const WasteTable = lazy(() => import('./components/WasteTable'));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
+const Settings = lazy(() => import('./components/Settings'));
+const CouponRecords = lazy(() => import('./components/CouponRecords'));
+const ProfitRewards = lazy(() => import('./components/ProfitRewards'));
+const NotificationTest = lazy(() => import('./components/NotificationTest'));
+const DevPage = lazy(() => import('./components/DevPage'));
+const InventoryManagement = lazy(() => import('./components/InventoryManagement'));
 
 // Create query client
 const queryClient = new QueryClient({
@@ -57,7 +57,8 @@ const AppContent = () => {
       <BinNotificationProvider>
         <ThemeProvider>
           <Router>
-            <Routes>
+            <Suspense fallback={<DashboardSkeleton />}>
+              <Routes>
               <Route 
                 path="/login" 
                 element={
@@ -93,17 +94,6 @@ const AppContent = () => {
                 element={<KioskAdminLogin />}
               />
           
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <Dashboard user={user} onLogout={logout}>
-                    <AnalyticsDashboard />
-                  </Dashboard>
-                </ProtectedRoute>
-              } 
-            />
-            
             <Route 
               path="/dashboard" 
               element={
@@ -193,6 +183,7 @@ const AppContent = () => {
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+            </Suspense>
         </Router>
       </ThemeProvider>
       </BinNotificationProvider>
