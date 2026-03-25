@@ -201,6 +201,25 @@ const AnalyticsDashboard = () => {
     refetchBin();
   }, [refetchWaste, refetchBin]);
 
+  const today = new Date();
+  const maxCustomFromDate = dateTo && dateTo < today ? dateTo : today;
+
+  const handleCustomDateFromChange = useCallback((newValue) => {
+    setDateFrom(newValue);
+
+    if (newValue && dateTo && startOfLocalDay(newValue) > endOfLocalDay(dateTo)) {
+      setDateTo(null);
+    }
+  }, [dateTo]);
+
+  const handleCustomDateToChange = useCallback((newValue) => {
+    setDateTo(newValue);
+
+    if (newValue && dateFrom && endOfLocalDay(newValue) < startOfLocalDay(dateFrom)) {
+      setDateFrom(null);
+    }
+  }, [dateFrom]);
+
   const aggregateWasteByDay = useCallback((records) => {
     const grouped = {};
 
@@ -696,15 +715,13 @@ const AnalyticsDashboard = () => {
 
   // Generate comprehensive waste analytics from raw data (memoized)
   const analyticsData = useMemo(() => {
-    if (!wasteData.length) return null;
-
     // Filter by date range based on timeframe
     let filteredData = wasteData;
     const dateRange = getDateRange();
     
     if (dateRange) {
       filteredData = wasteData.filter(record => {
-        const recordDate = startOfLocalDay(record.date);
+        const recordDate = parseLocalDate(record.date);
         return recordDate >= dateRange.from && recordDate <= dateRange.to;
       });
     }
@@ -725,8 +742,8 @@ const AnalyticsDashboard = () => {
       return acc;
     }, { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0 });
 
-    const dailyTrends = generateDailyTrends(filteredData) || [];
-    const monthlyData = generateMonthlyData(filteredData) || [];
+    const dailyTrends = filteredData.length > 0 ? generateDailyTrends(filteredData) || [] : [];
+    const monthlyData = filteredData.length > 0 ? generateMonthlyData(filteredData) || [] : [];
     
     const percentages = {
       recyclable: totals.total > 0 ? (totals.recyclable / totals.total * 100).toFixed(1) : 0,
@@ -750,8 +767,12 @@ const AnalyticsDashboard = () => {
       { label: 'Wet Wastes', value: totals.biodegradable },
       { label: 'Dry Wastes', value: totals.nonBiodegradable }
     ];
-    const mostCommonWaste = wasteCategories.reduce((max, category) => category.value > max.value ? category : max, wasteCategories[0]);
-    const leastCommonWaste = wasteCategories.reduce((min, category) => category.value < min.value ? category : min, wasteCategories[0]);
+    const mostCommonWaste = totals.total > 0
+      ? wasteCategories.reduce((max, category) => category.value > max.value ? category : max, wasteCategories[0])
+      : null;
+    const leastCommonWaste = totals.total > 0
+      ? wasteCategories.reduce((min, category) => category.value < min.value ? category : min, wasteCategories[0])
+      : null;
     
     return {
       totals,
@@ -769,6 +790,8 @@ const AnalyticsDashboard = () => {
       leastCommonWaste
     };
   }, [wasteData, timeframe, dateFrom, dateTo, selectedTypes, getDateRange]);
+
+  const hasAnalyticsRecords = analyticsData.recordCount > 0;
 
   // Derive bin analytics (memoized)
   const binAnalytics = useMemo(() => {
@@ -931,8 +954,8 @@ const AnalyticsDashboard = () => {
                     <label className="text-xs sm:text-sm font-medium text-gray-700">From</label>
                     <DatePicker
                       value={dateFrom}
-                      onChange={(newValue) => setDateFrom(newValue)}
-                      maxDate={new Date()}
+                      onChange={handleCustomDateFromChange}
+                      maxDate={maxCustomFromDate}
                       slotProps={{
                         textField: {
                           size: 'small',
@@ -948,8 +971,9 @@ const AnalyticsDashboard = () => {
                     <label className="text-xs sm:text-sm font-medium text-gray-700">To</label>
                     <DatePicker
                       value={dateTo}
-                      onChange={(newValue) => setDateTo(newValue)}
-                      maxDate={new Date()}
+                      onChange={handleCustomDateToChange}
+                      minDate={dateFrom || undefined}
+                      maxDate={today}
                       slotProps={{
                         textField: {
                           size: 'small',
@@ -1105,44 +1129,52 @@ const AnalyticsDashboard = () => {
                 Daily Waste Items
                 <span className="text-[10px] sm:text-xs font-normal text-gray-500 ml-1 sm:ml-2">(Avg {analyticsData.averageDaily}/day)</span>
               </h3>
-              <div className="w-full -ml-3 sm:ml-0 overflow-hidden pr-2 sm:pr-0">
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={analyticsData.dailyTrends.map(item => ({
-                    date: formatDate(item.date),
-                    Recyclable: item.recyclable || 0,
-                    Wet: item.biodegradable || 0,
-                    Dry: item.nonBiodegradable || 0,
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: 10, fill: '#6b7280' }}
-                      angle={-45}
-                      textAnchor="end"
-                      height={60}
-                      tickMargin={5}
-                    />
-                    <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} width={35} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        padding: '8px'
-                      }} 
-                    />
-                    <Legend 
-                      wrapperStyle={{ fontSize: '11px' }}
-                      iconType="square"
-                      iconSize={8}
-                    />
-                    <Bar dataKey="Recyclable" stackId="a" fill="#10b981" />
-                    <Bar dataKey="Wet" stackId="a" fill="#f59e0b" />
-                    <Bar dataKey="Dry" stackId="a" fill="#6b7280" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {hasAnalyticsRecords ? (
+                <div className="w-full -ml-3 sm:ml-0 overflow-hidden pr-2 sm:pr-0">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={analyticsData.dailyTrends.map(item => ({
+                      date: formatDate(item.date),
+                      Recyclable: item.recyclable || 0,
+                      Wet: item.biodegradable || 0,
+                      Dry: item.nonBiodegradable || 0,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                      <XAxis 
+                        dataKey="date" 
+                        tick={{ fontSize: 10, fill: '#6b7280' }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={60}
+                        tickMargin={5}
+                      />
+                      <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} width={35} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          padding: '8px'
+                        }} 
+                      />
+                      <Legend 
+                        wrapperStyle={{ fontSize: '11px' }}
+                        iconType="square"
+                        iconSize={8}
+                      />
+                      <Bar dataKey="Recyclable" stackId="a" fill="#10b981" />
+                      <Bar dataKey="Wet" stackId="a" fill="#f59e0b" />
+                      <Bar dataKey="Dry" stackId="a" fill="#6b7280" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex h-[250px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 text-center text-gray-500">
+                  <BarChartOutlinedIcon fontSize="large" className="mb-3 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-700">No waste data for the selected range</p>
+                  <p className="mt-1 text-xs text-gray-500">Add records or adjust the filters to populate the daily chart.</p>
+                </div>
+              )}
             </div>
 
             {/* Monthly Waste Chart */}
@@ -1151,32 +1183,40 @@ const AnalyticsDashboard = () => {
                 Monthly Waste
                 <span className="text-[10px] sm:text-xs font-normal text-gray-500 ml-1 sm:ml-2">(Avg {analyticsData.monthlyAverage}/mo)</span>
               </h3>
-              <div className="w-full -ml-3 sm:ml-0 overflow-hidden pr-2 sm:pr-0">
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={(analyticsData.monthlyData || []).map(item => ({
-                    month: item.month,
-                    Total: item.total || 0,
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                    <XAxis 
-                      dataKey="month" 
-                      tick={{ fontSize: 10, fill: '#6b7280' }}
-                      tickMargin={5}
-                    />
-                    <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} width={35} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        padding: '8px'
-                      }} 
-                    />
-                    <Bar dataKey="Total" fill="#3b82f6" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {hasAnalyticsRecords ? (
+                <div className="w-full -ml-3 sm:ml-0 overflow-hidden pr-2 sm:pr-0">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={(analyticsData.monthlyData || []).map(item => ({
+                      month: item.month,
+                      Total: item.total || 0,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                      <XAxis 
+                        dataKey="month" 
+                        tick={{ fontSize: 10, fill: '#6b7280' }}
+                        tickMargin={5}
+                      />
+                      <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} width={35} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          padding: '8px'
+                        }} 
+                      />
+                      <Bar dataKey="Total" fill="#3b82f6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex h-[250px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 text-center text-gray-500">
+                  <CalendarMonthOutlinedIcon fontSize="large" className="mb-3 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-700">No monthly activity to chart yet</p>
+                  <p className="mt-1 text-xs text-gray-500">Monthly summaries appear here once waste records exist in the selected range.</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1186,39 +1226,55 @@ const AnalyticsDashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-2">
             <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5">
               <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">Key Insights</h3>
-              <div className="space-y-2">
-                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
-                  <span><EmojiEventsOutlinedIcon fontSize="small" className="text-amber-500" /></span>
-                  <span className="flex-1 mt-0.5">Recycling efficiency: <span className="font-medium">{analyticsData.percentages.recyclable}%</span> of waste was recyclable.</span>
+              {hasAnalyticsRecords ? (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                    <span><EmojiEventsOutlinedIcon fontSize="small" className="text-amber-500" /></span>
+                    <span className="flex-1 mt-0.5">Recycling efficiency: <span className="font-medium">{analyticsData.percentages.recyclable}%</span> of waste was recyclable.</span>
+                  </div>
+                  <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                    <span><TrendingUpOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
+                    <span className="flex-1 mt-0.5">Most common waste: <span className="font-medium">{analyticsData.mostCommonWaste ? `${analyticsData.mostCommonWaste.label} (${analyticsData.mostCommonWaste.value.toLocaleString()})` : 'No data'}</span></span>
+                  </div>
+                  <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                    <span><DeleteOutlineOutlinedIcon fontSize="small" className="text-slate-500" /></span>
+                    <span className="flex-1 mt-0.5">Least common waste: <span className="font-medium">{analyticsData.leastCommonWaste ? `${analyticsData.leastCommonWaste.label} (${analyticsData.leastCommonWaste.value.toLocaleString()})` : 'No data'}</span></span>
+                  </div>
                 </div>
-                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
-                  <span><TrendingUpOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
-                  <span className="flex-1 mt-0.5">Most common waste: <span className="font-medium">{analyticsData.mostCommonWaste.label} ({analyticsData.mostCommonWaste.value.toLocaleString()})</span></span>
+              ) : (
+                <div className="flex min-h-[164px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 text-center text-gray-500">
+                  <InsightsOutlinedIcon fontSize="large" className="mb-3 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-700">No insights yet</p>
+                  <p className="mt-1 text-xs text-gray-500">Insights appear here once the selected range contains waste records.</p>
                 </div>
-                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
-                  <span><DeleteOutlineOutlinedIcon fontSize="small" className="text-slate-500" /></span>
-                  <span className="flex-1 mt-0.5">Least common waste: <span className="font-medium">{analyticsData.leastCommonWaste.label} ({analyticsData.leastCommonWaste.value.toLocaleString()})</span></span>
-                </div>
-              </div>
+              )}
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5">
               <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">Activity</h3>
-              <div className="space-y-2">
-                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
-                  <span><CalendarMonthOutlinedIcon fontSize="small" className="text-blue-500" /></span>
-                  <span className="flex-1 mt-0.5">Busiest day: <span className="font-medium">{analyticsData.busiestDay ? `${formatDate(analyticsData.busiestDay.date)} (${analyticsData.busiestDay.total} disposals)` : 'No data'}</span></span>
-                </div>
-                <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
-                  <span><InsightsOutlinedIcon fontSize="small" className="text-purple-500" /></span>
-                  <span className="flex-1 mt-0.5">Most active month: <span className="font-medium">{analyticsData.mostActiveMonth ? `${formatMonth(analyticsData.mostActiveMonth.month)} (${analyticsData.mostActiveMonth.total} disposals)` : 'No data'}</span></span>
-                </div>
-                {binAnalytics && (
+              {hasAnalyticsRecords ? (
+                <div className="space-y-2">
                   <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
-                    <span><RecyclingOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
-                    <span className="flex-1 mt-0.5">Bin full alerts triggered: <span className="font-medium">{binAnalytics.total}</span></span>
+                    <span><CalendarMonthOutlinedIcon fontSize="small" className="text-blue-500" /></span>
+                    <span className="flex-1 mt-0.5">Busiest day: <span className="font-medium">{analyticsData.busiestDay ? `${formatDate(analyticsData.busiestDay.date)} (${analyticsData.busiestDay.total} disposals)` : 'No data'}</span></span>
                   </div>
-                )}
-              </div>
+                  <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                    <span><InsightsOutlinedIcon fontSize="small" className="text-purple-500" /></span>
+                    <span className="flex-1 mt-0.5">Most active month: <span className="font-medium">{analyticsData.mostActiveMonth ? `${formatMonth(analyticsData.mostActiveMonth.month)} (${analyticsData.mostActiveMonth.total} disposals)` : 'No data'}</span></span>
+                  </div>
+                  {binAnalytics && (
+                    <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
+                      <span><RecyclingOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
+                      <span className="flex-1 mt-0.5">Bin full alerts triggered: <span className="font-medium">{binAnalytics.total}</span></span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex min-h-[164px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 text-center text-gray-500">
+                  <CalendarMonthOutlinedIcon fontSize="large" className="mb-3 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-700">No recent activity to summarize</p>
+                  <p className="mt-1 text-xs text-gray-500">The busiest-day and monthly activity callouts will appear after new records are added.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

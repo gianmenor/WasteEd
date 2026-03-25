@@ -41,6 +41,10 @@ export default function InventoryManagement() {
   });
 
   const toSafeNumber = (value, fallback = 0) => {
+    if (value === null || value === undefined || value === '') {
+      return fallback;
+    }
+
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
@@ -65,16 +69,56 @@ export default function InventoryManagement() {
     return Math.min(Math.max(parsed, 0), max);
   }, [parseWholeNumber]);
 
+  const sanitizePriceInput = useCallback((rawValue, max = 9999.99) => {
+    const cleaned = String(rawValue ?? '').replace(/[^\d.]/g, '');
+    if (!cleaned) return '';
+
+    const [wholePart, ...decimalParts] = cleaned.split('.');
+    const normalizedWholePart = wholePart ? wholePart.replace(/^0+(?=\d)/, '') : '0';
+    const limitedWholePart = normalizedWholePart.slice(0, 4) || '0';
+    const decimalPart = decimalParts.join('').slice(0, 2);
+    const normalizedValue = decimalPart ? `${limitedWholePart}.${decimalPart}` : limitedWholePart;
+    const parsed = Number.parseFloat(normalizedValue);
+
+    if (!Number.isFinite(parsed)) return '';
+    if (parsed > max) return max.toFixed(2);
+
+    return normalizedValue;
+  }, []);
+
+  const parsePriceNumber = useCallback((value) => {
+    if (value === '' || value === null || value === undefined) return null;
+
+    const parsed = Number.parseFloat(String(value).replace(/,/g, '').trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }, []);
+
   const normalizeStock = useCallback((stock) => {
     const safeStock = Math.floor(toSafeNumber(stock, 0));
     return safeStock < 0 ? 0 : safeStock;
   }, []);
 
-  const formatPrice = (price) => {
-    const safePrice = toSafeNumber(price, null);
+  const formatPrice = useCallback((price) => {
+    const safePrice = parsePriceNumber(price);
     if (safePrice === null) return null;
     return `₱${Math.floor(safePrice).toLocaleString('en-US')}`;
-  };
+  }, [parsePriceNumber]);
+
+  const formatDisplayPrice = useCallback((price) => {
+    const safePrice = parsePriceNumber(price);
+    if (safePrice === null) return null;
+    return `₱${safePrice.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }, [parsePriceNumber]);
+
+  const buildInventoryPayload = useCallback((data) => ({
+    ...data,
+    cost: parseWholeNumber(data.cost, 1),
+    price: parsePriceNumber(data.price),
+    stock: normalizeStock(data.stock),
+  }), [normalizeStock, parsePriceNumber, parseWholeNumber]);
 
   useEffect(() => {
     fetchItems();
@@ -97,7 +141,8 @@ export default function InventoryManagement() {
   const handleAddItem = async (e) => {
     e.preventDefault();
     try {
-      await createInventoryItem(formData);
+      const payload = buildInventoryPayload(formData);
+      await createInventoryItem(payload);
       setShowAddModal(false);
       resetForm();
       setSuccessMessage(`✓ Item "${formData.name}" added successfully!`);
@@ -112,7 +157,8 @@ export default function InventoryManagement() {
   const handleEditItem = async (e) => {
     e.preventDefault();
     try {
-      await updateInventoryItem(selectedItem.id, formData);
+      const payload = buildInventoryPayload(formData);
+      await updateInventoryItem(selectedItem.id, payload);
       setShowEditModal(false);
       setSelectedItem(null);
       resetForm();
@@ -178,9 +224,9 @@ export default function InventoryManagement() {
     setFormData({
       name: item.name,
       description: item.description || '',
-      cost: item.cost,
-      price: item.price || '',
-      stock: item.stock,
+      cost: parseWholeNumber(item.cost, 1),
+      price: item.price == null ? '' : Number(item.price).toFixed(2),
+      stock: normalizeStock(item.stock),
       isActive: item.isActive
     });
     setShowEditModal(true);
@@ -271,7 +317,7 @@ export default function InventoryManagement() {
         'Item Name': item.name,
         'Description': item.description || '-',
         'Cost (Coupons)': item.cost,
-        'Price (PHP)': item.price || '-',
+        'Price (PHP)': formatDisplayPrice(item.price) || '-',
         'Stock (pcs)': normalizeStock(item.stock),
         'Status': stockStatus.label
       };
@@ -281,7 +327,7 @@ export default function InventoryManagement() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
     XLSX.writeFile(wb, `inventory-${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [filteredAndSortedItems, getStockStatus, normalizeStock]);
+  }, [filteredAndSortedItems, formatDisplayPrice, getStockStatus, normalizeStock]);
 
   const handlePDFExport = useCallback(() => {
     const doc = new jsPDF();
@@ -300,7 +346,7 @@ export default function InventoryManagement() {
       return [
         item.name,
         item.cost.toString(),
-        item.price ? item.price.toString() : '-',
+        formatDisplayPrice(item.price) || '-',
         normalizeStock(item.stock).toString(),
         stockStatus.label
       ];
@@ -317,7 +363,7 @@ export default function InventoryManagement() {
     });
 
     doc.save(`inventory-${new Date().toISOString().split('T')[0]}.pdf`);
-  }, [filteredAndSortedItems, getStockStatus, normalizeStock]);
+  }, [filteredAndSortedItems, formatDisplayPrice, getStockStatus, normalizeStock]);
 
   const handleExport = useCallback((options) => {
     const { format } = options;
@@ -454,15 +500,15 @@ export default function InventoryManagement() {
       <div className="space-y-4">
         {/* Desktop Table View - Hidden on Mobile */}
         <div className="hidden lg:block bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full border-collapse">
+          <table className="w-full table-fixed border-collapse">
             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Item</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Cost</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Price</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Stock (pcs)</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Status</th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wide">Actions</th>
+                <th className="w-[30%] px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wide">Item</th>
+                <th className="w-[14%] px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wide">Cost</th>
+                <th className="w-[14%] px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wide">Price</th>
+                <th className="w-[18%] px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wide">Stock (pcs)</th>
+                <th className="w-[12%] px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wide">Status</th>
+                <th className="w-[12%] px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -476,15 +522,15 @@ export default function InventoryManagement() {
                         {item.description && <span className="text-xs text-gray-500 mt-0.5">{item.description}</span>}
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-sm">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                    <td className="px-4 py-4 text-sm text-center">
+                      <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
                         {toSafeNumber(item.cost)} coupon{toSafeNumber(item.cost) !== 1 ? 's' : ''}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-700 font-medium">
-                      {formatPrice(item.price) ? formatPrice(item.price) : <span className="text-gray-400">N/A</span>}
+                    <td className="px-4 py-4 text-sm text-right text-gray-700 font-semibold tabular-nums">
+                      {formatDisplayPrice(item.price) ? formatDisplayPrice(item.price) : <span className="text-gray-400">N/A</span>}
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4 text-center">
                       <div className="inline-flex items-center gap-2 bg-gray-50 py-1.5 px-2.5 rounded-lg border border-gray-200">
                         <button 
                           className="w-6 h-6 p-0 border border-red-400 bg-white rounded text-red-500 font-bold transition-all flex items-center justify-center hover:scale-110 hover:shadow-md hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed" 
@@ -506,12 +552,12 @@ export default function InventoryManagement() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${stockStatus.class === 'available' ? 'bg-emerald-100 text-emerald-800' : stockStatus.class === 'low-stock' ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-700'}`}>
+                    <td className="px-4 py-4 text-center">
+                      <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold ${stockStatus.class === 'available' ? 'bg-emerald-100 text-emerald-800' : stockStatus.class === 'low-stock' ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-700'}`}>
                         {stockStatus.label}
                       </span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button className="p-2 border border-orange-300 bg-white rounded-md text-xs font-medium cursor-pointer transition-all hover:bg-orange-50 hover:border-orange-500 hover:shadow-md" onClick={() => openEditModal(item)} title="Edit">
                           <span className="inline-flex items-center gap-1"><EditOutlinedIcon fontSize="small" /> Edit</span>
@@ -552,7 +598,7 @@ export default function InventoryManagement() {
                   <div className="bg-gray-50 rounded-lg p-2.5">
                     <div className="text-xs text-gray-500 font-medium mb-1">Price</div>
                     <div className="text-sm font-bold text-gray-900">
-                      {formatPrice(item.price) ? formatPrice(item.price) : <span className="text-gray-400">N/A</span>}
+                      {formatDisplayPrice(item.price) ? formatDisplayPrice(item.price) : <span className="text-gray-400">N/A</span>}
                     </div>
                   </div>
                 </div>
@@ -657,18 +703,18 @@ export default function InventoryManagement() {
                   <label className="block mb-2 font-medium text-gray-900">Price (₱)</label>
                   <input
                     type="text"
-                    inputMode="numeric"
-                    value={formatWholeNumberInput(formData.price)}
+                    inputMode="decimal"
+                    value={formData.price}
                     onChange={(e) => {
-                      const value = sanitizeWholeNumberInput(e.target.value, 9999);
+                      const value = sanitizePriceInput(e.target.value, 9999.99);
                       setFormData({ ...formData, price: value === '' ? '' : value });
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === '-' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                      if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
                         e.preventDefault();
                       }
                     }}
-                    placeholder="Optional"
+                    placeholder="Optional, e.g. 25.50"
                     className="w-full py-2.5 px-2 border border-gray-300 rounded-md text-sm transition-colors bg-white text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   />
                 </div>
@@ -770,18 +816,18 @@ export default function InventoryManagement() {
                   <label className="block mb-2 font-medium text-gray-900">Price (₱)</label>
                   <input
                     type="text"
-                    inputMode="numeric"
-                    value={formatWholeNumberInput(formData.price)}
+                    inputMode="decimal"
+                    value={formData.price}
                     onChange={(e) => {
-                      const value = sanitizeWholeNumberInput(e.target.value, 9999);
+                      const value = sanitizePriceInput(e.target.value, 9999.99);
                       setFormData({ ...formData, price: value === '' ? '' : value });
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === '-' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                      if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
                         e.preventDefault();
                       }
                     }}
-                    placeholder="Optional"
+                    placeholder="Optional, e.g. 25.50"
                     className="w-full py-2.5 px-2 border border-gray-300 rounded-md text-sm transition-colors bg-white text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   />
                 </div>

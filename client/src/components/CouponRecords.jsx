@@ -15,6 +15,10 @@ import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import FirstPageOutlinedIcon from '@mui/icons-material/FirstPageOutlined';
+import NavigateBeforeOutlinedIcon from '@mui/icons-material/NavigateBeforeOutlined';
+import NavigateNextOutlinedIcon from '@mui/icons-material/NavigateNextOutlined';
+import LastPageOutlinedIcon from '@mui/icons-material/LastPageOutlined';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -24,16 +28,15 @@ import * as XLSX from 'xlsx';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import ExportModal from './ExportModal';
-import { getLocalDateKey } from '../utils/date';
+import { endOfLocalDay, getLocalDateKey, parseLocalDate, startOfLocalDay } from '../utils/date';
 
-// Fetch coupon balance
 const fetchCouponBalance = async () => {
   const token = localStorage.getItem('token');
   const response = await fetch(API_ENDPOINTS.COUPON_BALANCE, {
     headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
   });
 
   if (!response.ok) {
@@ -43,25 +46,65 @@ const fetchCouponBalance = async () => {
   return response.json();
 };
 
-// Fetch coupon transactions
-const fetchCouponTransactions = async ({ period = 'all' }) => {
-  const token = localStorage.getItem('token');
-  const params = new URLSearchParams();
-  if (period !== 'all') params.append('period', period);
-  
-  const response = await fetch(`${API_ENDPOINTS.COUPON_TRANSACTIONS}?${params.toString()}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  });
+const normalizeTransactionType = (type) => {
+  const normalized = String(type ?? '').trim().toUpperCase();
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch transactions');
+  switch (normalized) {
+    case 'ADD':
+    case 'EARN':
+      return 'earn';
+    case 'USE':
+    case 'CONSUME':
+      return 'consume';
+    case 'ADJUST':
+      return 'adjust';
+    default:
+      return String(type ?? '').trim().toLowerCase();
+  }
+};
+
+const normalizeCouponTransaction = (transaction) => ({
+  ...transaction,
+  type: normalizeTransactionType(transaction?.type),
+});
+
+const fetchCouponTransactions = async () => {
+  const token = localStorage.getItem('token');
+  const allTransactions = [];
+  let page = 1;
+  let hasNext = true;
+
+  while (hasNext) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: '100',
+    });
+
+    const response = await fetch(`${API_ENDPOINTS.COUPON_TRANSACTIONS}?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch transactions');
+    }
+
+    const payload = await response.json();
+    const batch = Array.isArray(payload?.data) ? payload.data : [];
+
+    allTransactions.push(...batch.map(normalizeCouponTransaction));
+
+    hasNext = Boolean(payload?.pagination?.hasNext || payload?.pagination?.hasNextPage);
+    page += 1;
+
+    if (batch.length === 0) {
+      hasNext = false;
+    }
   }
 
-  const data = await response.json();
-  return data.data || [];
+  return allTransactions;
 };
 
 const CouponRecords = () => {
@@ -74,6 +117,8 @@ const CouponRecords = () => {
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
   const [typeFilter, setTypeFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const toInt = useCallback((value) => {
     const parsed = parseInt(String(value ?? '').replace(/,/g, ''), 10);
@@ -82,25 +127,30 @@ const CouponRecords = () => {
 
   const formatInt = useCallback((value) => {
     const intValue = toInt(value);
-    return intValue.toString();
+    return intValue.toLocaleString('en-US');
   }, [toInt]);
 
-  // Fetch balance
+  const showMessage = useCallback((text, type = 'success') => {
+    setMessage(text);
+    setMessageType(type);
+    setTimeout(() => {
+      setMessage('');
+      setMessageType('');
+    }, 3000);
+  }, []);
+
   const { data: balanceData, isLoading: balanceLoading } = useQuery({
     queryKey: ['couponBalance'],
     queryFn: fetchCouponBalance,
-    staleTime: 1 * 60 * 1000,
+    staleTime: 60 * 1000,
   });
 
-  // Fetch transactions
   const { data: transactions = [], isLoading: transactionsLoading } = useQuery({
-    queryKey: ['couponTransactions', period],
-    queryFn: () => fetchCouponTransactions({ period }),
-    staleTime: 1 * 60 * 1000,
+    queryKey: ['couponTransactions'],
+    queryFn: fetchCouponTransactions,
+    staleTime: 60 * 1000,
   });
 
-  // Waste inserts already emit through the shared SSE stream, so we keep
-  // coupon balance and history in sync here without manual refresh controls.
   useEffect(() => {
     const eventSource = new EventSource(API_ENDPOINTS.BIN_NOTIFICATIONS_STREAM);
 
@@ -110,7 +160,7 @@ const CouponRecords = () => {
         if (data?.type === 'WASTE_INSERTED' || data?.type === 'COUPON_UPDATED') {
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: ['couponBalance'] }),
-            queryClient.invalidateQueries({ queryKey: ['couponTransactions'] })
+            queryClient.invalidateQueries({ queryKey: ['couponTransactions'] }),
           ]);
         }
       } catch (parseError) {
@@ -123,17 +173,16 @@ const CouponRecords = () => {
     };
   }, [queryClient]);
 
-  // Manual adjustment mutation
   const adjustMutation = useMutation({
     mutationFn: async ({ amount, reason }) => {
       const token = localStorage.getItem('token');
       const response = await fetch(API_ENDPOINTS.COUPON_ADJUST, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ amount, reason })
+        body: JSON.stringify({ amount, reason }),
       });
 
       if (!response.ok) {
@@ -141,15 +190,16 @@ const CouponRecords = () => {
         throw new Error(error.message || 'Failed to adjust balance');
       }
 
-      return { data: await response.json(), amount }; // Return amount for success message
+      return { data: await response.json(), amount };
     },
     onSuccess: async ({ amount }) => {
-      // Refetch and wait for new data
-      await queryClient.invalidateQueries({ queryKey: ['couponBalance'] });
-      await queryClient.invalidateQueries({ queryKey: ['couponTransactions'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['couponBalance'] }),
+        queryClient.invalidateQueries({ queryKey: ['couponTransactions'] }),
+      ]);
+
       setAdjustmentAmount('');
-      
-      // Show specific message based on whether it was add or subtract
+
       const absAmount = Math.abs(toInt(amount));
       if (amount > 0) {
         showMessage(`Added ${absAmount} coupons successfully.`, 'success');
@@ -159,103 +209,131 @@ const CouponRecords = () => {
     },
     onError: (error) => {
       showMessage(error.message, 'error');
-    }
+    },
   });
 
-  const showMessage = useCallback((text, type = 'success') => {
-    setMessage(text);
-    setMessageType(type);
-    setTimeout(() => {
-      setMessage('');
-      setMessageType('');
-    }, 3000);
-  }, []);
+  const today = useMemo(() => new Date(), []);
 
-  const formatDate = useCallback((dateString) => {
-    return new Date(dateString).toLocaleString('en-US', {
+  const maxFromDate = useMemo(() => {
+    if (dateTo && dateTo < today) {
+      return dateTo;
+    }
+
+    return today;
+  }, [dateTo, today]);
+
+  const handleFromDateChange = useCallback((newValue) => {
+    setDateFrom(newValue);
+
+    if (newValue && dateTo && startOfLocalDay(newValue) > endOfLocalDay(dateTo)) {
+      setDateTo(null);
+    }
+  }, [dateTo]);
+
+  const handleToDateChange = useCallback((newValue) => {
+    setDateTo(newValue);
+
+    if (newValue && dateFrom && endOfLocalDay(newValue) < startOfLocalDay(dateFrom)) {
+      setDateFrom(null);
+    }
+  }, [dateFrom]);
+
+  const formatDate = useCallback((dateString) => (
+    new Date(dateString).toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
-    });
+      minute: '2-digit',
+    })
+  ), []);
+
+  const getTransactionTypeLabel = useCallback((type) => {
+    switch (type) {
+      case 'earn':
+        return 'Earned';
+      case 'consume':
+        return 'Consumed';
+      case 'adjust':
+        return 'Adjustment';
+      default:
+        return type;
+    }
   }, []);
 
-  const getTransactionTypeLabel = (type) => {
+  const getTransactionIcon = useCallback((type) => {
     switch (type) {
-      case 'earn': return 'Earned';
-      case 'consume': return 'Consumed';
-      case 'adjust': return 'Adjustment';
-      default: return type;
+      case 'earn':
+        return <SavingsOutlinedIcon fontSize="inherit" />;
+      case 'consume':
+        return <RedeemOutlinedIcon fontSize="inherit" />;
+      case 'adjust':
+        return <TuneOutlinedIcon fontSize="inherit" />;
+      default:
+        return <ReceiptLongOutlinedIcon fontSize="inherit" />;
     }
-  };
+  }, []);
 
-  const getTransactionIcon = (type) => {
-    switch (type) {
-      case 'earn': return <SavingsOutlinedIcon fontSize="inherit" />;
-      case 'consume': return <RedeemOutlinedIcon fontSize="inherit" />;
-      case 'adjust': return <TuneOutlinedIcon fontSize="inherit" />;
-      default: return <ReceiptLongOutlinedIcon fontSize="inherit" />;
-    }
-  };
-
-  // Filter transactions by date range, search, and type
   const filteredTransactions = useMemo(() => {
-    let filtered = transactions;
-    
-    // Date filter
-    if (dateFrom || dateTo) {
-      filtered = filtered.filter(transaction => {
+    const now = new Date();
+    const startOfToday = startOfLocalDay(now);
+    const endOfToday = endOfLocalDay(now);
+    const startOfWeek = startOfLocalDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    return [...transactions]
+      .filter((transaction) => {
         const transactionDate = new Date(transaction.createdAt);
-        transactionDate.setHours(0, 0, 0, 0);
-        
-        if (dateFrom && dateTo) {
-          const from = new Date(dateFrom);
-          from.setHours(0, 0, 0, 0);
-          const to = new Date(dateTo);
-          to.setHours(23, 59, 59, 999);
-          return transactionDate >= from && transactionDate <= to;
-        } else if (dateFrom) {
-          const from = new Date(dateFrom);
-          from.setHours(0, 0, 0, 0);
-          return transactionDate >= from;
-        } else if (dateTo) {
-          const to = new Date(dateTo);
-          to.setHours(23, 59, 59, 999);
-          return transactionDate <= to;
+
+        if (period === 'today') {
+          return transactionDate >= startOfToday && transactionDate <= endOfToday;
         }
+
+        if (period === 'week') {
+          return transactionDate >= startOfWeek && transactionDate <= endOfToday;
+        }
+
+        if (period === 'month') {
+          return transactionDate >= startOfMonth && transactionDate <= endOfToday;
+        }
+
+        if (period === 'year') {
+          return transactionDate >= startOfYear && transactionDate <= endOfToday;
+        }
+
         return true;
-      });
-    }
-    
-    // Type filter
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter(t => t.type === typeFilter);
-    }
-    
-    return filtered;
-  }, [transactions, dateFrom, dateTo, typeFilter]);
+      })
+      .filter((transaction) => {
+        const transactionDate = new Date(transaction.createdAt);
 
-  // Calculate total consumed
-  const totalConsumed = useMemo(() => {
-    return Math.abs(filteredTransactions
-      .filter(t => Number(t.amount) < 0)
-      .reduce((sum, t) => sum + Number(t.amount), 0));
-  }, [filteredTransactions]);
+        if (dateFrom && transactionDate < startOfLocalDay(dateFrom)) {
+          return false;
+        }
 
-  // Clear all filters
-  const clearFilters = useCallback(() => {
-    setDateFrom(null);
-    setDateTo(null);
-    setTypeFilter('all');
-    setPeriod('all');
-  }, []);
+        if (dateTo && transactionDate > endOfLocalDay(dateTo)) {
+          return false;
+        }
+
+        return true;
+      })
+      .filter((transaction) => (
+        typeFilter === 'all' ? true : transaction.type === typeFilter
+      ))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [transactions, period, dateFrom, dateTo, typeFilter]);
+
+  const totalConsumed = useMemo(() => (
+    Math.abs(filteredTransactions
+      .filter((transaction) => Number(transaction.amount) < 0 || transaction.type === 'consume')
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0))
+  ), [filteredTransactions]);
 
   const summarizedTransactions = useMemo(() => {
     const grouped = {};
 
     filteredTransactions.forEach((transaction) => {
-      const dateObj = new Date(transaction.createdAt);
+      const dateObj = parseLocalDate(transaction.createdAt);
       const dateKey = getLocalDateKey(dateObj);
       const typeKey = transaction.type || 'unknown';
       const key = `${dateKey}-${typeKey}`;
@@ -271,7 +349,7 @@ const CouponRecords = () => {
 
       grouped[key].amount += Number(transaction.amount) || 0;
 
-      const detail = transaction.reason || transaction.metadata?.reason || '-';
+      const detail = transaction.reason || transaction.metadata?.reason || transaction.notes || '-';
       if (detail && detail !== '-') {
         grouped[key].details.add(detail);
       }
@@ -279,31 +357,88 @@ const CouponRecords = () => {
 
     return Object.values(grouped).sort((a, b) => {
       const dateDiff = new Date(b.date) - new Date(a.date);
-      if (dateDiff !== 0) return dateDiff;
+      if (dateDiff !== 0) {
+        return dateDiff;
+      }
+
       return getTransactionTypeLabel(a.type).localeCompare(getTransactionTypeLabel(b.type));
     });
-  }, [filteredTransactions]);
+  }, [filteredTransactions, getTransactionTypeLabel]);
 
-  // Export handlers
+  const totalItems = filteredTransactions.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = totalItems === 0 ? 0 : (safeCurrentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const paginatedTransactions = filteredTransactions.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [period, dateFrom, dateTo, typeFilter, itemsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const clearFilters = useCallback(() => {
+    setDateFrom(null);
+    setDateTo(null);
+    setTypeFilter('all');
+    setPeriod('all');
+  }, []);
+
+  const goToPage = useCallback((page) => {
+    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+  }, [totalPages]);
+
+  const goToPrevPage = useCallback(() => {
+    setCurrentPage((page) => Math.max(page - 1, 1));
+  }, []);
+
+  const goToNextPage = useCallback(() => {
+    setCurrentPage((page) => Math.min(page + 1, totalPages));
+  }, [totalPages]);
+
+  const visiblePages = useMemo(() => {
+    const count = Math.min(5, totalPages);
+
+    return Array.from({ length: count }, (_, index) => {
+      if (totalPages <= 5) {
+        return index + 1;
+      }
+
+      if (safeCurrentPage <= 3) {
+        return index + 1;
+      }
+
+      if (safeCurrentPage >= totalPages - 2) {
+        return totalPages - 4 + index;
+      }
+
+      return safeCurrentPage - 2 + index;
+    });
+  }, [safeCurrentPage, totalPages]);
+
   const handleExcelExport = useCallback(() => {
-    const exportData = summarizedTransactions.map(transaction => ({
+    const exportData = summarizedTransactions.map((transaction) => ({
       'Date & Time': transaction.date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
       }),
-      'Type': getTransactionTypeLabel(transaction.type),
-      'Amount': formatInt(transaction.amount),
-      'Details': transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-'
+      Type: getTransactionTypeLabel(transaction.type),
+      Amount: formatInt(transaction.amount),
+      Details: transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-',
     }));
 
-    // Add total consumed row
     exportData.push({});
     exportData.push({
       'Date & Time': 'Total Consumed',
-      'Type': '',
-      'Amount': formatInt(totalConsumed),
-      'Details': ''
+      Type: '',
+      Amount: formatInt(totalConsumed),
+      Details: '',
     });
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -311,20 +446,18 @@ const CouponRecords = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Coupon Transactions');
     XLSX.writeFile(wb, `coupon-transactions-${new Date().toISOString().split('T')[0]}.xlsx`);
     showMessage('Excel file exported successfully.', 'success');
-  }, [summarizedTransactions, totalConsumed, showMessage, formatInt]);
+  }, [summarizedTransactions, getTransactionTypeLabel, formatInt, totalConsumed, showMessage]);
 
   const handlePDFExport = useCallback(() => {
     const doc = new jsPDF();
 
-    // Title
     doc.setFontSize(18);
     doc.setTextColor(22, 163, 74);
     doc.text('Coupon Transaction Report', 14, 22);
 
-    // Metadata
     doc.setFontSize(10);
     doc.setTextColor(107, 114, 128);
-    
+
     let dateRangeLabel = 'Period: All time';
     if (dateFrom && dateTo) {
       dateRangeLabel = `Period: ${dateFrom.toLocaleDateString()} to ${dateTo.toLocaleDateString()}`;
@@ -332,13 +465,14 @@ const CouponRecords = () => {
       dateRangeLabel = `Period: From ${dateFrom.toLocaleDateString()}`;
     } else if (dateTo) {
       dateRangeLabel = `Period: Until ${dateTo.toLocaleDateString()}`;
+    } else if (period !== 'all') {
+      dateRangeLabel = `Period: ${period.charAt(0).toUpperCase()}${period.slice(1)}`;
     }
 
     doc.text(dateRangeLabel, 14, 30);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 36);
 
-    // Transaction table
-    const tableData = summarizedTransactions.map(transaction => [
+    const tableData = summarizedTransactions.map((transaction) => ([
       transaction.date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -346,8 +480,8 @@ const CouponRecords = () => {
       }),
       getTransactionTypeLabel(transaction.type),
       formatInt(transaction.amount),
-      transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-'
-    ]);
+      transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-',
+    ]));
 
     autoTable(doc, {
       head: [['Date & Time', 'Type', 'Amount', 'Details']],
@@ -358,63 +492,58 @@ const CouponRecords = () => {
       alternateRowStyles: { fillColor: [243, 244, 246] },
     });
 
-    // Add total consumed
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
     doc.text('Summary:', 14, finalY);
-    
     doc.setFont(undefined, 'normal');
     doc.text(`Total Consumed: ${formatInt(totalConsumed)}`, 14, finalY + 7);
 
     doc.save(`coupon-transactions-${new Date().toISOString().split('T')[0]}.pdf`);
     showMessage('PDF file exported successfully.', 'success');
-  }, [summarizedTransactions, totalConsumed, dateFrom, dateTo, showMessage, formatInt]);
+  }, [summarizedTransactions, dateFrom, dateTo, period, getTransactionTypeLabel, formatInt, totalConsumed, showMessage]);
 
   const handleExport = useCallback((options) => {
-    const { format } = options;
-    
-    if (format === 'excel') {
+    if (options.format === 'excel') {
       handleExcelExport();
-    } else if (format === 'pdf') {
+    } else if (options.format === 'pdf') {
       handlePDFExport();
     }
-    
+
     setShowExportModal(false);
   }, [handleExcelExport, handlePDFExport]);
 
-  // Ensure balance is always a number for rendering
-  let balance = 0;
-  if (balanceData && balanceData.data && typeof balanceData.data.balance !== 'undefined' && balanceData.data.balance !== null) {
-    const parsed = toInt(balanceData.data.balance);
-    balance = isNaN(parsed) ? 0 : parsed;
-  }
-  
-  // Show loading spinner if mutation is pending or data is loading
+  const balance = useMemo(() => {
+    const rawBalance = balanceData?.data?.balance;
+    const parsed = toInt(rawBalance);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }, [balanceData, toInt]);
+
   const loading = balanceLoading || transactionsLoading || adjustMutation.isPending;
-  
-  // Check if any filters are active
-  const hasActiveFilters = dateFrom || dateTo || typeFilter !== 'all' || period !== 'all';
+  const hasActiveFilters = Boolean(dateFrom || dateTo || typeFilter !== 'all' || period !== 'all');
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {loading && <LoadingSpinner fullscreen message="Loading..." />}
 
-        {/* Toast Notification */}
         {message && (
-          <div className={`fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg border transition-all ${
-            messageType === 'error' 
-              ? 'bg-red-50 border-red-200 text-red-800' 
-              : 'bg-green-50 border-green-200 text-green-800'
-          }`}>
+          <div
+            className={`fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg border transition-all ${
+              messageType === 'error'
+                ? 'bg-red-50 border-red-200 text-red-800'
+                : 'bg-green-50 border-green-200 text-green-800'
+            }`}
+          >
             <div className="flex items-center justify-between">
               <div className="inline-flex items-center gap-2">
-                {messageType === 'error' ? <ErrorOutlineOutlinedIcon fontSize="small" /> : <CheckCircleOutlineOutlinedIcon fontSize="small" />}
+                {messageType === 'error'
+                  ? <ErrorOutlineOutlinedIcon fontSize="small" />
+                  : <CheckCircleOutlineOutlinedIcon fontSize="small" />}
                 <span className="font-medium text-sm">{message}</span>
               </div>
-              <button 
-                className="text-gray-500 hover:text-gray-700 ml-4 inline-flex items-center" 
+              <button
+                className="text-gray-500 hover:text-gray-700 ml-4 inline-flex items-center"
                 onClick={() => setMessage('')}
               >
                 <CloseRoundedIcon fontSize="small" />
@@ -423,7 +552,6 @@ const CouponRecords = () => {
           </div>
         )}
 
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
             <ConfirmationNumberOutlinedIcon fontSize="medium" className="text-emerald-600" />
@@ -432,7 +560,6 @@ const CouponRecords = () => {
           <p className="text-sm text-gray-500 mt-1">Manage and track your coupon balance</p>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-lg border border-gray-200 p-5">
             <div className="flex items-start justify-between mb-3">
@@ -441,9 +568,7 @@ const CouponRecords = () => {
                 Balance
               </span>
             </div>
-            <div className="text-3xl font-bold text-gray-900 mb-1">
-              {formatInt(balance)}
-            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-1">{formatInt(balance)}</div>
             <div className="text-sm font-medium text-gray-700">Coupon Balance</div>
           </div>
 
@@ -454,9 +579,7 @@ const CouponRecords = () => {
                 Used
               </span>
             </div>
-            <div className="text-3xl font-bold text-gray-900 mb-1">
-              {formatInt(totalConsumed)}
-            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-1">{formatInt(totalConsumed)}</div>
             <div className="text-sm font-medium text-gray-700">Total Consumed</div>
           </div>
 
@@ -467,16 +590,13 @@ const CouponRecords = () => {
                 Count
               </span>
             </div>
-            <div className="text-3xl font-bold text-gray-900 mb-1">
-              {filteredTransactions.length}
-            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-1">{filteredTransactions.length}</div>
             <div className="text-sm font-medium text-gray-700">
               {hasActiveFilters ? 'Filtered' : 'Total'} Transactions
             </div>
           </div>
         </div>
 
-        {/* Adjustment Form */}
         <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
           <h3 className="text-base font-semibold text-gray-900 mb-4">Quick Adjustment</h3>
           <div className="flex gap-3 items-end flex-wrap">
@@ -502,7 +622,7 @@ const CouponRecords = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
-            <button 
+            <button
               type="button"
               onClick={() => {
                 const amount = toInt(adjustmentAmount);
@@ -518,7 +638,7 @@ const CouponRecords = () => {
               <AddIcon fontSize="small" />
               Add
             </button>
-            <button 
+            <button
               type="button"
               onClick={() => {
                 const amount = toInt(adjustmentAmount);
@@ -535,10 +655,11 @@ const CouponRecords = () => {
               Subtract
             </button>
           </div>
-          <p className="text-xs text-gray-500 mt-2">Enter an amount and click Add or Subtract to adjust the balance</p>
+          <p className="text-xs text-gray-500 mt-2">
+            Enter an amount and click Add or Subtract to adjust the balance
+          </p>
         </div>
 
-        {/* Filters */}
         <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-base font-semibold text-gray-900">Filters</h3>
@@ -552,9 +673,8 @@ const CouponRecords = () => {
               </button>
             )}
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Type Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
               <select
@@ -569,10 +689,9 @@ const CouponRecords = () => {
               </select>
             </div>
 
-            {/* Period Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Period</label>
-              <select 
+              <select
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
@@ -585,7 +704,6 @@ const CouponRecords = () => {
               </select>
             </div>
 
-            {/* Export Button */}
             <div className="flex items-end">
               <button
                 onClick={() => setShowExportModal(true)}
@@ -598,46 +716,53 @@ const CouponRecords = () => {
             </div>
           </div>
 
-          {/* Date Range */}
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">From Date</label>
                 <DatePicker
                   value={dateFrom}
-                  onChange={(newValue) => setDateFrom(newValue)}
-                  maxDate={new Date()}
-                  slotProps={{ 
-                    textField: { 
+                  onChange={handleFromDateChange}
+                  maxDate={maxFromDate}
+                  slotProps={{
+                    textField: {
                       size: 'small',
-                      sx: { width: '100%', backgroundColor: 'white' }
-                    } 
+                      sx: { width: '100%', backgroundColor: 'white' },
+                    },
                   }}
+                  enableAccessibleFieldDOMStructure={false}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">To Date</label>
                 <DatePicker
                   value={dateTo}
-                  onChange={(newValue) => setDateTo(newValue)}
-                  minDate={dateFrom}
-                  maxDate={new Date()}
-                  slotProps={{ 
-                    textField: { 
+                  onChange={handleToDateChange}
+                  minDate={dateFrom || undefined}
+                  maxDate={today}
+                  slotProps={{
+                    textField: {
                       size: 'small',
-                      sx: { width: '100%', backgroundColor: 'white' }
-                    } 
+                      sx: { width: '100%', backgroundColor: 'white' },
+                    },
                   }}
+                  enableAccessibleFieldDOMStructure={false}
                 />
               </div>
             </div>
           </LocalizationProvider>
         </div>
 
-        {/* Transactions Table */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-200">
-            <h2 className="text-base font-semibold text-gray-900">Transaction History</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-base font-semibold text-gray-900">Transaction History</h2>
+              <span className="text-sm text-gray-600">
+                {totalItems === 0
+                  ? 'Showing 0 transactions'
+                  : `Showing ${startIndex + 1}-${endIndex} of ${totalItems} transactions`}
+              </span>
+            </div>
           </div>
 
           {filteredTransactions.length === 0 ? (
@@ -654,62 +779,150 @@ const CouponRecords = () => {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                      Date & Time
-                    </th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-5 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">
-                      Amount
-                    </th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                      Details
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredTransactions.map((transaction) => (
-                    <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-4 text-sm text-gray-900 whitespace-nowrap">
-                        {formatDate(transaction.createdAt)}
-                      </td>
-                      <td className="px-5 py-4 text-sm">
-                        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
-                          transaction.type === 'earn' 
-                            ? 'bg-emerald-100 text-emerald-700' 
-                            : transaction.type === 'consume'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {getTransactionIcon(transaction.type)}
-                          {getTransactionTypeLabel(transaction.type)}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-sm text-right whitespace-nowrap">
-                        <span className={`font-semibold ${
-                          Number(transaction.amount) >= 0 ? 'text-emerald-600' : 'text-red-600'
-                        }`}>
-                          {Number(transaction.amount) >= 0 ? '+' : ''}
-                          {formatInt(transaction.amount)}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-sm text-gray-600">
-                        {transaction.reason || transaction.metadata?.reason || '-'}
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        Date & Time
+                      </th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-5 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        Amount
+                      </th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        Details
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {paginatedTransactions.map((transaction) => (
+                      <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-4 text-sm text-gray-900 whitespace-nowrap">
+                          {formatDate(transaction.createdAt)}
+                        </td>
+                        <td className="px-5 py-4 text-sm">
+                          <span
+                            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
+                              transaction.type === 'earn'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : transaction.type === 'consume'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {getTransactionIcon(transaction.type)}
+                            {getTransactionTypeLabel(transaction.type)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-sm text-right whitespace-nowrap">
+                          <span
+                            className={`font-semibold ${
+                              Number(transaction.amount) >= 0 ? 'text-emerald-600' : 'text-red-600'
+                            }`}
+                          >
+                            {Number(transaction.amount) >= 0 ? '+' : ''}
+                            {formatInt(transaction.amount)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-sm text-gray-600">
+                          {transaction.reason || transaction.metadata?.reason || transaction.notes || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <label className="text-sm text-gray-700">Show:</label>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                    <span className="text-sm text-gray-700">per page</span>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
+                      <span className="text-xs text-gray-600 sm:hidden">
+                        Page {safeCurrentPage} of {totalPages}
+                      </span>
+
+                      <div className="flex items-center gap-2 ml-auto sm:ml-0">
+                        <button
+                          onClick={() => goToPage(1)}
+                          disabled={safeCurrentPage === 1}
+                          className="hidden sm:inline-flex px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed items-center"
+                          aria-label="First page"
+                        >
+                          <FirstPageOutlinedIcon fontSize="small" />
+                        </button>
+                        <button
+                          onClick={goToPrevPage}
+                          disabled={safeCurrentPage === 1}
+                          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+                          aria-label="Previous page"
+                        >
+                          <NavigateBeforeOutlinedIcon fontSize="small" />
+                        </button>
+
+                        <div className="hidden sm:flex items-center gap-2">
+                          {visiblePages.map((pageNum) => (
+                            <button
+                              key={pageNum}
+                              onClick={() => goToPage(pageNum)}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+                                safeCurrentPage === pageNum
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                              }`}
+                              aria-label={`Page ${pageNum}`}
+                              aria-current={safeCurrentPage === pageNum ? 'page' : undefined}
+                            >
+                              {pageNum}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          onClick={goToNextPage}
+                          disabled={safeCurrentPage === totalPages}
+                          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+                          aria-label="Next page"
+                        >
+                          <NavigateNextOutlinedIcon fontSize="small" />
+                        </button>
+                        <button
+                          onClick={() => goToPage(totalPages)}
+                          disabled={safeCurrentPage === totalPages}
+                          className="hidden sm:inline-flex px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed items-center"
+                          aria-label="Last page"
+                        >
+                          <LastPageOutlinedIcon fontSize="small" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
 
-        {/* Export Modal */}
         <ExportModal
           isOpen={showExportModal}
           onClose={() => setShowExportModal(false)}

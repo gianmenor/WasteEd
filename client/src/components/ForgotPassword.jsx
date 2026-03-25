@@ -121,7 +121,7 @@ const ForgotPassword = () => {
                 <MarkEmailReadOutlinedIcon fontSize="small" />
                 OTP Delivery
               </div>
-              <p className="text-sm text-emerald-700">OTP will be sent to {RECOVERY_EMAIL}.</p>
+              <p className="text-sm text-emerald-700">OTP will be sent to {RECOVERY_EMAIL}</p>
             </div>
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
               <div className="flex items-center gap-2 text-blue-800 font-medium mb-1">

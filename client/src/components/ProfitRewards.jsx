@@ -8,6 +8,10 @@ import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import FirstPageOutlinedIcon from '@mui/icons-material/FirstPageOutlined';
+import NavigateBeforeOutlinedIcon from '@mui/icons-material/NavigateBeforeOutlined';
+import NavigateNextOutlinedIcon from '@mui/icons-material/NavigateNextOutlined';
+import LastPageOutlinedIcon from '@mui/icons-material/LastPageOutlined';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -15,64 +19,37 @@ import { usePreferences } from '../contexts/PreferencesContext';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 
-// Fetch profit/reward records
-const fetchRecords = async (year, month, dateFrom, dateTo) => {
+const fetchAllRecords = async () => {
   const token = localStorage.getItem('token');
-  let url = API_ENDPOINTS.PROFIT_RECORDS;
-  
-  const params = new URLSearchParams();
-  if (year) params.append('year', year);
-  if (month && month !== '') params.append('month', month);
-  if (dateFrom) params.append('dateFrom', dateFrom);
-  if (dateTo) params.append('dateTo', dateTo);
-  
-  if (params.toString()) {
-    url += `?${params.toString()}`;
-  }
-  
-  const response = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+  const allRecords = [];
+  let page = 1;
+  let hasNext = true;
+
+  while (hasNext) {
+    const response = await fetch(`${API_ENDPOINTS.PROFIT_RECORDS}?page=${page}&limit=100`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch records');
     }
-  });
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch records');
-  }
+    const data = await response.json();
+    const batch = data.data || data.records || [];
+    allRecords.push(...batch);
 
-  const data = await response.json();
-  return data.data || data.records || [];
-};
+    hasNext = Boolean(data?.pagination?.hasNext || data?.pagination?.hasNextPage);
+    page += 1;
 
-// Fetch summary
-const fetchSummary = async (year, month, dateFrom, dateTo) => {
-  const token = localStorage.getItem('token');
-  let url = API_ENDPOINTS.PROFIT_SUMMARY;
-  
-  const params = new URLSearchParams();
-  if (year) params.append('year', year);
-  if (month && month !== '') params.append('month', month);
-  if (dateFrom) params.append('dateFrom', dateFrom);
-  if (dateTo) params.append('dateTo', dateTo);
-  
-  if (params.toString()) {
-    url += `?${params.toString()}`;
-  }
-  
-  const response = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+    if (batch.length === 0) {
+      hasNext = false;
     }
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch summary');
   }
 
-  const data = await response.json();
-  return data.data || data.summary || {};
+  return allRecords;
 };
 
 const ProfitRewards = () => {
@@ -94,6 +71,8 @@ const ProfitRewards = () => {
   const [dateRangeMode, setDateRangeMode] = useState('month'); // 'month' | 'custom'
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -105,27 +84,9 @@ const ProfitRewards = () => {
   
   const [editingId, setEditingId] = useState(null);
 
-  // Fetch records
   const { data: records = [], isLoading: recordsLoading, refetch: refetchRecords } = useQuery({
-    queryKey: ['profitRecords', selectedYear, selectedMonth, dateRangeMode, customDateFrom, customDateTo],
-    queryFn: () => fetchRecords(
-      dateRangeMode === 'month' ? selectedYear : null,
-      dateRangeMode === 'month' ? selectedMonth : null,
-      dateRangeMode === 'custom' ? customDateFrom : null,
-      dateRangeMode === 'custom' ? customDateTo : null
-    ),
-    staleTime: 2 * 60 * 1000,
-  });
-
-  // Fetch summary
-  const { data: summary = {}, isLoading: summaryLoading, refetch: refetchSummary } = useQuery({
-    queryKey: ['profitSummary', selectedYear, selectedMonth, dateRangeMode, customDateFrom, customDateTo],
-    queryFn: () => fetchSummary(
-      dateRangeMode === 'month' ? selectedYear : null,
-      dateRangeMode === 'month' ? selectedMonth : null,
-      dateRangeMode === 'custom' ? customDateFrom : null,
-      dateRangeMode === 'custom' ? customDateTo : null
-    ),
+    queryKey: ['profitRecords'],
+    queryFn: fetchAllRecords,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -220,14 +181,13 @@ const ProfitRewards = () => {
       });
       
       refetchRecords();
-      refetchSummary();
       setShowModal(false);
     } catch (error) {
       showMessage('Operation failed', 'error');
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, editingId, refetchRecords, refetchSummary, showMessage]);
+  }, [formData, editingId, refetchRecords, showMessage]);
 
   const handleEdit = useCallback((record) => {
     setEditingId(record.id);
@@ -264,7 +224,6 @@ const ProfitRewards = () => {
         setShowDeleteConfirm(false);
         setRecordToDelete(null);
         refetchRecords();
-        refetchSummary();
       } else {
         const error = await response.json();
         showMessage(error.message || 'Failed to delete record', 'error');
@@ -276,7 +235,7 @@ const ProfitRewards = () => {
       setShowDeleteConfirm(false);
       setRecordToDelete(null);
     }
-  }, [recordToDelete, refetchRecords, refetchSummary, showMessage]);
+  }, [recordToDelete, refetchRecords, showMessage]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
@@ -306,8 +265,86 @@ const ProfitRewards = () => {
     }).format(amount);
   }, []);
 
+  const handleCustomDateFromChange = useCallback((value) => {
+    const normalizedValue = value && value > todayDateString ? todayDateString : value;
+    setCustomDateFrom(normalizedValue);
+
+    if (normalizedValue && customDateTo && normalizedValue > customDateTo) {
+      setCustomDateTo('');
+    }
+  }, [customDateTo, todayDateString]);
+
+  const handleCustomDateToChange = useCallback((value) => {
+    const normalizedValue = value && value > todayDateString ? todayDateString : value;
+    setCustomDateTo(normalizedValue);
+
+    if (normalizedValue && customDateFrom && normalizedValue < customDateFrom) {
+      setCustomDateFrom('');
+    }
+  }, [customDateFrom, todayDateString]);
+
+  const filteredRecords = useMemo(() => {
+    const sortedRecords = [...records].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if (dateRangeMode === 'month') {
+      return sortedRecords.filter((record) => {
+        const recordDate = new Date(record.date);
+        const matchesYear = recordDate.getFullYear() === selectedYear;
+        const matchesMonth = selectedMonth === '' ? true : recordDate.getMonth() + 1 === selectedMonth;
+        return matchesYear && matchesMonth;
+      });
+    }
+
+    return sortedRecords.filter((record) => {
+      const recordDate = new Date(record.date);
+
+      if (customDateFrom && recordDate < new Date(`${customDateFrom}T00:00:00`)) {
+        return false;
+      }
+
+      if (customDateTo && recordDate > new Date(`${customDateTo}T23:59:59`)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [records, dateRangeMode, selectedYear, selectedMonth, customDateFrom, customDateTo]);
+
+  const summary = useMemo(() => {
+    const totals = {
+      totalProfit: 0,
+      totalRewardsSpent: 0,
+      totalNetProfit: 0,
+      recordCount: filteredRecords.length,
+      averageProfit: 0,
+      averageRewards: 0,
+      averageNetProfit: 0,
+    };
+
+    filteredRecords.forEach((record) => {
+      totals.totalProfit += Number(record.profitFromRecyclables || 0);
+      totals.totalRewardsSpent += Number(record.rewardsSpent || 0);
+      totals.totalNetProfit += Number(record.netProfit || 0);
+    });
+
+    if (filteredRecords.length > 0) {
+      totals.averageProfit = totals.totalProfit / filteredRecords.length;
+      totals.averageRewards = totals.totalRewardsSpent / filteredRecords.length;
+      totals.averageNetProfit = totals.totalNetProfit / filteredRecords.length;
+    }
+
+    return totals;
+  }, [filteredRecords]);
+
+  const totalItems = filteredRecords.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = totalItems === 0 ? 0 : (safeCurrentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
+
   const handleExport = useCallback(() => {
-    if (!records || records.length === 0) {
+    if (!filteredRecords || filteredRecords.length === 0) {
       showMessage('No records to export', 'error');
       return;
     }
@@ -317,7 +354,7 @@ const ProfitRewards = () => {
       : `${selectedYear}${selectedMonth ? '_' + selectedMonth : ''}`;
 
     // Summarize records by day (single row per date)
-    const groupedByDate = records.reduce((acc, r) => {
+    const groupedByDate = filteredRecords.reduce((acc, r) => {
       const dateObj = new Date(r.date);
       const dateKey = dateObj.toISOString().split('T')[0];
 
@@ -389,14 +426,14 @@ const ProfitRewards = () => {
 
     setShowExportModal(false);
     showMessage('Export successful!');
-  }, [records, exportFormat, dateRangeMode, customDateFrom, customDateTo, selectedYear, selectedMonth, formatDate, showMessage]);
+  }, [filteredRecords, exportFormat, dateRangeMode, customDateFrom, customDateTo, selectedYear, selectedMonth, showMessage]);
 
   const uiSizeClass = useMemo(() => 
     `ui-size-${preferences?.uiSize || 'medium'}`,
     [preferences?.uiSize]
   );
 
-  const loading = recordsLoading || summaryLoading;
+  const loading = recordsLoading;
   
   const years = useMemo(() => {
     const startYear = 2025;
@@ -431,11 +468,47 @@ const ProfitRewards = () => {
     }
   }, [selectedYear, selectedMonth, currentYear, currentMonth]);
 
-  const getValidDateValue = useCallback((value, maxDate) => {
-    if (!value) return '';
-    if (value > maxDate) return maxDate;
-    return value;
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateRangeMode, selectedYear, selectedMonth, customDateFrom, customDateTo, itemsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const goToPage = useCallback((page) => {
+    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+  }, [totalPages]);
+
+  const goToPrevPage = useCallback(() => {
+    setCurrentPage((page) => Math.max(page - 1, 1));
   }, []);
+
+  const goToNextPage = useCallback(() => {
+    setCurrentPage((page) => Math.min(page + 1, totalPages));
+  }, [totalPages]);
+
+  const visiblePages = useMemo(() => {
+    const count = Math.min(5, totalPages);
+
+    return Array.from({ length: count }, (_, index) => {
+      if (totalPages <= 5) {
+        return index + 1;
+      }
+
+      if (safeCurrentPage <= 3) {
+        return index + 1;
+      }
+
+      if (safeCurrentPage >= totalPages - 2) {
+        return totalPages - 4 + index;
+      }
+
+      return safeCurrentPage - 2 + index;
+    });
+  }, [safeCurrentPage, totalPages]);
 
   return (
     <div className={`max-w-[1400px] mx-auto p-4 md:p-8 bg-[var(--bg-primary)] min-h-screen ${uiSizeClass}`}>
@@ -545,12 +618,7 @@ const ProfitRewards = () => {
                   type="date"
                   className="w-full px-4 py-2 border border-[var(--border-color)] rounded-sm text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] cursor-pointer transition-all hover:border-[var(--primary-color)] focus:outline-none focus:border-[var(--border-focus)] focus:shadow-[0_0_0_3px_rgba(34,197,94,0.1)]"
                   value={customDateFrom}
-                  onChange={(e) => {
-                    const maxFrom = customDateTo
-                      ? (customDateTo < todayDateString ? customDateTo : todayDateString)
-                      : todayDateString;
-                    setCustomDateFrom(getValidDateValue(e.target.value, maxFrom));
-                  }}
+                  onChange={(e) => handleCustomDateFromChange(e.target.value)}
                   max={customDateTo ? (customDateTo < todayDateString ? customDateTo : todayDateString) : todayDateString}
                 />
               </div>
@@ -560,7 +628,7 @@ const ProfitRewards = () => {
                   type="date"
                   className="w-full px-4 py-2 border border-[var(--border-color)] rounded-sm text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] cursor-pointer transition-all hover:border-[var(--primary-color)] focus:outline-none focus:border-[var(--border-focus)] focus:shadow-[0_0_0_3px_rgba(34,197,94,0.1)]"
                   value={customDateTo}
-                  onChange={(e) => setCustomDateTo(getValidDateValue(e.target.value, todayDateString))}
+                  onChange={(e) => handleCustomDateToChange(e.target.value)}
                   min={customDateFrom || undefined}
                   max={todayDateString}
                 />
@@ -577,7 +645,7 @@ const ProfitRewards = () => {
           )}
         </div>
 
-        {records.length === 0 ? (
+        {filteredRecords.length === 0 ? (
           <div className="text-center py-16 text-[var(--text-muted)]">
             <span className="text-5xl block mb-4"><InboxOutlinedIcon fontSize="inherit" /></span>
             <p>No records found for the selected period</p>
@@ -598,7 +666,7 @@ const ProfitRewards = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {records.map((record) => (
+                  {paginatedRecords.map((record) => (
                     <tr key={record.id} className="border-b border-[var(--border-color)] transition-colors hover:bg-[var(--bg-hover)] last:border-b-0">
                       <td className="p-4 text-[var(--text-primary)]">{formatDate(record.date)}</td>
                       <td className="p-4 text-[var(--text-primary)]">
@@ -647,7 +715,7 @@ const ProfitRewards = () => {
 
             {/* Mobile/Tablet Card View - Visible on Mobile Only */}
             <div className="block lg:hidden space-y-4">
-              {records.map((record) => (
+              {paginatedRecords.map((record) => (
                 <div key={record.id} className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg p-4 shadow-sm hover:shadow-md transition-all">
                   <div className="flex justify-between items-start mb-3">
                     <div className="text-sm font-medium text-[var(--text-secondary)]">{formatDate(record.date)}</div>
@@ -692,6 +760,92 @@ const ProfitRewards = () => {
                 </div>
               ))}
             </div>
+
+            <div className="mt-6 px-4 py-4 border border-[var(--border-color)] rounded-md bg-[var(--bg-tertiary)]">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-[var(--text-secondary)]">
+                    {totalItems === 0
+                      ? 'Showing 0 records'
+                      : `Showing ${startIndex + 1}-${endIndex} of ${totalItems} records`}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-sm text-[var(--text-secondary)]">Show:</label>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 text-sm border border-[var(--border-color)] rounded bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-focus)]"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                  </select>
+                  <span className="text-sm text-[var(--text-secondary)]">per page</span>
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
+                    <span className="text-xs text-[var(--text-secondary)] sm:hidden">
+                      Page {safeCurrentPage} of {totalPages}
+                    </span>
+
+                    <div className="flex items-center gap-2 ml-auto sm:ml-0">
+                      <button
+                        onClick={() => goToPage(1)}
+                        disabled={safeCurrentPage === 1}
+                        className="hidden sm:inline-flex px-3 py-1.5 text-sm font-medium rounded border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed items-center"
+                      >
+                        <FirstPageOutlinedIcon fontSize="small" />
+                      </button>
+                      <button
+                        onClick={goToPrevPage}
+                        disabled={safeCurrentPage === 1}
+                        className="px-3 py-1.5 text-sm font-medium rounded border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+                      >
+                        <NavigateBeforeOutlinedIcon fontSize="small" />
+                      </button>
+
+                      <div className="hidden sm:flex items-center gap-2">
+                        {visiblePages.map((pageNum) => (
+                          <button
+                            key={pageNum}
+                            onClick={() => goToPage(pageNum)}
+                            className={`px-3 py-1.5 text-sm font-medium rounded ${
+                              safeCurrentPage === pageNum
+                                ? 'bg-[var(--primary-color)] text-white'
+                                : 'border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={goToNextPage}
+                        disabled={safeCurrentPage === totalPages}
+                        className="px-3 py-1.5 text-sm font-medium rounded border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+                      >
+                        <NavigateNextOutlinedIcon fontSize="small" />
+                      </button>
+                      <button
+                        onClick={() => goToPage(totalPages)}
+                        disabled={safeCurrentPage === totalPages}
+                        className="hidden sm:inline-flex px-3 py-1.5 text-sm font-medium rounded border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed items-center"
+                      >
+                        <LastPageOutlinedIcon fontSize="small" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -733,12 +887,12 @@ const ProfitRewards = () => {
                 </div>
               </div>
               <p className="text-sm text-[var(--text-secondary)] m-0">
-                Exporting <strong>{records.length}</strong> record{records.length !== 1 ? 's' : ''} from the currently selected period.
+                Exporting <strong>{filteredRecords.length}</strong> record{filteredRecords.length !== 1 ? 's' : ''} from the currently selected period.
               </p>
             </div>
             <div className="p-6 px-8 border-t border-[var(--border-color)] bg-[var(--bg-tertiary)] flex gap-4 justify-end">
               <button className="min-w-[120px] px-6 py-2 border-none rounded font-medium cursor-pointer transition-all text-sm text-center bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] hover:bg-[var(--bg-hover)] hover:border-[var(--text-secondary)]" onClick={() => setShowExportModal(false)}>Cancel</button>
-              <button className="min-w-[120px] px-6 py-2 border-none rounded font-medium cursor-pointer transition-all text-sm text-center bg-[var(--primary-color)] text-white shadow-sm hover:bg-[var(--primary-hover)] hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleExport} disabled={records.length === 0}>
+              <button className="min-w-[120px] px-6 py-2 border-none rounded font-medium cursor-pointer transition-all text-sm text-center bg-[var(--primary-color)] text-white shadow-sm hover:bg-[var(--primary-hover)] hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleExport} disabled={filteredRecords.length === 0}>
                 <FileDownloadOutlinedIcon fontSize="small" style={{ marginRight: 6 }} />
                 Download
               </button>

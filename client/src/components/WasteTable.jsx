@@ -22,7 +22,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { API_ENDPOINTS } from '../config/api';
 import ExportModal from './ExportModal';
-import { formatLocalDateForApi, getLocalDateKey, parseLocalDate } from '../utils/date';
+import { endOfLocalDay, formatLocalDateForApi, getLocalDateKey, parseLocalDate, startOfLocalDay } from '../utils/date';
 
 // Skeleton row component
 const SkeletonRow = memo(() => (
@@ -112,6 +112,32 @@ const WasteTable = () => {
       timestamp: new Date().toISOString()
     };
   }, [queryError]);
+
+  const today = useMemo(() => new Date(), []);
+
+  const maxFromDate = useMemo(() => {
+    if (dateToObj && dateToObj < today) {
+      return dateToObj;
+    }
+
+    return today;
+  }, [dateToObj, today]);
+
+  const handleFromDateChange = useCallback((newValue) => {
+    setDateFromObj(newValue);
+
+    if (newValue && dateToObj && startOfLocalDay(newValue) > endOfLocalDay(dateToObj)) {
+      setDateToObj(null);
+    }
+  }, [dateToObj]);
+
+  const handleToDateChange = useCallback((newValue) => {
+    setDateToObj(newValue);
+
+    if (newValue && dateFromObj && endOfLocalDay(newValue) < startOfLocalDay(dateFromObj)) {
+      setDateFromObj(null);
+    }
+  }, [dateFromObj]);
 
   // Keep waste records live so the table updates without manual refresh.
   useEffect(() => {
@@ -366,7 +392,7 @@ const WasteTable = () => {
   // Reset to first page when data changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [viewMode, dateFrom, dateTo, sortBy, sortOrder]);
+  }, [viewMode, dateFrom, dateTo, sortBy, sortOrder, typeFilter]);
 
   // Handler for sorting
   const handleSort = useCallback((column) => {
@@ -817,8 +843,8 @@ const WasteTable = () => {
                   <label className="block text-sm font-medium text-gray-700">From Date</label>
                   <DatePicker
                     value={dateFromObj}
-                    onChange={(newValue) => setDateFromObj(newValue)}
-                    maxDate={new Date()}
+                    onChange={handleFromDateChange}
+                    maxDate={maxFromDate}
                     enableAccessibleFieldDOMStructure={false}
                     slots={{ textField: TextField }}
                     slotProps={{
@@ -839,8 +865,9 @@ const WasteTable = () => {
                   <label className="block text-sm font-medium text-gray-700">To Date</label>
                   <DatePicker
                     value={dateToObj}
-                    onChange={(newValue) => setDateToObj(newValue)}
-                    maxDate={new Date()}
+                    onChange={handleToDateChange}
+                    minDate={dateFromObj || undefined}
+                    maxDate={today}
                     enableAccessibleFieldDOMStructure={false}
                     slots={{ textField: TextField }}
                     slotProps={{
