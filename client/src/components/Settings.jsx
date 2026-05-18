@@ -11,7 +11,7 @@ import LoadingSpinner from './LoadingSpinner';
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const { preferences, updatePreference, isLoading: prefsLoading } = usePreferences();
   
   const [activeTab, setActiveTab] = useState('system');
@@ -103,19 +103,17 @@ const Settings = () => {
   const handleProfileDetailsSave = useCallback(async () => {
     await saveAccountChanges(
       {
-        username: profile.username,
-        email: profile.email
+        username: profile.username
       },
       'Profile updated successfully',
       (updatedAccount) => {
         setProfile(prev => ({
           ...prev,
-          username: updatedAccount.username || prev.username,
-          email: updatedAccount.email ?? prev.email
+          username: updatedAccount.username || prev.username
         }));
       }
     );
-  }, [profile.email, profile.username, saveAccountChanges]);
+  }, [profile.username, saveAccountChanges]);
 
   const handlePasswordSave = useCallback(async () => {
     if (!profile.password) {
@@ -155,8 +153,9 @@ const Settings = () => {
   }, [profile.confirmPassword, profile.password, saveAccountChanges, showMessage]);
 
   const handleLaunchKiosk = useCallback(() => {
-    navigate('/kiosk');
-  }, [navigate]);
+    navigate('/kiosk', { replace: true });
+    logout();
+  }, [logout, navigate]);
 
   // Memoize tabs array - removed accounts tab per PRD (single admin user)
   const tabs = useMemo(() => [
@@ -276,7 +275,7 @@ const Settings = () => {
                   <div className="flex-shrink-0 flex items-center">
                     <button
                       type="button"
-                      className="border rounded-md cursor-pointer text-sm font-medium py-2 px-3 transition-all duration-150 inline-flex items-center gap-2 bg-[#0969da] border-[#0969da] text-white hover:bg-[#0860ca] hover:border-[#0860ca]"
+                      className="border rounded-md cursor-pointer text-sm font-medium py-2 px-3 transition-all duration-150 inline-flex items-center gap-2 bg-[#1f883d] border-[#1f883d] text-white hover:bg-[#1a7f37] hover:border-[#1a7f37]"
                       onClick={handleLaunchKiosk}
                     >
                       <OpenInNewOutlinedIcon fontSize="small" />
@@ -303,32 +302,11 @@ const Settings = () => {
 
                     <div className="mb-4">
                       <label className="block text-sm font-semibold text-[#1f2328] mb-2">Username</label>
-                      <input
-                        type="text"
-                        className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full max-w-[320px] focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
-                        value={profile.username}
-                        onChange={(e) => setProfile(prev => ({ ...prev, username: e.target.value }))}
-                      />
+                      <div className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-2 px-3 w-full max-w-[320px]">
+                        {user?.username || profile.username || 'wasteed'}
+                      </div>
                     </div>
 
-                    <div className="mb-4">
-                      <label className="block text-sm font-semibold text-[#1f2328] mb-2">Email</label>
-                      <input
-                        type="email"
-                        className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full max-w-[320px] focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
-                        value={profile.email}
-                        onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
-                        placeholder="Enter recovery email"
-                      />
-                    </div>
-
-                    <button
-                      className="border rounded-md cursor-pointer text-sm font-medium py-1.5 px-4 transition-all duration-150 inline-flex items-center gap-1 bg-[#1f883d] border-[#1f883d] text-white hover:bg-[#1a7f37] hover:border-[#1a7f37] disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={handleProfileDetailsSave}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Saving...' : 'Save Profile'}
-                    </button>
                   </div>
 
                   <div className="border border-[#d1d9e0] rounded-md p-4">

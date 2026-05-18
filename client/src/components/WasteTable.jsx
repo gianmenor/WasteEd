@@ -207,6 +207,18 @@ const WasteTable = () => {
     });
   }, [viewMode]);
 
+  const formatTime = useCallback((timeString) => {
+    if (!timeString) return '-';
+    const time = new Date(timeString);
+    if (Number.isNaN(time.getTime())) return '-';
+    return time.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  }, []);
+
   const formatCount = useCallback((count) => {
     if (count == null) return '0';
     return parseInt(count).toString();
@@ -516,6 +528,80 @@ const WasteTable = () => {
     });
   }, []);
 
+  // Helper: aggregate raw records by day for clean daily exports
+  const aggregateDailyForExport = useCallback((rawData) => {
+    const grouped = {};
+
+    rawData.forEach(record => {
+      const dateObj = parseLocalDate(record.date);
+      const dateKey = getLocalDateKey(dateObj);
+      const recordTime = record.recordedAt || record.createdAt || record.time;
+
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {
+          date: dateObj,
+          time: recordTime || null,
+          recyclable: 0,
+          biodegradable: 0,
+          nonBiodegradable: 0,
+        };
+      }
+
+      if (recordTime) {
+        const existingTime = grouped[dateKey].time ? new Date(grouped[dateKey].time).getTime() : 0;
+        const newTime = new Date(recordTime).getTime();
+        if (newTime > existingTime) {
+          grouped[dateKey].time = recordTime;
+        }
+      }
+
+      grouped[dateKey].recyclable += record.recyclable || 0;
+      grouped[dateKey].biodegradable += record.biodegradable || 0;
+      grouped[dateKey].nonBiodegradable += record.nonBiodegradable || 0;
+    });
+
+    return Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, []);
+
+  const buildDailyExportRows = useCallback((rawData, wasteTypes) => {
+    const rows = [];
+    rawData.forEach(record => {
+      const recordTime = record.recordedAt || record.createdAt || record.time || '';
+      if (wasteTypes.recyclable && (record.recyclable || 0) > 0) {
+        rows.push({
+          date: record.date,
+          time: recordTime,
+          type: 'Recyclable',
+          quantity: record.recyclable || 0,
+        });
+      }
+      if (wasteTypes.biodegradable && (record.biodegradable || 0) > 0) {
+        rows.push({
+          date: record.date,
+          time: recordTime,
+          type: 'Wet Wastes',
+          quantity: record.biodegradable || 0,
+        });
+      }
+      if (wasteTypes.nonBiodegradable && (record.nonBiodegradable || 0) > 0) {
+        rows.push({
+          date: record.date,
+          time: recordTime,
+          type: 'Dry Wastes',
+          quantity: record.nonBiodegradable || 0,
+        });
+      }
+    });
+
+    return rows.sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      const timeA = a.time ? new Date(a.time).getTime() : 0;
+      const timeB = b.time ? new Date(b.time).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, []);
+
   const handlePDFExport = useCallback((wasteTypes, dateFiltered, dateRange, customDateFrom, customDateTo) => {
     const doc = new jsPDF();
 
@@ -547,12 +633,10 @@ const WasteTable = () => {
     doc.text(`Types: ${typeLabels}`, 14, 36);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 42);
 
-    // Build columns based on selected types
-    const head = ['Date', 'Time'];
-    if (wasteTypes.recyclable) head.push('Recyclable (pcs)');
-    if (wasteTypes.biodegradable) head.push('Wet Wastes (pcs)');
-    if (wasteTypes.nonBiodegradable) head.push('Dry Wastes (pcs)');
-    head.push('Total (pcs)');
+    // Build columns based on selected types and view mode
+    const head = viewMode === 'daily'
+      ? ['Date', 'Time', 'Type', 'Quantity (pcs)']
+      : ['Date', 'Time', ...(wasteTypes.recyclable ? ['Recyclable (pcs)'] : []), ...(wasteTypes.biodegradable ? ['Wet Wastes (pcs)'] : []), ...(wasteTypes.nonBiodegradable ? ['Dry Wastes (pcs)'] : []), 'Total (pcs)'];
 
     // Build rows
     let tableData;
@@ -578,57 +662,21 @@ const WasteTable = () => {
         return row;
       });
     } else {
-      // Daily — one summary row per day + type
       tableData = [];
-      const dailyTypeRows = aggregateDailyByTypeForExport(dateFiltered);
+      const dailyRows = buildDailyExportRows(dateFiltered, wasteTypes);
 
-      let currentDateKey = null;
-      dailyTypeRows.forEach((entry) => {
-        const entryDateKey = getLocalDateKey(entry.date);
-        const shouldShowDate = entryDateKey !== currentDateKey;
-        currentDateKey = entryDateKey;
+      dailyRows.forEach((record) => {
+        totals.recyclable += record.type === 'Recyclable' ? record.quantity : 0;
+        totals.biodegradable += record.type === 'Wet Wastes' ? record.quantity : 0;
+        totals.nonBiodegradable += record.type === 'Dry Wastes' ? record.quantity : 0;
 
-        const dateCell = shouldShowDate
-          ? parseLocalDate(entry.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-          : '';
-
-        const timeCell = shouldShowDate ? '-' : '';
-
-        if (entry.type === 'recyclable' && wasteTypes.recyclable) {
-          totals.recyclable += entry.quantity;
-          tableData.push([
-            dateCell,
-            timeCell,
-            formatCount(entry.quantity),
-            ...(wasteTypes.biodegradable ? ['-'] : []),
-            ...(wasteTypes.nonBiodegradable ? ['-'] : []),
-            formatCount(entry.quantity)
-          ]);
-        }
-
-        if (entry.type === 'biodegradable' && wasteTypes.biodegradable) {
-          totals.biodegradable += entry.quantity;
-          tableData.push([
-            dateCell,
-            timeCell,
-            ...(wasteTypes.recyclable ? ['-'] : []),
-            formatCount(entry.quantity),
-            ...(wasteTypes.nonBiodegradable ? ['-'] : []),
-            formatCount(entry.quantity)
-          ]);
-        }
-
-        if (entry.type === 'nonBiodegradable' && wasteTypes.nonBiodegradable) {
-          totals.nonBiodegradable += entry.quantity;
-          tableData.push([
-            dateCell,
-            timeCell,
-            ...(wasteTypes.recyclable ? ['-'] : []),
-            ...(wasteTypes.biodegradable ? ['-'] : []),
-            formatCount(entry.quantity),
-            formatCount(entry.quantity)
-          ]);
-        }
+        const row = [
+          formatDate(record.date),
+          formatTime(record.time),
+          record.type,
+          formatCount(record.quantity),
+        ];
+        tableData.push(row);
       });
     }
 
@@ -637,17 +685,26 @@ const WasteTable = () => {
       (wasteTypes.recyclable ? totals.recyclable : 0) +
       (wasteTypes.biodegradable ? totals.biodegradable : 0) +
       (wasteTypes.nonBiodegradable ? totals.nonBiodegradable : 0);
-    const totalsRow = ['TOTAL', ''];
-    if (wasteTypes.recyclable) totalsRow.push(formatCount(totals.recyclable));
-    if (wasteTypes.biodegradable) totalsRow.push(formatCount(totals.biodegradable));
-    if (wasteTypes.nonBiodegradable) totalsRow.push(formatCount(totals.nonBiodegradable));
-    totalsRow.push(formatCount(grandTotal));
+    const totalsRow = viewMode === 'daily'
+      ? ['TOTAL', '', '', formatCount(grandTotal)]
+      : ['TOTAL', '', ...(wasteTypes.recyclable ? [formatCount(totals.recyclable)] : []), ...(wasteTypes.biodegradable ? [formatCount(totals.biodegradable)] : []), ...(wasteTypes.nonBiodegradable ? [formatCount(totals.nonBiodegradable)] : []), formatCount(grandTotal)];
     tableData.push(totalsRow);
+
+    // Summary block for per-type and overall totals
+    const summaryLines = [];
+    if (wasteTypes.recyclable) summaryLines.push(`Recyclable: ${formatCount(totals.recyclable)}`);
+    if (wasteTypes.biodegradable) summaryLines.push(`Wet Wastes: ${formatCount(totals.biodegradable)}`);
+    if (wasteTypes.nonBiodegradable) summaryLines.push(`Dry Wastes: ${formatCount(totals.nonBiodegradable)}`);
+    summaryLines.push(`Overall Total: ${formatCount(grandTotal)}`);
+
+    doc.setFontSize(11);
+    doc.setTextColor(31, 41, 55);
+    doc.text(summaryLines.join(' | '), 14, 52);
 
     autoTable(doc, {
       head: [head],
       body: tableData,
-      startY: 50,
+      startY: 60,
       headStyles: { fillColor: [22, 163, 74], textColor: 255, fontStyle: 'bold' },
       bodyStyles: { textColor: [31, 41, 55] },
       alternateRowStyles: { fillColor: [243, 244, 246] },
@@ -655,7 +712,7 @@ const WasteTable = () => {
 
     const fileName = `waste-report-${viewMode}-${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(fileName);
-  }, [viewMode, formatDate, formatCount, aggregateForExport, aggregateDailyByTypeForExport]);
+  }, [viewMode, formatDate, formatCount, aggregateForExport, aggregateDailyByTypeForExport, buildDailyExportRows]);
 
   const handleExcelExport = useCallback((wasteTypes, dateFiltered) => {
     if (!dateFiltered || dateFiltered.length === 0) {
@@ -667,46 +724,19 @@ const WasteTable = () => {
     let totals = { recyclable: 0, biodegradable: 0, nonBiodegradable: 0 };
 
     if (viewMode === 'daily') {
-      // Daily — one summary row per day + type
-      const dailyTypeRows = aggregateDailyByTypeForExport(dateFiltered);
-      let currentDateKey = null;
+      const dailyRows = buildDailyExportRows(dateFiltered, wasteTypes);
 
-      dailyTypeRows.forEach((entry) => {
-        const entryDateKey = getLocalDateKey(entry.date);
-        const shouldShowDate = entryDateKey !== currentDateKey;
-        currentDateKey = entryDateKey;
+      dailyRows.forEach((record) => {
+        if (record.type === 'Recyclable') totals.recyclable += record.quantity;
+        if (record.type === 'Wet Wastes') totals.biodegradable += record.quantity;
+        if (record.type === 'Dry Wastes') totals.nonBiodegradable += record.quantity;
 
-        const row = {
-          Date: shouldShowDate ? parseLocalDate(entry.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
-          Time: shouldShowDate ? '-' : '',
-          Type: '',
-          'Quantity (pcs)': 0,
-          'Coupon Taken': 0,
-        };
-
-        if (entry.type === 'recyclable' && wasteTypes.recyclable) {
-          totals.recyclable += entry.quantity;
-          row.Type = 'Recyclable';
-          row['Quantity (pcs)'] = entry.quantity;
-          row['Coupon Taken'] = Math.floor(entry.quantity * 0.5);
-          exportRows.push(row);
-        }
-
-        if (entry.type === 'biodegradable' && wasteTypes.biodegradable) {
-          totals.biodegradable += entry.quantity;
-          row.Type = 'Wet Wastes';
-          row['Quantity (pcs)'] = entry.quantity;
-          row['Coupon Taken'] = 0;
-          exportRows.push(row);
-        }
-
-        if (entry.type === 'nonBiodegradable' && wasteTypes.nonBiodegradable) {
-          totals.nonBiodegradable += entry.quantity;
-          row.Type = 'Dry Wastes';
-          row['Quantity (pcs)'] = entry.quantity;
-          row['Coupon Taken'] = 0;
-          exportRows.push(row);
-        }
+        exportRows.push({
+          Date: parseLocalDate(record.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          Time: formatTime(record.time),
+          Type: record.type,
+          'Quantity (pcs)': record.quantity,
+        });
       });
 
       const grandTotal =
@@ -714,9 +744,15 @@ const WasteTable = () => {
         (wasteTypes.biodegradable ? totals.biodegradable : 0) +
         (wasteTypes.nonBiodegradable ? totals.nonBiodegradable : 0);
 
-      exportRows.push({ Date: 'TOTAL', Time: '', Type: '', 'Quantity (pcs)': grandTotal, 'Coupon Taken': '' });
+      exportRows.push({
+        Date: 'TOTAL',
+        Time: '',
+        Type: '',
+        'Quantity (pcs)': grandTotal,
+      });
 
-      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const headers = ['Date', 'Time', 'Type', 'Quantity (pcs)'];
+      const ws = XLSX.utils.json_to_sheet(exportRows, { header: headers });
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Waste Data');
       XLSX.writeFile(wb, `waste-report-daily-${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -728,7 +764,11 @@ const WasteTable = () => {
 
     aggregated.forEach(record => {
       const row = { Date: formatDate(record.date) };
-      
+      const rowTotal =
+        (wasteTypes.recyclable ? record.recyclable || 0 : 0) +
+        (wasteTypes.biodegradable ? record.biodegradable || 0 : 0) +
+        (wasteTypes.nonBiodegradable ? record.nonBiodegradable || 0 : 0);
+
       if (wasteTypes.recyclable) {
         totals.recyclable += record.recyclable || 0;
         row['Recyclable (pcs)'] = record.recyclable || 0;
@@ -741,21 +781,36 @@ const WasteTable = () => {
         totals.nonBiodegradable += record.nonBiodegradable || 0;
         row['Dry Wastes (pcs)'] = record.nonBiodegradable || 0;
       }
+      row['Total (pcs)'] = rowTotal;
       
       exportRows.push(row);
     });
 
-    const totalsRow = { Date: 'TOTAL' };
-    if (wasteTypes.recyclable) totalsRow['Recyclable (pcs)'] = totals.recyclable;
-    if (wasteTypes.biodegradable) totalsRow['Wet Wastes (pcs)'] = totals.biodegradable;
-    if (wasteTypes.nonBiodegradable) totalsRow['Dry Wastes (pcs)'] = totals.nonBiodegradable;
+    const grandTotal =
+      (wasteTypes.recyclable ? totals.recyclable : 0) +
+      (wasteTypes.biodegradable ? totals.biodegradable : 0) +
+      (wasteTypes.nonBiodegradable ? totals.nonBiodegradable : 0);
+
+    const totalsRow = {
+      Date: 'TOTAL',
+      ...(wasteTypes.recyclable ? { 'Recyclable (pcs)': totals.recyclable } : {}),
+      ...(wasteTypes.biodegradable ? { 'Wet Wastes (pcs)': totals.biodegradable } : {}),
+      ...(wasteTypes.nonBiodegradable ? { 'Dry Wastes (pcs)': totals.nonBiodegradable } : {}),
+      'Total (pcs)': grandTotal,
+    };
     exportRows.push(totalsRow);
 
-    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const headers = ['Date'];
+    if (wasteTypes.recyclable) headers.push('Recyclable (pcs)');
+    if (wasteTypes.biodegradable) headers.push('Wet Wastes (pcs)');
+    if (wasteTypes.nonBiodegradable) headers.push('Dry Wastes (pcs)');
+    headers.push('Total (pcs)');
+
+    const ws = XLSX.utils.json_to_sheet(exportRows, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Waste Data');
     XLSX.writeFile(wb, `waste-report-monthly-${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [viewMode, formatDate, aggregateForExport, aggregateDailyByTypeForExport]);
+  }, [viewMode, formatDate, aggregateForExport, aggregateDailyByTypeForExport, buildDailyExportRows]);
 
   // Unified export handler
   const handleExport = useCallback((options) => {
@@ -984,49 +1039,6 @@ const WasteTable = () => {
           </div>
         )}
 
-        {/* Statistics Section */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-lg">
-                <RecyclingOutlinedIcon className="text-emerald-600" />
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{statistics.recyclable.toLocaleString()}</div>
-            <div className="text-sm font-medium text-gray-600 mt-1">Recyclable Wastes</div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
-                <SpaOutlinedIcon className="text-green-600" />
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{statistics.biodegradable.toLocaleString()}</div>
-            <div className="text-sm font-medium text-gray-600 mt-1">Wet Wastes</div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-lg">
-                <DeleteOutlineOutlinedIcon className="text-gray-600" />
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{statistics.nonBiodegradable.toLocaleString()}</div>
-            <div className="text-sm font-medium text-gray-600 mt-1">Dry Wastes</div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
-                <BarChartOutlinedIcon className="text-blue-600" />
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{statistics.total.toLocaleString()}</div>
-            <div className="text-sm font-medium text-gray-600 mt-1">Total Waste</div>
-          </div>
-        </div>
-
         {/* Table Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200" ref={tableRef}>
           <div className="p-6 border-b border-gray-200">
@@ -1150,7 +1162,29 @@ const WasteTable = () => {
                   </tbody>
                 </table>
               </div>
-            
+
+              {/* Table totals for each waste type */}
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 text-sm text-gray-700">
+                  <div className="rounded-lg bg-white p-3 border border-gray-200">
+                    <div className="text-xs uppercase tracking-wide text-gray-500">Recyclable Total</div>
+                    <div className="mt-2 text-lg font-semibold text-gray-900">{statistics.recyclable.toLocaleString()} pcs</div>
+                  </div>
+                  <div className="rounded-lg bg-white p-3 border border-gray-200">
+                    <div className="text-xs uppercase tracking-wide text-gray-500">Wet Wastes Total</div>
+                    <div className="mt-2 text-lg font-semibold text-gray-900">{statistics.biodegradable.toLocaleString()} pcs</div>
+                  </div>
+                  <div className="rounded-lg bg-white p-3 border border-gray-200">
+                    <div className="text-xs uppercase tracking-wide text-gray-500">Dry Wastes Total</div>
+                    <div className="mt-2 text-lg font-semibold text-gray-900">{statistics.nonBiodegradable.toLocaleString()} pcs</div>
+                  </div>
+                  <div className="rounded-lg bg-white p-3 border border-gray-200">
+                    <div className="text-xs uppercase tracking-wide text-gray-500">Overall Waste Total</div>
+                    <div className="mt-2 text-lg font-semibold text-gray-900">{statistics.total.toLocaleString()} pcs</div>
+                  </div>
+                </div>
+              </div>
+
               {/* Pagination Controls */}
               <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

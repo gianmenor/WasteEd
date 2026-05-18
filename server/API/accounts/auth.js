@@ -4,10 +4,14 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { prisma } from '../../utils/database.js';
 
 // Configure
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 // Route: /api/accounts/
 const router = express.Router();
@@ -15,7 +19,7 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 const JWT_EXPIRES_IN = '7d';
 const SALT_ROUNDS = 10;
-const DEFAULT_FORGOT_EMAIL = 'wasteed277@gmail.com';
+const DEFAULT_FORGOT_EMAIL = 'wasteed12345@gmail.com';
 const FORGOT_OTP_EXPIRY_MS = 10 * 60 * 1000;
 
 let forgotPasswordOtpState = null;
@@ -60,11 +64,20 @@ const createMailerTransport = () => {
   const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
   const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
 
+  // Debug: log presence (not values) of SMTP-related env vars to help diagnose transporter creation
+  console.log('SMTP env presence:', {
+    SMTP_HOST: !!smtpHost,
+    SMTP_PORT: !!process.env.SMTP_PORT,
+    SMTP_USER: !!smtpUser,
+    SMTP_PASS: !!smtpPass,
+    SMTP_FROM: !!process.env.SMTP_FROM
+  });
+
   if (!smtpHost || !smtpUser || !smtpPass) {
     return null;
   }
 
-  return nodemailer.createTransport({
+  const transportOptions = {
     host: smtpHost,
     port: smtpPort,
     secure: smtpPort === 465,
@@ -72,7 +85,16 @@ const createMailerTransport = () => {
       user: smtpUser,
       pass: smtpPass
     }
-  });
+  };
+
+  if (smtpHost.includes('gmail.com')) {
+    transportOptions.service = 'gmail';
+    transportOptions.tls = {
+      rejectUnauthorized: false
+    };
+  }
+
+  return nodemailer.createTransport(transportOptions);
 };
 
 const generateSixDigitOtp = () => String(Math.floor(100000 + Math.random() * 900000));
@@ -203,7 +225,7 @@ router.post('/forgot-password/request-otp', async (req, res) => {
       });
     }
 
-    const recipient = process.env.FORGOT_PASSWORD_TO || DEFAULT_FORGOT_EMAIL || user.email;
+    const recipient = process.env.FORGOT_PASSWORD_TO || user.email || DEFAULT_FORGOT_EMAIL;
     const sender = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
     const transporter = createMailerTransport();
 
@@ -212,6 +234,16 @@ router.post('/forgot-password/request-otp', async (req, res) => {
       return res.status(500).json({
         success: false,
         message: 'Cannot send OTP because SMTP is not configured.'
+      });
+    }
+
+    try {
+      await transporter.verify();
+    } catch (verifyError) {
+      console.error('Forgot password SMTP verification failed:', verifyError);
+      return res.status(500).json({
+        success: false,
+        message: 'Cannot send OTP because SMTP verification failed. Check credentials and network.'
       });
     }
 

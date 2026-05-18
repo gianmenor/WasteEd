@@ -12,6 +12,9 @@ import FirstPageOutlinedIcon from '@mui/icons-material/FirstPageOutlined';
 import NavigateBeforeOutlinedIcon from '@mui/icons-material/NavigateBeforeOutlined';
 import NavigateNextOutlinedIcon from '@mui/icons-material/NavigateNextOutlined';
 import LastPageOutlinedIcon from '@mui/icons-material/LastPageOutlined';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
+import ExportModal from './ExportModal';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -343,18 +346,78 @@ const ProfitRewards = () => {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback((options) => {
     if (!filteredRecords || filteredRecords.length === 0) {
       showMessage('No records to export', 'error');
       return;
     }
 
-    const periodLabel = dateRangeMode === 'custom'
-      ? `${customDateFrom || 'start'}_to_${customDateTo || 'end'}`
-      : `${selectedYear}${selectedMonth ? '_' + selectedMonth : ''}`;
+    const { format = 'excel', dateRange, customDateFrom, customDateTo } = options;
 
-    // Summarize records by day (single row per date)
-    const groupedByDate = filteredRecords.reduce((acc, r) => {
+    // Determine the records to export based on date range from modal
+    let recordsToExport = filteredRecords;
+    let dateRangeLabel = 'All time';
+
+    if (dateRange && dateRange !== 'all') {
+      const today = new Date();
+      const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      let startDate = null;
+      let endDate = localToday;
+
+      switch (dateRange) {
+        case 'today':
+          startDate = localToday;
+          endDate = localToday;
+          dateRangeLabel = 'Today';
+          break;
+        case 'week': {
+          const weekStart = new Date(localToday);
+          weekStart.setDate(localToday.getDate() - localToday.getDay());
+          startDate = weekStart;
+          endDate = localToday;
+          dateRangeLabel = 'This week';
+          break;
+        }
+        case 'month':
+          startDate = new Date(localToday.getFullYear(), localToday.getMonth(), 1);
+          endDate = localToday;
+          dateRangeLabel = 'This month';
+          break;
+        case 'year':
+          startDate = new Date(localToday.getFullYear(), 0, 1);
+          endDate = localToday;
+          dateRangeLabel = 'This year';
+          break;
+        case 'custom': {
+          if (customDateFrom) {
+            const [year, month, day] = customDateFrom.split('-').map(Number);
+            startDate = new Date(year, month - 1, day);
+          }
+          if (customDateTo) {
+            const [year, month, day] = customDateTo.split('-').map(Number);
+            endDate = new Date(year, month - 1, day);
+          }
+          dateRangeLabel = `${customDateFrom || 'start'} to ${customDateTo || 'end'}`;
+          break;
+        }
+        default:
+          dateRangeLabel = 'All time';
+      }
+
+      if (startDate || endDate) {
+        recordsToExport = filteredRecords.filter((record) => {
+          const recordDate = new Date(record.date);
+          const recordDateOnly = new Date(recordDate.getFullYear(), recordDate.getMonth(), recordDate.getDate());
+          
+          if (startDate && recordDateOnly < startDate) return false;
+          if (endDate && recordDateOnly > endDate) return false;
+          return true;
+        });
+      }
+    }
+
+    // Summarize records by day
+    const groupedByDate = recordsToExport.reduce((acc, r) => {
       const dateObj = new Date(r.date);
       const dateKey = dateObj.toISOString().split('T')[0];
 
@@ -368,9 +431,9 @@ const ProfitRewards = () => {
         };
       }
 
-      acc[dateKey].profitFromRecyclables += r.profitFromRecyclables || 0;
-      acc[dateKey].rewardsSpent += r.rewardsSpent || 0;
-      acc[dateKey].netProfit += r.netProfit || 0;
+      acc[dateKey].profitFromRecyclables += Number(r.profitFromRecyclables) || 0;
+      acc[dateKey].rewardsSpent += Number(r.rewardsSpent) || 0;
+      acc[dateKey].netProfit += Number(r.netProfit) || 0;
 
       if (r.notes) {
         acc[dateKey].notes.add(r.notes);
@@ -387,24 +450,24 @@ const ProfitRewards = () => {
           month: 'short',
           day: 'numeric',
         }),
-        'Total Amount Collected (₱)': row.profitFromRecyclables.toFixed(2),
-        'Expense (₱)': row.rewardsSpent.toFixed(2),
-        'Net Revenue (₱)': row.netProfit.toFixed(2),
+        'Total Amount Collected (₱)': Math.round((Number(row.profitFromRecyclables) || 0) * 100) / 100,
+        'Expense (₱)': Math.round((Number(row.rewardsSpent) || 0) * 100) / 100,
+        'Net Revenue (₱)': Math.round((Number(row.netProfit) || 0) * 100) / 100,
         Notes: Array.from(row.notes).join(' | '),
       }));
 
-    if (exportFormat === 'excel') {
+    if (format === 'excel') {
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Profit & Rewards');
-      XLSX.writeFile(wb, `profit_rewards_${periodLabel}.xlsx`);
-    } else {
+      XLSX.writeFile(wb, `profit_rewards_${dateRangeLabel.replace(/\s+/g, '_')}.xlsx`);
+    } else if (format === 'pdf') {
       const doc = new jsPDF();
       doc.setFontSize(16);
       doc.text('Profit & Rewards Report', 14, 18);
       doc.setFontSize(10);
       doc.setTextColor(120);
-      doc.text(`Period: ${periodLabel.replace(/_/g, ' ')}`, 14, 26);
+      doc.text(`Period: ${dateRangeLabel}`, 14, 26);
       
       const pdfRows = rows.map((row) => ([
         row.Date,
@@ -421,12 +484,12 @@ const ProfitRewards = () => {
         styles: { fontSize: 9 },
         headStyles: { fillColor: [34, 197, 94] }
       });
-      doc.save(`profit_rewards_${periodLabel}.pdf`);
+      doc.save(`profit_rewards_${dateRangeLabel.replace(/\s+/g, '_')}.pdf`);
     }
 
     setShowExportModal(false);
     showMessage('Export successful!');
-  }, [filteredRecords, exportFormat, dateRangeMode, customDateFrom, customDateTo, selectedYear, selectedMonth, showMessage]);
+  }, [filteredRecords, showMessage]);
 
   const uiSizeClass = useMemo(() => 
     `ui-size-${preferences?.uiSize || 'medium'}`,
@@ -522,24 +585,31 @@ const ProfitRewards = () => {
       )}
 
       {/* Summary Cards */}
-      <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg p-4 md:p-8 mb-6 md:mb-8 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <div className="bg-[var(--bg-secondary)] rounded-lg p-4 md:p-6 flex items-center gap-4 md:gap-6 border-2 border-[var(--success-color)] bg-gradient-to-br from-[rgba(34,197,94,0.05)] to-[rgba(34,197,94,0.15)] transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div className="flex-1">
-              <div className="text-sm text-[var(--text-secondary)] mb-2">Total Amount Collected</div>
-              <div className="text-[clamp(1.25rem,4vw,2rem)] font-bold text-[var(--text-primary)] leading-tight mb-2 break-words">{formatCurrency(summary.totalProfit || 0)}</div>
-              <div className="text-xs text-[var(--text-muted)]">From recyclables</div>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <div className="flex items-start justify-between mb-3">
+            <TrendingUpIcon fontSize="large" className="text-emerald-600" />
+            <span className="text-xs font-medium px-2 py-1 rounded bg-emerald-100 text-emerald-700">
+              Collected
+            </span>
           </div>
-
-          <div className="bg-[var(--bg-secondary)] rounded-lg p-4 md:p-6 flex items-center gap-4 md:gap-6 border-2 border-[var(--secondary-color)] bg-gradient-to-br from-[rgba(59,130,246,0.05)] to-[rgba(59,130,246,0.15)] transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div className="flex-1">
-              <div className="text-sm text-[var(--text-secondary)] mb-2">Total Rewards</div>
-              <div className="text-[clamp(1.25rem,4vw,2rem)] font-bold text-[var(--text-primary)] leading-tight mb-2 break-words">{formatCurrency(summary.totalRewardsSpent || summary.totalRewards || 0)}</div>
-              <div className="text-xs text-[var(--text-muted)]">Given to users</div>
-            </div>
+          <div className="text-3xl font-bold text-gray-900 mb-1">
+            {formatCurrency(summary.totalProfit || 0)}
           </div>
+          <div className="text-sm font-medium text-gray-700">Total Amount Collected</div>
+        </div>
 
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <div className="flex items-start justify-between mb-3">
+            <CardGiftcardIcon fontSize="large" className="text-blue-600" />
+            <span className="text-xs font-medium px-2 py-1 rounded bg-blue-100 text-blue-700">
+              Rewards
+            </span>
+          </div>
+          <div className="text-3xl font-bold text-gray-900 mb-1">
+            {formatCurrency(summary.totalRewardsSpent || summary.totalRewards || 0)}
+          </div>
+          <div className="text-sm font-medium text-gray-700">Total Rewards</div>
         </div>
       </div>
 
@@ -852,53 +922,14 @@ const ProfitRewards = () => {
 
       {/* Export Modal */}
       {showExportModal && (
-        <div className="fixed inset-0 bg-[rgba(248,253,248,0.9)] flex items-center justify-center z-[10000] p-6 backdrop-blur-sm" onClick={() => setShowExportModal(false)}>
-          <div className="bg-[var(--bg-secondary)] rounded-lg max-w-[420px] w-full max-h-[90vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.3)] animate-slideIn" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center p-8 border-b border-[var(--border-color)]">
-              <h2 className="text-2xl font-semibold text-[var(--text-primary)] m-0">Export Records</h2>
-              <button className="bg-transparent border-none text-2xl text-[var(--text-secondary)] cursor-pointer p-2 leading-none transition-all rounded hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] inline-flex items-center justify-center" onClick={() => setShowExportModal(false)}>
-                <CloseRoundedIcon fontSize="small" />
-              </button>
-            </div>
-            <div className="p-8 flex flex-col gap-6">
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-[var(--text-secondary)]">Format</label>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    className={`flex-1 px-4 py-2.5 border-2 rounded-md font-medium text-sm cursor-pointer transition-all text-center ${exportFormat === 'excel' ? 'border-[var(--primary-color)] bg-[rgba(34,197,94,0.08)] text-[var(--primary-color)]' : 'border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:border-[var(--text-secondary)]'}`}
-                    onClick={() => setExportFormat('excel')}
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      <TableChartOutlinedIcon fontSize="small" />
-                      Excel (.xlsx)
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`flex-1 px-4 py-2.5 border-2 rounded-md font-medium text-sm cursor-pointer transition-all text-center ${exportFormat === 'pdf' ? 'border-[var(--primary-color)] bg-[rgba(34,197,94,0.08)] text-[var(--primary-color)]' : 'border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:border-[var(--text-secondary)]'}`}
-                    onClick={() => setExportFormat('pdf')}
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      <PictureAsPdfOutlinedIcon fontSize="small" />
-                      PDF
-                    </span>
-                  </button>
-                </div>
-              </div>
-              <p className="text-sm text-[var(--text-secondary)] m-0">
-                Exporting <strong>{filteredRecords.length}</strong> record{filteredRecords.length !== 1 ? 's' : ''} from the currently selected period.
-              </p>
-            </div>
-            <div className="p-6 px-8 border-t border-[var(--border-color)] bg-[var(--bg-tertiary)] flex gap-4 justify-end">
-              <button className="min-w-[120px] px-6 py-2 border-none rounded font-medium cursor-pointer transition-all text-sm text-center bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] hover:bg-[var(--bg-hover)] hover:border-[var(--text-secondary)]" onClick={() => setShowExportModal(false)}>Cancel</button>
-              <button className="min-w-[120px] px-6 py-2 border-none rounded font-medium cursor-pointer transition-all text-sm text-center bg-[var(--primary-color)] text-white shadow-sm hover:bg-[var(--primary-hover)] hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleExport} disabled={filteredRecords.length === 0}>
-                <FileDownloadOutlinedIcon fontSize="small" style={{ marginRight: 6 }} />
-                Download
-              </button>
-            </div>
-          </div>
-        </div>
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          onExport={handleExport}
+          title="Export Profit & Rewards"
+          showWasteTypes={false}
+          showDateRange={true}
+        />
       )}
 
       {/* Modal for Add/Edit Form */}
@@ -937,13 +968,16 @@ const ProfitRewards = () => {
                         className="border-none border-l-[3px] border-l-[var(--success-color)] rounded-none flex-1 min-w-0 shadow-none focus:outline-none focus:border-transparent focus:shadow-none px-4 py-2 text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] transition-all"
                         value={formData.profitAmount}
                         onChange={(e) => {
-                          const value = parseFloat(e.target.value) || 0;
-                          if (value <= 9999.99) {
-                            setFormData(prev => ({ ...prev, profitAmount: e.target.value }));
+                          const value = e.target.value;
+                          if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                            if (value === '' || Number(value) <= 9999.99) {
+                              setFormData(prev => ({ ...prev, profitAmount: value }));
+                            }
                           }
                         }}
                         onInput={(e) => {
-                          if (parseFloat(e.target.value) > 9999.99) {
+                          const value = e.target.value;
+                          if (value !== '' && Number(value) > 9999.99) {
                             e.target.value = '9999.99';
                           }
                         }}
@@ -967,13 +1001,16 @@ const ProfitRewards = () => {
                         className="border-none border-l-[3px] border-l-[var(--danger-color,#ef4444)] rounded-none flex-1 min-w-0 shadow-none focus:outline-none focus:border-transparent focus:shadow-none px-4 py-2 text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] transition-all"
                         value={formData.expenseAmount}
                         onChange={(e) => {
-                          const value = parseFloat(e.target.value) || 0;
-                          if (value <= 9999.99) {
-                            setFormData(prev => ({ ...prev, expenseAmount: e.target.value }));
+                          const value = e.target.value;
+                          if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                            if (value === '' || Number(value) <= 9999.99) {
+                              setFormData(prev => ({ ...prev, expenseAmount: value }));
+                            }
                           }
                         }}
                         onInput={(e) => {
-                          if (parseFloat(e.target.value) > 9999.99) {
+                          const value = e.target.value;
+                          if (value !== '' && Number(value) > 9999.99) {
                             e.target.value = '9999.99';
                           }
                         }}

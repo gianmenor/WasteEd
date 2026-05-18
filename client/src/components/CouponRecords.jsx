@@ -248,14 +248,21 @@ const CouponRecords = () => {
     })
   ), []);
 
-  const getTransactionTypeLabel = useCallback((type) => {
+  const getTransactionTypeLabel = useCallback((type, amount) => {
     switch (type) {
       case 'earn':
         return 'Earned';
       case 'consume':
         return 'Consumed';
       case 'adjust':
+        if (amount !== undefined) {
+          return Number(amount) >= 0 ? 'Added' : 'Removed';
+        }
         return 'Adjustment';
+      case 'adjust-added':
+        return 'Added';
+      case 'adjust-removed':
+        return 'Removed';
       default:
         return type;
     }
@@ -268,6 +275,8 @@ const CouponRecords = () => {
       case 'consume':
         return <RedeemOutlinedIcon fontSize="inherit" />;
       case 'adjust':
+      case 'adjust-added':
+      case 'adjust-removed':
         return <TuneOutlinedIcon fontSize="inherit" />;
       default:
         return <ReceiptLongOutlinedIcon fontSize="inherit" />;
@@ -317,9 +326,13 @@ const CouponRecords = () => {
 
         return true;
       })
-      .filter((transaction) => (
-        typeFilter === 'all' ? true : transaction.type === typeFilter
-      ))
+      .filter((transaction) => {
+        if (typeFilter === 'all') return true;
+        if (typeFilter === 'consume') return transaction.type === 'consume';
+        if (typeFilter === 'adjust-added') return transaction.type === 'adjust' && Number(transaction.amount) >= 0;
+        if (typeFilter === 'adjust-removed') return transaction.type === 'adjust' && Number(transaction.amount) < 0;
+        return false;
+      })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [transactions, period, dateFrom, dateTo, typeFilter]);
 
@@ -329,13 +342,35 @@ const CouponRecords = () => {
       .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0))
   ), [filteredTransactions]);
 
+  const exportTotal = useMemo(() => {
+    if (typeFilter === 'adjust-added') {
+      return filteredTransactions
+        .filter((transaction) => transaction.type === 'adjust' && Number(transaction.amount) >= 0)
+        .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+    }
+
+    if (typeFilter === 'adjust-removed') {
+      return Math.abs(filteredTransactions
+        .filter((transaction) => transaction.type === 'adjust' && Number(transaction.amount) < 0)
+        .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0));
+    }
+
+    return totalConsumed;
+  }, [filteredTransactions, typeFilter, totalConsumed]);
+
   const summarizedTransactions = useMemo(() => {
     const grouped = {};
 
     filteredTransactions.forEach((transaction) => {
       const dateObj = parseLocalDate(transaction.createdAt);
       const dateKey = getLocalDateKey(dateObj);
-      const typeKey = transaction.type || 'unknown';
+      let typeKey = transaction.type || 'unknown';
+      
+      // Differentiate added vs removed adjustments
+      if (typeKey === 'adjust') {
+        typeKey = Number(transaction.amount) >= 0 ? 'adjust-added' : 'adjust-removed';
+      }
+      
       const key = `${dateKey}-${typeKey}`;
 
       if (!grouped[key]) {
@@ -361,7 +396,7 @@ const CouponRecords = () => {
         return dateDiff;
       }
 
-      return getTransactionTypeLabel(a.type).localeCompare(getTransactionTypeLabel(b.type));
+      return getTransactionTypeLabel(a.type, a.amount).localeCompare(getTransactionTypeLabel(b.type, b.amount));
     });
   }, [filteredTransactions, getTransactionTypeLabel]);
 
@@ -428,16 +463,22 @@ const CouponRecords = () => {
         month: 'short',
         day: 'numeric',
       }),
-      Type: getTransactionTypeLabel(transaction.type),
+      Type: getTransactionTypeLabel(transaction.type, transaction.amount),
       Amount: formatInt(transaction.amount),
       Details: transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-',
     }));
 
+    const totalLabel = typeFilter === 'adjust-added'
+      ? 'Total Added'
+      : typeFilter === 'adjust-removed'
+        ? 'Total Removed'
+        : 'Total Coupons Consumed';
+
     exportData.push({});
     exportData.push({
-      'Date & Time': 'Total Consumed',
+      'Date & Time': totalLabel,
       Type: '',
-      Amount: formatInt(totalConsumed),
+      Amount: formatInt(exportTotal),
       Details: '',
     });
 
@@ -446,7 +487,7 @@ const CouponRecords = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Coupon Transactions');
     XLSX.writeFile(wb, `coupon-transactions-${new Date().toISOString().split('T')[0]}.xlsx`);
     showMessage('Excel file exported successfully.', 'success');
-  }, [summarizedTransactions, getTransactionTypeLabel, formatInt, totalConsumed, showMessage]);
+  }, [summarizedTransactions, typeFilter, getTransactionTypeLabel, formatInt, showMessage]);
 
   const handlePDFExport = useCallback(() => {
     const doc = new jsPDF();
@@ -478,7 +519,7 @@ const CouponRecords = () => {
         month: 'short',
         day: 'numeric',
       }),
-      getTransactionTypeLabel(transaction.type),
+      getTransactionTypeLabel(transaction.type, transaction.amount),
       formatInt(transaction.amount),
       transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-',
     ]));
@@ -493,24 +534,82 @@ const CouponRecords = () => {
     });
 
     const finalY = doc.lastAutoTable.finalY + 10;
+    const totalLabel = typeFilter === 'adjust-added'
+      ? 'Total Added'
+      : typeFilter === 'adjust-removed'
+        ? 'Total Removed'
+        : 'Total Coupons Consumed';
+
     doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
     doc.text('Summary:', 14, finalY);
     doc.setFont(undefined, 'normal');
-    doc.text(`Total Consumed: ${formatInt(totalConsumed)}`, 14, finalY + 7);
+    doc.text(`${totalLabel}: ${formatInt(exportTotal)}`, 14, finalY + 7);
 
     doc.save(`coupon-transactions-${new Date().toISOString().split('T')[0]}.pdf`);
     showMessage('PDF file exported successfully.', 'success');
-  }, [summarizedTransactions, dateFrom, dateTo, period, getTransactionTypeLabel, formatInt, totalConsumed, showMessage]);
+  }, [summarizedTransactions, typeFilter, dateFrom, dateTo, period, getTransactionTypeLabel, formatInt, showMessage]);
 
   const handleExport = useCallback((options) => {
-    if (options.format === 'excel') {
-      handleExcelExport();
-    } else if (options.format === 'pdf') {
-      handlePDFExport();
+    // Process date range from modal
+    const { dateRange, customDateFrom, customDateTo } = options;
+    let exportDateFrom = dateFrom;
+    let exportDateTo = dateTo;
+
+    if (dateRange && dateRange !== 'all') {
+      const today = new Date();
+      const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+      switch (dateRange) {
+        case 'today':
+          exportDateFrom = localToday;
+          exportDateTo = localToday;
+          break;
+        case 'week': {
+          const weekStart = new Date(localToday);
+          weekStart.setDate(localToday.getDate() - localToday.getDay());
+          exportDateFrom = weekStart;
+          exportDateTo = localToday;
+          break;
+        }
+        case 'month':
+          exportDateFrom = new Date(localToday.getFullYear(), localToday.getMonth(), 1);
+          exportDateTo = localToday;
+          break;
+        case 'year':
+          exportDateFrom = new Date(localToday.getFullYear(), 0, 1);
+          exportDateTo = localToday;
+          break;
+        case 'custom':
+          if (customDateFrom) {
+            const [year, month, day] = customDateFrom.split('-').map(Number);
+            exportDateFrom = new Date(year, month - 1, day);
+          }
+          if (customDateTo) {
+            const [year, month, day] = customDateTo.split('-').map(Number);
+            exportDateTo = new Date(year, month - 1, day);
+          }
+          break;
+        default:
+          exportDateFrom = null;
+          exportDateTo = null;
+      }
     }
 
-    setShowExportModal(false);
+    // Temporarily set date states for export
+    setDateFrom(exportDateFrom);
+    setDateTo(exportDateTo);
+
+    // Execute export in next render
+    setTimeout(() => {
+      if (options.format === 'excel') {
+        handleExcelExport();
+      } else if (options.format === 'pdf') {
+        handlePDFExport();
+      }
+
+      setShowExportModal(false);
+    }, 0);
   }, [handleExcelExport, handlePDFExport]);
 
   const balance = useMemo(() => {
@@ -557,13 +656,13 @@ const CouponRecords = () => {
             <ConfirmationNumberOutlinedIcon fontSize="medium" className="text-emerald-600" />
             Coupon Records
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Manage and track your coupon balance</p>
+          <p className="text-sm text-gray-500 mt-1">For managing coupon balance</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
           <div className="bg-white rounded-lg border border-gray-200 p-5">
             <div className="flex items-start justify-between mb-3">
-              <SavingsOutlinedIcon fontSize="large" className="text-emerald-600" />
+              <ConfirmationNumberOutlinedIcon fontSize="large" className="text-emerald-600" />
               <span className="text-xs font-medium px-2 py-1 rounded bg-emerald-100 text-emerald-700">
                 Balance
               </span>
@@ -580,25 +679,13 @@ const CouponRecords = () => {
               </span>
             </div>
             <div className="text-3xl font-bold text-gray-900 mb-1">{formatInt(totalConsumed)}</div>
-            <div className="text-sm font-medium text-gray-700">Total Consumed</div>
+            <div className="text-sm font-medium text-gray-700">Total Coupons Consumed</div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <div className="flex items-start justify-between mb-3">
-              <ListAltOutlinedIcon fontSize="large" className="text-gray-700" />
-              <span className="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-700">
-                Count
-              </span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 mb-1">{filteredTransactions.length}</div>
-            <div className="text-sm font-medium text-gray-700">
-              {hasActiveFilters ? 'Filtered' : 'Total'} Transactions
-            </div>
-          </div>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-4">Quick Adjustment</h3>
+          <h3 className="text-base font-semibold text-gray-900 mb-4">Coupon Balance Adjustment</h3>
           <div className="flex gap-3 items-end flex-wrap">
             <div className="flex-1 min-w-[200px]">
               <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
@@ -634,9 +721,9 @@ const CouponRecords = () => {
               }}
               className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={adjustMutation.isPending || !adjustmentAmount}
+              title="Add coupons"
             >
               <AddIcon fontSize="small" />
-              Add
             </button>
             <button
               type="button"
@@ -650,13 +737,13 @@ const CouponRecords = () => {
               }}
               className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={adjustMutation.isPending || !adjustmentAmount}
+              title="Subtract coupons"
             >
               <RemoveIcon fontSize="small" />
-              Subtract
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Enter an amount and click Add or Subtract to adjust the balance
+            Enter an amount and use the + or − buttons to adjust the balance
           </p>
         </div>
 
@@ -683,9 +770,9 @@ const CouponRecords = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="all">All Types</option>
-                <option value="earn">Earned</option>
                 <option value="consume">Consumed</option>
-                <option value="adjust">Adjustment</option>
+                <option value="adjust-added">Added</option>
+                <option value="adjust-removed">Removed</option>
               </select>
             </div>
 
@@ -815,7 +902,7 @@ const CouponRecords = () => {
                             }`}
                           >
                             {getTransactionIcon(transaction.type)}
-                            {getTransactionTypeLabel(transaction.type)}
+                            {getTransactionTypeLabel(transaction.type, transaction.amount)}
                           </span>
                         </td>
                         <td className="px-5 py-4 text-sm text-right whitespace-nowrap">
@@ -929,7 +1016,7 @@ const CouponRecords = () => {
           onExport={handleExport}
           title="Export Coupon Transactions"
           showWasteTypes={false}
-          showDateRange={false}
+          showDateRange={true}
         />
       </div>
     </div>

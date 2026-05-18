@@ -18,7 +18,6 @@ import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { API_ENDPOINTS } from '../config/api';
-import ExportModal from './ExportModal';
 import { getLocalDateKey, parseLocalDate, startOfLocalDay, endOfLocalDay } from '../utils/date';
 
 // Skeleton loading component
@@ -109,7 +108,6 @@ const AnalyticsDashboard = () => {
   const [dateTo, setDateTo] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState(null);
-  const [showExportModal, setShowExportModal] = useState(false);
   const exportModulesRef = useRef(null);
   const [selectedTypes, setSelectedTypes] = useState({
     RECYCLABLE: true,
@@ -372,6 +370,21 @@ const AnalyticsDashboard = () => {
         
         return row;
       });
+
+      // Calculate totals for summary row
+      const totalRecyclable = summarizedData.reduce((sum, r) => sum + (types.RECYCLABLE ? (r.recyclable || 0) : 0), 0);
+      const totalWet = summarizedData.reduce((sum, r) => sum + (types.WET ? (r.biodegradable || 0) : 0), 0);
+      const totalDry = summarizedData.reduce((sum, r) => sum + (types.DRY ? (r.nonBiodegradable || 0) : 0), 0);
+      const grandTotal = totalRecyclable + totalWet + totalDry;
+
+      // Add totals row
+      const totalsRow = { 'Date': 'TOTAL' };
+      if (types.RECYCLABLE) totalsRow['Recyclable (pcs)'] = totalRecyclable;
+      if (types.WET) totalsRow['Wet (pcs)'] = totalWet;
+      if (types.DRY) totalsRow['Dry (pcs)'] = totalDry;
+      totalsRow['Total (pcs)'] = grandTotal;
+      summaryData.push(totalsRow);
+
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
 
@@ -483,7 +496,24 @@ const AnalyticsDashboard = () => {
       doc.setFont(undefined, 'normal');
       doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
       
-      let startY = 35;
+      // Calculate totals
+      const totalRecyclable = summarizedData.reduce((sum, r) => sum + (types.RECYCLABLE ? (r.recyclable || 0) : 0), 0);
+      const totalWet = summarizedData.reduce((sum, r) => sum + (types.WET ? (r.biodegradable || 0) : 0), 0);
+      const totalDry = summarizedData.reduce((sum, r) => sum + (types.DRY ? (r.nonBiodegradable || 0) : 0), 0);
+      const grandTotal = totalRecyclable + totalWet + totalDry;
+
+      // Summary section
+      const summaryLines = [];
+      if (types.RECYCLABLE) summaryLines.push(`Recyclable: ${totalRecyclable}`);
+      if (types.WET) summaryLines.push(`Wet Wastes: ${totalWet}`);
+      if (types.DRY) summaryLines.push(`Dry Wastes: ${totalDry}`);
+      summaryLines.push(`Overall Total: ${grandTotal}`);
+
+      doc.setFontSize(10);
+      doc.setTextColor(31, 41, 55);
+      doc.text(summaryLines.join(' | '), 14, 34);
+      
+      let startY = 42;
       
       // Create tables for each selected waste type
       if (types.RECYCLABLE) {
@@ -701,6 +731,10 @@ const AnalyticsDashboard = () => {
         const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
         lastMonthEnd.setHours(23, 59, 59, 999);
         return { from: lastMonthStart, to: lastMonthEnd };
+      case 'thisYear':
+        const thisYearStart = new Date(now.getFullYear(), 0, 1);
+        thisYearStart.setHours(0, 0, 0, 0);
+        return { from: thisYearStart, to: now };
       case 'custom':
         if (dateFrom && dateTo) {
           const from = startOfLocalDay(dateFrom);
@@ -759,8 +793,16 @@ const AnalyticsDashboard = () => {
     const busiestDay = dailyTrends.length > 0
       ? dailyTrends.reduce((max, day) => (day.total || 0) > (max.total || 0) ? day : max)
       : null;
-    const mostActiveMonth = monthlyData.length > 0
-      ? monthlyData.reduce((max, month) => (month.total || 0) > (max.total || 0) ? month : max)
+    const overallMonthlyData = wasteData.length > 0
+      ? generateMonthlyData(wasteData.map(record => ({
+          ...record,
+          recyclable: record.recyclable || 0,
+          biodegradable: record.biodegradable || 0,
+          nonBiodegradable: record.nonBiodegradable || 0
+        })))
+      : [];
+    const mostActiveMonth = overallMonthlyData.length > 0
+      ? overallMonthlyData.reduce((max, month) => (month.total || 0) > (max.total || 0) ? month : max)
       : null;
     const wasteCategories = [
       { label: 'Recyclable', value: totals.recyclable },
@@ -792,6 +834,8 @@ const AnalyticsDashboard = () => {
   }, [wasteData, timeframe, dateFrom, dateTo, selectedTypes, getDateRange]);
 
   const hasAnalyticsRecords = analyticsData.recordCount > 0;
+  const hasAnyWasteData = wasteData.length > 0;
+  const showActivityCards = hasAnalyticsRecords || hasAnyWasteData;
 
   // Derive bin analytics (memoized)
   const binAnalytics = useMemo(() => {
@@ -905,15 +949,6 @@ const AnalyticsDashboard = () => {
         {/* Header */}
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Analytics Dashboard</h1>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <button 
-              onClick={() => setShowExportModal(true)} 
-              className="flex-1 sm:flex-none justify-center bg-gray-900 text-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
-              disabled={exporting}
-            >
-              {exporting ? 'Exporting...' : 'Export'}
-            </button>
-          </div>
         </div>
 
         {/* Filters */}
@@ -928,6 +963,7 @@ const AnalyticsDashboard = () => {
                   { value: '7d', label: 'Last 7 Days' },
                   { value: '30d', label: 'Last 30 Days' },
                   { value: 'thisMonth', label: 'This Month' },
+                  { value: 'thisYear', label: 'This Year' },
                   { value: 'lastMonth', label: 'Last Month' },
                   { value: 'custom', label: 'Custom' },
                 ].map((option) => (
@@ -1036,14 +1072,6 @@ const AnalyticsDashboard = () => {
             </div>
           </div>
         </div>
-
-        {/* Export Modal */}
-        <ExportModal
-          isOpen={showExportModal}
-          onClose={() => setShowExportModal(false)}
-          onExport={handleExport}
-          title="Export Waste Data"
-        />
 
         {/* Metrics */}
         {analyticsData && (
@@ -1251,7 +1279,7 @@ const AnalyticsDashboard = () => {
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5">
               <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">Activity</h3>
-              {hasAnalyticsRecords ? (
+              {showActivityCards ? (
                 <div className="space-y-2">
                   <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                     <span><CalendarMonthOutlinedIcon fontSize="small" className="text-blue-500" /></span>

@@ -7,10 +7,10 @@ import colors from 'colors';
 import { initializeFirebase } from './utils/firebase.js';
 
 // Configure
-dotenv.config();
-colors.enable();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '.env') });
+colors.enable();
 
 const app = express();
 const PORT = process.env.PORT || 3000;

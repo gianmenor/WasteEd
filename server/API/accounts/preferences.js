@@ -2,9 +2,13 @@ import express from 'express';
 import { prisma } from '../../utils/database.js';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Configure
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';

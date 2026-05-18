@@ -89,7 +89,10 @@ export default function InventoryManagement() {
   const parsePriceNumber = useCallback((value) => {
     if (value === '' || value === null || value === undefined) return null;
 
-    const parsed = Number.parseFloat(String(value).replace(/,/g, '').trim());
+    const cleaned = String(value).replace(/[^0-9.-]/g, '').trim();
+    if (!cleaned) return null;
+
+    const parsed = Number.parseFloat(cleaned);
     return Number.isFinite(parsed) ? parsed : null;
   }, []);
 
@@ -111,6 +114,12 @@ export default function InventoryManagement() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
+  }, [parsePriceNumber]);
+
+  const formatExportPrice = useCallback((price) => {
+    const safePrice = parsePriceNumber(price);
+    if (safePrice === null) return null;
+    return `PHP ${safePrice.toFixed(2)}`;
   }, [parsePriceNumber]);
 
   const buildInventoryPayload = useCallback((data) => ({
@@ -346,7 +355,7 @@ export default function InventoryManagement() {
       return [
         item.name,
         item.cost.toString(),
-        formatDisplayPrice(item.price) || '-',
+        formatExportPrice(item.price) || '-',
         normalizeStock(item.stock).toString(),
         stockStatus.label
       ];

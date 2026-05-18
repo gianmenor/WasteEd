@@ -8,7 +8,7 @@ import { broadcastBinNotification } from '../bin/notifications.js';
 // Now supports multiple entries per day with different timestamps
 export const addWasteRecord = async (req, res) => {
   try {
-    const { recyclable, biodegradable, nonBiodegradable } = req.body;
+    const { recyclable, biodegradable, nonBiodegradable, date } = req.body;
 
     // Validate required fields
     if (recyclable === undefined || biodegradable === undefined || nonBiodegradable === undefined) {
@@ -28,6 +28,34 @@ export const addWasteRecord = async (req, res) => {
       });
     }
 
+    // Validate optional date
+    let targetDate = null;
+    if (date !== undefined && date !== null && date !== '') {
+      if (typeof date !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'The date must be a string in YYYY-MM-DD format.',
+          received: { date: typeof date }
+        });
+      }
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(date)) {
+        return res.status(400).json({
+          success: false,
+          message: 'The date must be in YYYY-MM-DD format.',
+          received: { date }
+        });
+      }
+      targetDate = new Date(date);
+      if (Number.isNaN(targetDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid date provided.',
+          received: { date }
+        });
+      }
+    }
+
     // Validate non-negative values
     if (recyclable < 0 || biodegradable < 0 || nonBiodegradable < 0) {
       return res.status(400).json({
@@ -37,14 +65,18 @@ export const addWasteRecord = async (req, res) => {
       });
     }
 
-    // Automatically use today's date (server time)
+    // Determine the target date for the waste record
     const today = new Date();
-    // Create a date string in YYYY-MM-DD format for MySQL Date field
     const todayDateString = today.getFullYear() + '-' + 
                            String(today.getMonth() + 1).padStart(2, '0') + '-' + 
                            String(today.getDate()).padStart(2, '0');
-    const todayDate = new Date(todayDateString);
-    const recordedAt = new Date(); // Exact timestamp for multiple entries per day
+    const targetDateString = targetDate
+      ? `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
+      : todayDateString;
+    const recordDate = new Date(targetDateString);
+    const recordedAt = targetDate
+      ? new Date(`${targetDateString}T12:00:00`)
+      : new Date();
 
     try {
       // Create the record with timestamp (allows multiple entries per day)
@@ -54,7 +86,7 @@ export const addWasteRecord = async (req, res) => {
             recyclable,
             biodegradable,
             nonBiodegradable,
-            date: todayDate,
+            date: recordDate,
             recordedAt: recordedAt
           }
         });
