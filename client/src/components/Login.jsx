@@ -16,7 +16,6 @@ const Login = () => {
     username: '',
     password: ''
   });
-  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -90,11 +89,6 @@ const Login = () => {
   // Memoize error dismiss handler
   const dismissError = useCallback(() => {
     setError('');
-  }, []);
-
-  // Memoize remember me change handler
-  const handleRememberMeChange = useCallback((e) => {
-    setRememberMe(e.target.checked);
   }, []);
 
   // Memoize button disabled state
@@ -187,20 +181,10 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="m-0 flex flex-row flex-nowrap w-full">
-              <label className="flex items-center gap-2.5 cursor-pointer text-sm text-gray-500">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={handleRememberMeChange}
-                  className="peer sr-only"
-                />
-                <span className="w-5 h-5 border-2 border-gray-200 rounded bg-white relative transition-all duration-200 flex items-center justify-center flex-shrink-0 peer-checked:bg-green-600 peer-checked:border-green-600 peer-focus:ring-[3px] peer-focus:ring-green-600/10 after:content-['✓'] after:text-white after:text-sm after:font-bold after:hidden peer-checked:after:block"></span>
-                <span className="select-none">Remember me</span>
-              </label>
+            <div className="m-0 flex flex-row flex-nowrap w-full justify-start">
               <Link
                 to="/forgot-password"
-                className="ml-auto text-sm text-green-700 hover:text-green-800"
+                className="text-sm text-green-700 hover:text-green-800"
               >
                 Forgot Password?
               </Link>

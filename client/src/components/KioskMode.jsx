@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import { API_ENDPOINTS } from '../config/api';
-import { getCachedVideoUrl } from '../config/firebase';
 
 const VIDEO_CACHE_KEY = 'kioskVideoUrlCache.v1';
 const VIDEO_CACHE_TTL = 1000 * 60 * 60 * 24;
 const RETURN_TO_IDLE_DELAY_MS = 4000;
+const IDLE_VIDEO_URL = 'https://storage.googleapis.com/wasteed-3ce3d.firebasestorage.app/videos/idle/idle.mp4';
 
 const WASTE_TYPES = ['RECYCLABLE', 'WET', 'DRY'];
 
@@ -67,6 +67,20 @@ const KioskMode = () => {
 
   const wasteVideoMapRef = useRef({});
   const returnToIdleTimerRef = useRef(null);
+  const videoRef = useRef(null);
+
+  const restartIdleVideo = useCallback(() => {
+    if (!videoRef.current) {
+      return;
+    }
+
+    try {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(() => {});
+    } catch {
+      // Ignore playback errors from browser restrictions
+    }
+  }, []);
 
   const resetToIdle = useCallback(() => {
     if (!idleVideoUrl) {
@@ -104,6 +118,12 @@ const KioskMode = () => {
   }, [resetToIdle]);
 
   useEffect(() => {
+    if (isIdlePlayback && activeVideoUrl === idleVideoUrl && videoRef.current) {
+      restartIdleVideo();
+    }
+  }, [activeVideoUrl, idleVideoUrl, isIdlePlayback, restartIdleVideo]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const fetchWasteVideoUrl = async (wasteType) => {
@@ -121,7 +141,7 @@ const KioskMode = () => {
     const loadKioskMedia = async () => {
       try {
         const idleUrl = await resolveCachedUrl('idle', async () => {
-          return getCachedVideoUrl('videos/idle/idle.mp4', VIDEO_CACHE_TTL);
+          return IDLE_VIDEO_URL;
         });
 
         const wastePairs = await Promise.all(
@@ -211,11 +231,12 @@ const KioskMode = () => {
 
   const onVideoEnded = useCallback(() => {
     if (isIdlePlayback) {
+      restartIdleVideo();
       return;
     }
 
     queueIdleReset();
-  }, [isIdlePlayback, queueIdleReset]);
+  }, [isIdlePlayback, queueIdleReset, restartIdleVideo]);
 
   if (isLoading) {
     return (
@@ -230,12 +251,13 @@ const KioskMode = () => {
       {activeVideoUrl ? (
         <div className="w-full h-full flex items-center justify-center p-2 sm:p-3 md:p-0">
           <video
+            ref={videoRef}
             key={activeVideoUrl}
             className="max-w-full max-h-full w-auto h-auto object-contain"
             src={activeVideoUrl}
             autoPlay
             muted
-            loop={isIdlePlayback}
+            loop={false}
             playsInline
             controls={false}
             onEnded={onVideoEnded}

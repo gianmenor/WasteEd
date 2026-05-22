@@ -1,12 +1,16 @@
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import LoginOutlinedIcon from '@mui/icons-material/LoginOutlined';
 import ArrowBackIosNewOutlinedIcon from '@mui/icons-material/ArrowBackIosNewOutlined';
 import { useAuth } from '../contexts/AuthContext';
 
 const KioskAdminLogin = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+
+  const from = location.state?.from?.pathname || '/dashboard';
+  const isKioskAccess = from === '/kiosk';
 
   const [credentials, setCredentials] = useState({
     username: '',
@@ -41,7 +45,7 @@ const KioskAdminLogin = () => {
         return;
       }
 
-      navigate('/dashboard', { replace: true });
+      navigate(from, { replace: true });
     } catch {
       setError('Unable to sign in. Please try again.');
     } finally {
@@ -61,9 +65,11 @@ const KioskAdminLogin = () => {
           Return to kiosk
         </button>
 
-        <h1 className="text-2xl font-semibold mb-1">Admin Access</h1>
+        <h1 className="text-2xl font-semibold mb-1">{isKioskAccess ? 'Kiosk Access' : 'Admin Access'}</h1>
         <p className="text-slate-300 text-sm mb-6">
-          Enter admin credentials to open the dashboard.
+          {isKioskAccess
+            ? 'Enter admin credentials to access the kiosk.'
+            : 'Enter admin credentials to open the dashboard.'}
         </p>
 
         {error && (
@@ -113,7 +119,7 @@ const KioskAdminLogin = () => {
             className="w-full mt-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 px-4 py-2.5 font-semibold text-slate-900 inline-flex items-center justify-center gap-2"
           >
             <LoginOutlinedIcon fontSize="small" />
-            {isSubmitting ? 'Signing in...' : 'Open Dashboard'}
+            {isSubmitting ? 'Signing in...' : isKioskAccess ? 'Access Kiosk' : 'Open Dashboard'}
           </button>
         </form>
       </div>

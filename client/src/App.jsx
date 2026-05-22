@@ -34,14 +34,18 @@ const queryClient = new QueryClient({
 });
 
 // Protected Route component
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return <DashboardSkeleton />;
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return isAuthenticated ? (
+    children
+  ) : (
+    <Navigate to={redirectTo} replace state={{ from: { pathname: window.location.pathname } }} />
+  );
 };
 
 // Main App Content
@@ -86,7 +90,11 @@ const AppContent = () => {
 
               <Route
                 path="/kiosk"
-                element={<KioskMode />}
+                element={
+                  <ProtectedRoute redirectTo="/kiosk-admin">
+                    <KioskMode />
+                  </ProtectedRoute>
+                }
               />
 
               <Route

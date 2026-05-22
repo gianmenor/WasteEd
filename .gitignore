@@ -1,2 +1,10 @@
 *.env
 node_modules
+
+# Local workspace and build artifacts
+.history/
+*.mp4
+
+# Firebase service account keys
+*firebase-adminsdk*.json
+

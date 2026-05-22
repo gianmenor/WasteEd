@@ -69,15 +69,15 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const { token, user: userData } = data;
-        
-        // Store auth data
+
+        // Store auth data in localStorage only
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(userData));
-        
+
         // Update state
         setUser(userData);
         setIsAuthenticated(true);
-        
+
         return { success: true, user: userData };
       } else {
         return { success: false, error: data.message || 'Login failed' };
