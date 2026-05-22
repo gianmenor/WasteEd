@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { API_ENDPOINTS } from '../config/api';
 
 const AuthContext = createContext();
 
@@ -24,7 +25,7 @@ export const AuthProvider = ({ children }) => {
         
         if (token && savedUser) {
           // Validate token with backend
-          const response = await fetch('/api/accounts/validate', {
+          const response = await fetch(API_ENDPOINTS.VALIDATE_TOKEN, {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
@@ -57,7 +58,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      const response = await fetch('/api/accounts/login', {
+      const response = await fetch(API_ENDPOINTS.LOGIN, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +95,7 @@ export const AuthProvider = ({ children }) => {
       
       // Notify backend about logout (optional)
       if (token) {
-        await fetch('/api/accounts/logout', {
+        await fetch(API_ENDPOINTS.LOGOUT, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,

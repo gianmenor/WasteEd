@@ -2,16 +2,18 @@
 // This automatically detects the environment and sets the correct API base URL
 
 const getApiBaseUrl = () => {
-  // In production, use relative URLs (same domain as the frontend)
-  // In development, use localhost:3000
-  
-  if (import.meta.env.MODE === 'production') {
-    // Production: Use relative URLs, the backend serves the frontend
-    return '';
-  } else {
-    // Development: Use localhost for local development
-    return 'http://localhost:3000';
+  // Allow explicit API host configuration in production for Render deployments.
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '');
   }
+
+  // In production, use relative URLs (same domain as the frontend) when the backend is served together.
+  if (import.meta.env.MODE === 'production') {
+    return '';
+  }
+
+  // Development: use localhost for local development.
+  return 'http://localhost:3000';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
