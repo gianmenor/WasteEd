@@ -27,6 +27,7 @@ export default function DevPage() {
   const [wetForm, setWetForm] = useState({ biodegradable: 15 });
   const [dryForm, setDryForm] = useState({ nonBiodegradable: 10 });
   const [recordDate, setRecordDate] = useState('');
+  const [recordTime, setRecordTime] = useState('');
   const [binType, setBinType] = useState(1);
 
   const total = useMemo(() => (Number(form.recyclable)||0) + (Number(form.biodegradable)||0) + (Number(form.nonBiodegradable)||0), [form]);
@@ -118,6 +119,18 @@ export default function DevPage() {
     ];
     if (body) parts.push(`-d '${JSON.stringify(body)}'`);
     return parts.join(' ');
+  };
+
+  const buildRecordedAt = () => {
+    if (recordDate && recordTime) {
+      return `${recordDate}T${recordTime}:00`;
+    }
+    if (recordTime) {
+      const today = new Date();
+      const todayDate = today.toISOString().split('T')[0];
+      return `${todayDate}T${recordTime}:00`;
+    }
+    return undefined;
   };
 
   const callApi = async (config) => {
@@ -455,7 +468,7 @@ export default function DevPage() {
               })}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1.5">Date</label>
                 <input
@@ -467,6 +480,17 @@ export default function DevPage() {
                 />
                 <p className="mt-2 text-xs text-gray-500">Leave blank to use today&apos;s date.</p>
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1.5">Time</label>
+                <input
+                  type="time"
+                  value={recordTime}
+                  onChange={(e) => setRecordTime(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-150 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30"
+                  placeholder="Optional time for the record"
+                />
+                <p className="mt-2 text-xs text-gray-500">Optional time for the record. If only time is set, today&apos;s date is used.</p>
+              </div>
             </div>
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-300 dark:border-gray-700">
               <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -475,7 +499,13 @@ export default function DevPage() {
               <button
                 className="px-4 py-2 text-sm font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 inline-flex items-center gap-1.5 bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={loading}
-                onClick={() => callApi({ url: API_ENDPOINTS.WASTE_ADD, method: 'POST', body: { ...form, date: recordDate || undefined } })}
+                onClick={() => {
+                  const payload = { ...form };
+                  if (recordDate) payload.date = recordDate;
+                  const recordedAt = buildRecordedAt();
+                  if (recordedAt) payload.recordedAt = recordedAt;
+                  callApi({ url: API_ENDPOINTS.WASTE_ADD, method: 'POST', body: payload });
+                }}
               >
                 Add Record
               </button>

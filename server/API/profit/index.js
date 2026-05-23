@@ -3,6 +3,11 @@ import { prisma, retryOperation } from '../../utils/database.js';
 
 const router = express.Router();
 
+const roundTwo = (value) => {
+  const num = Number(value) || 0;
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 // GET /api/profit/records - Get all profit records with filters
 router.get('/records', async (req, res) => {
   try {
@@ -105,15 +110,17 @@ router.post('/add', async (req, res) => {
       });
     }
 
-    const netProfit = profitAmount - expenseAmount;
+    const profit = roundTwo(profitAmount);
+    const rewards = roundTwo(expenseAmount);
+    const netProfit = roundTwo(profit - rewards);
 
     const record = await retryOperation(async () => {
       return await prisma.profitReward.create({
         data: {
           date: new Date(),
-          profitFromRecyclables: parseFloat(profitAmount),
-          rewardsSpent: parseFloat(expenseAmount),
-          netProfit: parseFloat(netProfit),
+          profitFromRecyclables: profit,
+          rewardsSpent: rewards,
+          netProfit,
           notes: description || source || null
         }
       });
@@ -158,14 +165,14 @@ router.put('/update/:id', async (req, res) => {
 
     // Calculate new net profit
     const profit = profitFromRecyclables !== undefined 
-      ? parseFloat(profitFromRecyclables) 
-      : existing.profitFromRecyclables;
+      ? roundTwo(profitFromRecyclables) 
+      : roundTwo(existing.profitFromRecyclables);
     
     const rewards = rewardsSpent !== undefined 
-      ? parseFloat(rewardsSpent) 
-      : existing.rewardsSpent;
+      ? roundTwo(rewardsSpent) 
+      : roundTwo(existing.rewardsSpent);
     
-    const netProfit = profit - rewards;
+    const netProfit = roundTwo(profit - rewards);
 
     const updateData = {
       netProfit

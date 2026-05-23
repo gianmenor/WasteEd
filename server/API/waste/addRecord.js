@@ -4,11 +4,14 @@ import { broadcastBinNotification } from '../bin/notifications.js';
 
 // POST /api/waste/add
 // Expected body: { recyclable: number, biodegradable: number, nonBiodegradable: number }
-// Date is automatically set to today's date on the server
+// Optional fields:
+//   date: YYYY-MM-DD
+//   recordedAt: ISO datetime string or local datetime string
+// Date is automatically set to today's date on the server when omitted
 // Now supports multiple entries per day with different timestamps
 export const addWasteRecord = async (req, res) => {
   try {
-    const { recyclable, biodegradable, nonBiodegradable, date } = req.body;
+    const { recyclable, biodegradable, nonBiodegradable, date, recordedAt } = req.body;
 
     // Validate required fields
     if (recyclable === undefined || biodegradable === undefined || nonBiodegradable === undefined) {
@@ -28,9 +31,34 @@ export const addWasteRecord = async (req, res) => {
       });
     }
 
-    // Validate optional date
+    // Validate optional date and time
     let targetDate = null;
-    if (date !== undefined && date !== null && date !== '') {
+    let targetRecordedAt = null;
+
+    if (recordedAt !== undefined && recordedAt !== null && recordedAt !== '') {
+      if (typeof recordedAt !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'The recordedAt time must be a string.',
+          received: { recordedAt: typeof recordedAt }
+        });
+      }
+      targetRecordedAt = new Date(recordedAt);
+      if (Number.isNaN(targetRecordedAt.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid recordedAt timestamp provided.',
+          received: { recordedAt }
+        });
+      }
+      targetDate = new Date(
+        targetRecordedAt.getFullYear(),
+        targetRecordedAt.getMonth(),
+        targetRecordedAt.getDate()
+      );
+    }
+
+    if (!targetRecordedAt && date !== undefined && date !== null && date !== '') {
       if (typeof date !== 'string') {
         return res.status(400).json({
           success: false,
@@ -56,6 +84,17 @@ export const addWasteRecord = async (req, res) => {
       }
     }
 
+    if (targetRecordedAt && date) {
+      const recordedAtDate = `${targetRecordedAt.getFullYear()}-${String(targetRecordedAt.getMonth() + 1).padStart(2, '0')}-${String(targetRecordedAt.getDate()).padStart(2, '0')}`;
+      if (recordedAtDate !== date) {
+        return res.status(400).json({
+          success: false,
+          message: 'The recordedAt date must match the provided date.',
+          received: { date, recordedAt }
+        });
+      }
+    }
+
     // Validate non-negative values
     if (recyclable < 0 || biodegradable < 0 || nonBiodegradable < 0) {
       return res.status(400).json({
@@ -74,9 +113,11 @@ export const addWasteRecord = async (req, res) => {
       ? `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
       : todayDateString;
     const recordDate = new Date(targetDateString);
-    const recordedAt = targetDate
-      ? new Date(`${targetDateString}T12:00:00`)
-      : new Date();
+    const finalRecordedAt = targetRecordedAt
+      ? targetRecordedAt
+      : targetDate
+        ? new Date(`${targetDateString}T12:00:00`)
+        : new Date();
 
     try {
       // Create the record with timestamp (allows multiple entries per day)
@@ -87,7 +128,7 @@ export const addWasteRecord = async (req, res) => {
             biodegradable,
             nonBiodegradable,
             date: recordDate,
-            recordedAt: recordedAt
+            recordedAt: finalRecordedAt
           }
         });
       });

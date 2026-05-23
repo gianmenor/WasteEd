@@ -268,6 +268,70 @@ const ProfitRewards = () => {
     }).format(amount);
   }, []);
 
+  const getExportDateRange = useCallback((dateRange, customDateFrom, customDateTo) => {
+    const today = new Date();
+    const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let startDate = null;
+    let endDate = null;
+    let label = 'All time';
+
+    switch (dateRange) {
+      case 'today':
+        startDate = localToday;
+        endDate = localToday;
+        label = 'Today';
+        break;
+      case 'week': {
+        const weekStart = new Date(localToday);
+        weekStart.setDate(localToday.getDate() - localToday.getDay());
+        startDate = weekStart;
+        endDate = localToday;
+        label = 'This week';
+        break;
+      }
+      case 'month':
+        startDate = new Date(localToday.getFullYear(), localToday.getMonth(), 1);
+        endDate = localToday;
+        label = 'This month';
+        break;
+      case 'year':
+        startDate = new Date(localToday.getFullYear(), 0, 1);
+        endDate = localToday;
+        label = 'This year';
+        break;
+      case 'custom':
+        if (customDateFrom) {
+          const [year, month, day] = customDateFrom.split('-').map(Number);
+          startDate = new Date(year, month - 1, day);
+        }
+        if (customDateTo) {
+          const [year, month, day] = customDateTo.split('-').map(Number);
+          endDate = new Date(year, month - 1, day);
+        }
+        label = `${customDateFrom || 'start'} to ${customDateTo || 'end'}`;
+        break;
+      default:
+        label = 'All time';
+    }
+
+    return { startDate, endDate, label };
+  }, []);
+
+  const filterRecordsByExportRange = useCallback((rawRecords, dateRange, customDateFrom, customDateTo) => {
+    const { startDate, endDate } = getExportDateRange(dateRange, customDateFrom, customDateTo);
+
+    if (!Array.isArray(rawRecords)) return [];
+    if (!startDate && !endDate) return [...rawRecords];
+
+    return rawRecords.filter((record) => {
+      const recordDate = new Date(record.date);
+      const recordDateOnly = new Date(recordDate.getFullYear(), recordDate.getMonth(), recordDate.getDate());
+      if (startDate && recordDateOnly < startDate) return false;
+      if (endDate && recordDateOnly > endDate) return false;
+      return true;
+    });
+  }, [getExportDateRange]);
+
   const handleCustomDateFromChange = useCallback((value) => {
     const normalizedValue = value && value > todayDateString ? todayDateString : value;
     setCustomDateFrom(normalizedValue);
@@ -347,124 +411,63 @@ const ProfitRewards = () => {
   const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
 
   const handleExport = useCallback((options) => {
-    if (!filteredRecords || filteredRecords.length === 0) {
+    const { format = 'excel', dateRange = 'all', customDateFrom = null, customDateTo = null } = options;
+    const recordsToExport = filterRecordsByExportRange(records, dateRange, customDateFrom, customDateTo);
+
+    if (!recordsToExport || recordsToExport.length === 0) {
       showMessage('No records to export', 'error');
       return;
     }
 
-    const { format = 'excel', dateRange, customDateFrom, customDateTo } = options;
+    const { label: dateRangeLabel } = getExportDateRange(dateRange, customDateFrom, customDateTo);
 
-    // Determine the records to export based on date range from modal
-    let recordsToExport = filteredRecords;
-    let dateRangeLabel = 'All time';
-
-    if (dateRange && dateRange !== 'all') {
-      const today = new Date();
-      const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      let startDate = null;
-      let endDate = localToday;
-
-      switch (dateRange) {
-        case 'today':
-          startDate = localToday;
-          endDate = localToday;
-          dateRangeLabel = 'Today';
-          break;
-        case 'week': {
-          const weekStart = new Date(localToday);
-          weekStart.setDate(localToday.getDate() - localToday.getDay());
-          startDate = weekStart;
-          endDate = localToday;
-          dateRangeLabel = 'This week';
-          break;
-        }
-        case 'month':
-          startDate = new Date(localToday.getFullYear(), localToday.getMonth(), 1);
-          endDate = localToday;
-          dateRangeLabel = 'This month';
-          break;
-        case 'year':
-          startDate = new Date(localToday.getFullYear(), 0, 1);
-          endDate = localToday;
-          dateRangeLabel = 'This year';
-          break;
-        case 'custom': {
-          if (customDateFrom) {
-            const [year, month, day] = customDateFrom.split('-').map(Number);
-            startDate = new Date(year, month - 1, day);
-          }
-          if (customDateTo) {
-            const [year, month, day] = customDateTo.split('-').map(Number);
-            endDate = new Date(year, month - 1, day);
-          }
-          dateRangeLabel = `${customDateFrom || 'start'} to ${customDateTo || 'end'}`;
-          break;
-        }
-        default:
-          dateRangeLabel = 'All time';
-      }
-
-      if (startDate || endDate) {
-        recordsToExport = filteredRecords.filter((record) => {
-          const recordDate = new Date(record.date);
-          const recordDateOnly = new Date(recordDate.getFullYear(), recordDate.getMonth(), recordDate.getDate());
-          
-          if (startDate && recordDateOnly < startDate) return false;
-          if (endDate && recordDateOnly > endDate) return false;
-          return true;
-        });
-      }
-    }
-
-    // Summarize records by day
-    const groupedByDate = recordsToExport.reduce((acc, r) => {
-      const dateObj = new Date(r.date);
-      const dateKey = dateObj.toISOString().split('T')[0];
-
-      if (!acc[dateKey]) {
-        acc[dateKey] = {
-          date: dateObj,
-          profitFromRecyclables: 0,
-          rewardsSpent: 0,
-          netProfit: 0,
-          notes: new Set(),
-        };
-      }
-
-      acc[dateKey].profitFromRecyclables += Number(r.profitFromRecyclables) || 0;
-      acc[dateKey].rewardsSpent += Number(r.rewardsSpent) || 0;
-      acc[dateKey].netProfit += Number(r.netProfit) || 0;
-
-      if (r.notes) {
-        acc[dateKey].notes.add(r.notes);
-      }
-
-      return acc;
-    }, {});
-
-    const rows = Object.values(groupedByDate)
+    const rows = recordsToExport
+      .slice()
       .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .map((row) => ({
-        Date: row.date.toLocaleDateString('en-US', {
+      .map((record) => ({
+        Date: new Date(record.date).toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'short',
           day: 'numeric',
         }),
-        'Total Amount Collected (PHP)': Math.round((Number(row.profitFromRecyclables) || 0) * 100) / 100,
-        'Expense (PHP)': Math.round((Number(row.rewardsSpent) || 0) * 100) / 100,
-        'Net Revenue (PHP)': Math.round((Number(row.netProfit) || 0) * 100) / 100,
-        Notes: Array.from(row.notes).join(' | '),
+        'Total Amount Collected (PHP)': Math.round((Number(record.profitFromRecyclables) || 0) * 100) / 100,
+        'Expense (PHP)': Math.round((Number(record.rewardsSpent) || 0) * 100) / 100,
+        'Net Revenue (PHP)': Math.round((Number(record.netProfit) || 0) * 100) / 100,
+        Notes: record.notes || '',
       }));
+
+    const totals = rows.reduce(
+      (acc, row) => {
+        acc.totalCollected += Number(row['Total Amount Collected (PHP)']) || 0;
+        acc.totalExpense += Number(row['Expense (PHP)']) || 0;
+        acc.totalNetRevenue += Number(row['Net Revenue (PHP)']) || 0;
+        return acc;
+      },
+      { totalCollected: 0, totalExpense: 0, totalNetRevenue: 0 }
+    );
 
     if (format === 'excel') {
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Profit & Rewards');
-      XLSX.writeFile(wb, `profit_rewards_${dateRangeLabel.replace(/\s+/g, '_')}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, 'Profit & Expense');
+
+      const summaryRows = [
+        { Date: '' },
+        {
+          Date: 'Totals',
+          'Total Amount Collected (PHP)': Math.round(totals.totalCollected * 100) / 100,
+          'Expense (PHP)': Math.round(totals.totalExpense * 100) / 100,
+          'Net Revenue (PHP)': Math.round(totals.totalNetRevenue * 100) / 100,
+          Notes: ''
+        }
+      ];
+
+      XLSX.utils.sheet_add_json(ws, summaryRows, { skipHeader: true, origin: -1 });
+      XLSX.writeFile(wb, `profit_expense_${dateRangeLabel.replace(/\s+/g, '_')}.xlsx`);
     } else if (format === 'pdf') {
       const doc = new jsPDF();
       doc.setFontSize(16);
-      doc.text('Profit & Rewards Report', 14, 18);
+      doc.text('Profit & Expense Report', 14, 18);
       doc.setFontSize(10);
       doc.setTextColor(120);
       doc.text(`Period: ${dateRangeLabel}`, 14, 26);
@@ -482,14 +485,24 @@ const ProfitRewards = () => {
         head: [['Date', 'Total Amount Collected', 'Expense', 'Net Revenue', 'Notes']],
         body: pdfRows,
         styles: { fontSize: 9 },
-        headStyles: { fillColor: [34, 197, 94] }
+        headStyles: { fillColor: [34, 197, 94] },
       });
-      doc.save(`profit_rewards_${dateRangeLabel.replace(/\s+/g, '_')}.pdf`);
+
+      const summaryY = (doc.lastAutoTable?.finalY ?? 32) + 10;
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.text('Totals', 14, summaryY);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Total Amount Collected: PHP ${Math.round(totals.totalCollected * 100) / 100}`, 14, summaryY + 6);
+      doc.text(`Expense: PHP ${Math.round(totals.totalExpense * 100) / 100}`, 14, summaryY + 12);
+      doc.text(`Net Revenue: PHP ${Math.round(totals.totalNetRevenue * 100) / 100}`, 14, summaryY + 18);
+
+      doc.save(`profit_expense_${dateRangeLabel.replace(/\s+/g, '_')}.pdf`);
     }
 
     setShowExportModal(false);
     showMessage('Export successful!');
-  }, [filteredRecords, showMessage]);
+  }, [getExportDateRange, filterRecordsByExportRange, records, showMessage]);
 
   const uiSizeClass = useMemo(() => 
     `ui-size-${preferences?.uiSize || 'medium'}`,
@@ -603,13 +616,13 @@ const ProfitRewards = () => {
           <div className="flex items-start justify-between mb-3">
             <CardGiftcardIcon fontSize="large" className="text-blue-600" />
             <span className="text-xs font-medium px-2 py-1 rounded bg-blue-100 text-blue-700">
-              Rewards
+              Expense
             </span>
           </div>
           <div className="text-3xl font-bold text-gray-900 mb-1">
             {formatCurrency(summary.totalRewardsSpent || summary.totalRewards || 0)}
           </div>
-          <div className="text-sm font-medium text-gray-700">Total Rewards</div>
+          <div className="text-sm font-medium text-gray-700">Total Expense</div>
         </div>
       </div>
 
@@ -729,7 +742,7 @@ const ProfitRewards = () => {
                   <tr>
                     <th className="p-4 text-left font-semibold text-[var(--text-secondary)] uppercase text-xs tracking-wide">Date</th>
                     <th className="p-4 text-left font-semibold text-[var(--text-secondary)] uppercase text-xs tracking-wide">Total Amount Collected</th>
-                    <th className="p-4 text-left font-semibold text-[var(--text-secondary)] uppercase text-xs tracking-wide">Rewards</th>
+                    <th className="p-4 text-left font-semibold text-[var(--text-secondary)] uppercase text-xs tracking-wide">Expense</th>
                     <th className="p-4 text-left font-semibold text-[var(--text-secondary)] uppercase text-xs tracking-wide">Net Revenue</th>
                     <th className="p-4 text-left font-semibold text-[var(--text-secondary)] uppercase text-xs tracking-wide">Notes</th>
                     <th className="p-4 text-left font-semibold text-[var(--text-secondary)] uppercase text-xs tracking-wide">Actions</th>
@@ -800,7 +813,7 @@ const ProfitRewards = () => {
                       <div className="text-sm font-bold text-[var(--success-color)]">{formatCurrency(record.profitFromRecyclables || 0)}</div>
                     </div>
                     <div className="bg-[var(--bg-tertiary)] rounded-lg p-3">
-                      <div className="text-xs text-[var(--text-secondary)] font-medium mb-1">Rewards</div>
+                      <div className="text-xs text-[var(--text-secondary)] font-medium mb-1">Expense</div>
                       <div className="text-sm font-bold text-[var(--secondary-color)]">{formatCurrency(record.rewardsSpent || 0)}</div>
                     </div>
                   </div>
@@ -926,7 +939,7 @@ const ProfitRewards = () => {
           isOpen={showExportModal}
           onClose={() => setShowExportModal(false)}
           onExport={handleExport}
-          title="Export Profit & Rewards"
+          title="Export Profit & Expense"
           showWasteTypes={false}
           showDateRange={true}
         />
@@ -1018,7 +1031,7 @@ const ProfitRewards = () => {
                         disabled={isSubmitting}
                       />
                     </div>
-                    <span className="text-xs text-[var(--text-secondary)] mt-2 block">Rewards / costs paid out</span>
+                    <span className="text-xs text-[var(--text-secondary)] mt-2 block">Expense / costs paid out</span>
                   </div>
                 </div>
 
@@ -1043,7 +1056,7 @@ const ProfitRewards = () => {
                     className="px-4 py-2 border border-[var(--border-color)] rounded-sm text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] transition-all focus:outline-none focus:border-[var(--border-focus)] focus:shadow-[0_0_0_3px_rgba(34,197,94,0.1)]"
                     value={formData.source}
                     onChange={(e) => setFormData(prev => ({ ...prev, source: e.target.value }))}
-                    placeholder="e.g., Plastic bottles sale, User rewards distribution"
+                    placeholder="e.g., Plastic bottles sale, Expense distribution"
                     disabled={isSubmitting}
                     required
                   />
