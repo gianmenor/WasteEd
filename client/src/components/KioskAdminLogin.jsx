@@ -9,7 +9,7 @@ const KioskAdminLogin = () => {
   const location = useLocation();
   const { login } = useAuth();
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from?.pathname || (location.pathname === '/kiosk' ? '/kiosk' : '/dashboard');
   const isKioskAccess = from === '/kiosk';
 
   const [credentials, setCredentials] = useState({

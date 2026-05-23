@@ -48,6 +48,16 @@ const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
   );
 };
 
+const KioskEntry = () => {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return <DashboardSkeleton />;
+  }
+
+  return isAuthenticated ? <KioskMode /> : <KioskAdminLogin />;
+};
+
 // Main App Content
 const AppContent = () => {
   const { isAuthenticated, user, logout, loading } = useAuth();
@@ -90,16 +100,12 @@ const AppContent = () => {
 
               <Route
                 path="/kiosk"
-                element={
-                  <ProtectedRoute redirectTo="/kiosk-admin">
-                    <KioskMode />
-                  </ProtectedRoute>
-                }
+                element={<KioskEntry />}
               />
 
               <Route
                 path="/kiosk-admin"
-                element={<KioskAdminLogin />}
+                element={<Navigate to="/kiosk" replace />}
               />
           
             <Route 

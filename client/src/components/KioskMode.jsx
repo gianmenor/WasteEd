@@ -281,7 +281,7 @@ const KioskMode = () => {
         aria-label="Open admin login"
         title="Open admin dashboard"
         className="absolute top-1/2 -translate-y-1/2 right-4 h-14 w-14 rounded-full border border-white/30 bg-black/60 text-white backdrop-blur-sm hover:bg-black/80 transition-colors duration-200 flex items-center justify-center"
-        onClick={() => navigate('/kiosk-admin')}
+        onClick={() => navigate('/dashboard')}
       >
         <AdminPanelSettingsOutlinedIcon />
       </button>
