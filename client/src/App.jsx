@@ -58,10 +58,10 @@ const AppContent = () => {
   return (
     <PreferencesProvider>
       <BinNotificationProvider>
-        <ThemeProvider>
-          <Router>
-            <Suspense fallback={<DashboardSkeleton />}>
-              <Routes>
+          <ThemeProvider>
+            <Router>
+              <Suspense fallback={<DashboardSkeleton />}>
+                <Routes>
               <Route 
                 path="/login" 
                 element={
@@ -95,7 +95,7 @@ const AppContent = () => {
                   </ProtectedRoute>
                 }
               />
-          
+
             <Route 
               path="/dashboard" 
               element={

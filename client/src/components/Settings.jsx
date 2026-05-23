@@ -154,8 +154,7 @@ const Settings = () => {
 
   const handleLaunchKiosk = useCallback(() => {
     navigate('/kiosk', { replace: true });
-    logout();
-  }, [logout, navigate]);
+  }, [navigate]);
 
   // Memoize tabs array - removed accounts tab per PRD (single admin user)
   const tabs = useMemo(() => [
