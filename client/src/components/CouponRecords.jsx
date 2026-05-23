@@ -253,7 +253,7 @@ const CouponRecords = () => {
       case 'earn':
         return 'Earned';
       case 'consume':
-        return 'Consumed';
+        return 'Dispensed';
       case 'adjust':
         if (amount !== undefined) {
           return Number(amount) >= 0 ? 'Added' : 'Removed';
@@ -472,7 +472,7 @@ const CouponRecords = () => {
       ? 'Total Added'
       : typeFilter === 'adjust-removed'
         ? 'Total Removed'
-        : 'Total Coupons Consumed';
+        : 'Total Coupons Dispensed';
 
     exportData.push({});
     exportData.push({
@@ -538,7 +538,7 @@ const CouponRecords = () => {
       ? 'Total Added'
       : typeFilter === 'adjust-removed'
         ? 'Total Removed'
-        : 'Total Coupons Consumed';
+        : 'Total Coupons Dispensed';
 
     doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
@@ -679,7 +679,7 @@ const CouponRecords = () => {
               </span>
             </div>
             <div className="text-3xl font-bold text-gray-900 mb-1">{formatInt(totalConsumed)}</div>
-            <div className="text-sm font-medium text-gray-700">Total Coupons Consumed</div>
+            <div className="text-sm font-medium text-gray-700">Total Coupons Dispensed</div>
           </div>
 
         </div>
@@ -770,7 +770,7 @@ const CouponRecords = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="all">All Types</option>
-                <option value="consume">Consumed</option>
+                <option value="consume">Dispensed</option>
                 <option value="adjust-added">Added</option>
                 <option value="adjust-removed">Removed</option>
               </select>

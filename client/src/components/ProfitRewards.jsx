@@ -450,9 +450,9 @@ const ProfitRewards = () => {
           month: 'short',
           day: 'numeric',
         }),
-        'Total Amount Collected (₱)': Math.round((Number(row.profitFromRecyclables) || 0) * 100) / 100,
-        'Expense (₱)': Math.round((Number(row.rewardsSpent) || 0) * 100) / 100,
-        'Net Revenue (₱)': Math.round((Number(row.netProfit) || 0) * 100) / 100,
+        'Total Amount Collected (PHP)': Math.round((Number(row.profitFromRecyclables) || 0) * 100) / 100,
+        'Expense (PHP)': Math.round((Number(row.rewardsSpent) || 0) * 100) / 100,
+        'Net Revenue (PHP)': Math.round((Number(row.netProfit) || 0) * 100) / 100,
         Notes: Array.from(row.notes).join(' | '),
       }));
 
@@ -471,9 +471,9 @@ const ProfitRewards = () => {
       
       const pdfRows = rows.map((row) => ([
         row.Date,
-        `₱${row['Total Amount Collected (₱)']}`,
-        `₱${row['Expense (₱)']}`,
-        `₱${row['Net Revenue (₱)']}`,
+        `PHP ${row['Total Amount Collected (PHP)']}`,
+        `PHP ${row['Expense (PHP)']}`,
+        `PHP ${row['Net Revenue (PHP)']}`,
         row.Notes || ''
       ]));
 

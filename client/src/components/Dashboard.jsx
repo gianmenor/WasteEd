@@ -478,9 +478,6 @@ const Dashboard = ({ user, onLogout, children }) => {
 
                   {userMenuOpen && (
                     <div className="absolute top-full right-0 bg-white border border-gray-200 rounded-lg shadow-[0_4px_12px_rgba(0,0,0,0.1)] min-w-[200px] z-[1000] mt-1">
-                      <div className="py-3 px-4 border-b border-gray-200">
-                        <p className="m-0 text-sm text-gray-600">{user?.email || 'admin@wasted.com'}</p>
-                      </div>
                       <div className="h-px bg-gray-200 m-0"></div>
                       <button className="flex items-center gap-2 py-3 px-4 bg-none border-none w-full text-left cursor-pointer text-gray-600 transition-all duration-200 text-[0.9rem] hover:bg-green-50 hover:text-gray-900" onClick={handleSettingsClick}>
                         <SettingsOutlinedIcon fontSize="small" />

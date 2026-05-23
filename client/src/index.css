@@ -20,3 +20,22 @@
   --primary-color: #16a34a;
 }
 /* Single light theme is applied globally via CSS variables above. */
+
+.password-input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.password-input::-ms-clear,
+.password-input::-ms-reveal,
+.password-input::-webkit-password-toggle-button,
+.password-input::-webkit-textfield-decoration-container {
+  display: none !important;
+}
+
+.password-input::-ms-input-placeholder,
+.password-input::placeholder {
+  color: inherit;
+}
+

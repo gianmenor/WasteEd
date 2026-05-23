@@ -165,7 +165,7 @@ const Login = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={credentials.password}
                   onChange={handleChange}
-                  className="w-full min-w-0 pr-12 px-4 py-3 border border-gray-200 rounded-lg text-base bg-white text-gray-800 transition-all duration-200 focus:outline-none focus:border-green-600 focus:ring-[3px] focus:ring-green-600/10 placeholder:text-gray-400"
+                  className="password-input w-full min-w-0 pr-12 px-4 py-3 border border-gray-200 rounded-lg text-base bg-white text-gray-800 transition-all duration-200 focus:outline-none focus:border-green-600 focus:ring-[3px] focus:ring-green-600/10 placeholder:text-gray-400"
                   placeholder="Enter your password"
                   required
                   autoComplete="current-password"
