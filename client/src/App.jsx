@@ -11,7 +11,6 @@ import ForgotPassword from './components/ForgotPassword';
 import Dashboard from './components/Dashboard';
 import DashboardSkeleton from './components/DashboardSkeleton';
 import KioskMode from './components/KioskMode';
-import KioskAdminLogin from './components/KioskAdminLogin';
 import './App.css';
 
 const WasteTable = lazy(() => import('./components/WasteTable'));
@@ -46,16 +45,6 @@ const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
   ) : (
     <Navigate to={redirectTo} replace state={{ from: { pathname: window.location.pathname } }} />
   );
-};
-
-const KioskEntry = () => {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
-  return isAuthenticated ? <KioskMode /> : <KioskAdminLogin />;
 };
 
 // Main App Content
@@ -100,12 +89,11 @@ const AppContent = () => {
 
               <Route
                 path="/kiosk"
-                element={<KioskEntry />}
-              />
-
-              <Route
-                path="/kiosk-admin"
-                element={<Navigate to="/kiosk" replace />}
+                element={
+                  <ProtectedRoute>
+                    <KioskMode />
+                  </ProtectedRoute>
+                }
               />
           
             <Route 
