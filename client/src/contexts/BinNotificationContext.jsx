@@ -114,6 +114,14 @@ export const BinNotificationProvider = ({ children }) => {
     }
   }, []);
 
+  const addSeenNotification = useCallback((notificationId) => {
+    const normalizedId = notificationId.toString();
+    if (!seenNotifications.current.has(normalizedId)) {
+      seenNotifications.current.add(normalizedId);
+      persistSeenNotifications(seenNotifications.current);
+    }
+  }, []);
+
   // Mark notification as read
   const markAsRead = useCallback((notificationId) => {
     const normalizedId = notificationId.toString();
@@ -126,10 +134,8 @@ export const BinNotificationProvider = ({ children }) => {
       )
     );
     
-    // Also mark as seen so it won't show modal again
-    seenNotifications.current.add(normalizedId);
-    persistSeenNotifications(seenNotifications.current);
-  }, []);
+    addSeenNotification(normalizedId);
+  }, [addSeenNotification]);
 
   // Mark all notifications as read
   const markAllAsRead = useCallback(() => {
@@ -139,26 +145,19 @@ export const BinNotificationProvider = ({ children }) => {
       prev.map(notif => ({ ...notif, isRead: true }))
     );
     
-    // Mark all as seen so they won't show modals again
-    allIds.forEach(id => seenNotifications.current.add(id));
-    persistSeenNotifications(seenNotifications.current);
-  }, [notifications]);
+    allIds.forEach(addSeenNotification);
+  }, [notifications, addSeenNotification]);
 
   // Close modal and mark notification as seen permanently
   const closeModal = useCallback(() => {
     setShowModal(false);
     if (latestNotification) {
-      // Mark as seen in memory and localStorage
-      seenNotifications.current.add(latestNotification.id.toString());
-      persistSeenNotifications(seenNotifications.current);
-      
-      // Also mark as read in current session
+      addSeenNotification(latestNotification.id);
       markAsRead(latestNotification.id);
       setLatestNotification(null);
-      
       console.log(`Notification ${latestNotification.id} marked as seen permanently`);
     }
-  }, [latestNotification, markAsRead]);
+  }, [latestNotification, markAsRead, addSeenNotification]);
 
   // Close waste notification modal
   const closeWasteModal = useCallback(() => {
