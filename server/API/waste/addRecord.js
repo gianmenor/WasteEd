@@ -74,7 +74,8 @@ export const addWasteRecord = async (req, res) => {
           received: { date }
         });
       }
-      targetDate = new Date(date);
+      const [year, month, day] = date.split('-').map(Number);
+      targetDate = new Date(year, month - 1, day);
       if (Number.isNaN(targetDate.getTime())) {
         return res.status(400).json({
           success: false,
@@ -112,7 +113,9 @@ export const addWasteRecord = async (req, res) => {
     const targetDateString = targetDate
       ? `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
       : todayDateString;
-    const recordDate = new Date(targetDateString);
+    const recordDate = targetDate
+      ? new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
+      : new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const finalRecordedAt = targetRecordedAt
       ? targetRecordedAt
       : targetDate
