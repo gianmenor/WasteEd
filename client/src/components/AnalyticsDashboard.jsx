@@ -735,6 +735,8 @@ const AnalyticsDashboard = () => {
         const thisYearStart = new Date(now.getFullYear(), 0, 1);
         thisYearStart.setHours(0, 0, 0, 0);
         return { from: thisYearStart, to: now };
+      case 'all':
+        return null;
       case 'custom':
         if (dateFrom && dateTo) {
           const from = startOfLocalDay(dateFrom);
@@ -960,6 +962,7 @@ const AnalyticsDashboard = () => {
               <div className="flex flex-row overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0 sm:overflow-visible sm:flex-wrap sm:pb-0 gap-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                 {[
                   { value: 'today', label: 'Today' },
+                  { value: 'all', label: 'All Time' },
                   { value: '7d', label: 'Last 7 Days' },
                   { value: '30d', label: 'Last 30 Days' },
                   { value: 'thisMonth', label: 'This Month' },

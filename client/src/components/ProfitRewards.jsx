@@ -81,6 +81,7 @@ const ProfitRewards = () => {
   const [formData, setFormData] = useState({
     profitAmount: '',
     expenseAmount: '',
+    date: todayDateString,
     source: '',
     description: ''
   });
@@ -137,6 +138,7 @@ const ProfitRewards = () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            date: formData.date,
             profitFromRecyclables: profitAmount,
             rewardsSpent: expenseAmount,
             notes: formData.description || formData.source || null
@@ -159,6 +161,7 @@ const ProfitRewards = () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            date: formData.date,
             profitAmount,
             expenseAmount,
             revenue,
@@ -179,6 +182,7 @@ const ProfitRewards = () => {
       setFormData({
         profitAmount: '',
         expenseAmount: '',
+        date: todayDateString,
         source: '',
         description: ''
       });
@@ -197,12 +201,13 @@ const ProfitRewards = () => {
     setFormData({
       profitAmount: (record.profitFromRecyclables || 0).toString(),
       expenseAmount: (record.rewardsSpent || 0).toString(),
+      date: record.date ? new Date(record.date).toISOString().slice(0, 10) : todayDateString,
       source: record.notes || '',
       description: record.notes || ''
     });
     setShowModal(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  }, [todayDateString]);
 
   const handleDelete = useCallback((id) => {
     setRecordToDelete(id);
@@ -245,19 +250,18 @@ const ProfitRewards = () => {
     setFormData({
       profitAmount: '',
       expenseAmount: '',
+      date: todayDateString,
       source: '',
       description: ''
     });
     setShowModal(false);
-  }, []);
+  }, [todayDateString]);
 
   const formatDate = useCallback((dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: 'numeric'
     });
   }, []);
 
@@ -1033,6 +1037,21 @@ const ProfitRewards = () => {
                     </div>
                     <span className="text-xs text-[var(--text-secondary)] mt-2 block">Expense / costs paid out</span>
                   </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="recordDate" className="text-sm font-medium text-[var(--text-secondary)]">Record Date</label>
+                  <input
+                    id="recordDate"
+                    type="date"
+                    className="px-4 py-2 border border-[var(--border-color)] rounded-sm text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] transition-all focus:outline-none focus:border-[var(--border-focus)] focus:shadow-[0_0_0_3px_rgba(34,197,94,0.1)]"
+                    value={formData.date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                    max={todayDateString}
+                    disabled={isSubmitting}
+                    required
+                  />
+                  <span className="text-xs text-[var(--text-secondary)] mt-2 block">Choose a date only; time is not recorded.</span>
                 </div>
 
                 {/* Revenue Display */}

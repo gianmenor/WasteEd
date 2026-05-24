@@ -86,7 +86,7 @@ router.get('/records', async (req, res) => {
 // POST /api/profit/add - Add new profit/reward record
 router.post('/add', async (req, res) => {
   try {
-    const { profitAmount, expenseAmount, revenue, source, description } = req.body;
+    const { date, profitAmount, expenseAmount, revenue, source, description } = req.body;
 
     // Validation
     if (profitAmount === undefined || profitAmount < 0) {
@@ -94,6 +94,17 @@ router.post('/add', async (req, res) => {
         success: false,
         message: 'Profit amount must be a non-negative number'
       });
+    }
+
+    let recordDate = new Date();
+    if (date) {
+      recordDate = new Date(`${date}T00:00:00`);
+      if (Number.isNaN(recordDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid date format'
+        });
+      }
     }
 
     if (expenseAmount === undefined || expenseAmount < 0) {
@@ -117,7 +128,7 @@ router.post('/add', async (req, res) => {
     const record = await retryOperation(async () => {
       return await prisma.profitReward.create({
         data: {
-          date: new Date(),
+          date: recordDate,
           profitFromRecyclables: profit,
           rewardsSpent: rewards,
           netProfit,
@@ -178,7 +189,16 @@ router.put('/update/:id', async (req, res) => {
       netProfit
     };
 
-    if (date) updateData.date = new Date(date);
+    if (date) {
+      const parsedDate = new Date(`${date}T00:00:00`);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid date format'
+        });
+      }
+      updateData.date = parsedDate;
+    }
     if (profitFromRecyclables !== undefined) updateData.profitFromRecyclables = profit;
     if (rewardsSpent !== undefined) updateData.rewardsSpent = rewards;
     if (notes !== undefined) updateData.notes = notes;
