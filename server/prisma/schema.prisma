@@ -8,14 +8,15 @@ datasource db {
 }
 
 model Account {
-  id          Int              @id @default(autoincrement())
-  username    String           @unique
-  password    String
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  email       String?
-  role        accounts_role    @default(user)
-  preferences UserPreferences?
+  id                   Int                     @id @default(autoincrement())
+  username             String                  @unique
+  password             String
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  email                String?
+  role                 accounts_role           @default(user)
+  preferences          UserPreferences?
+  binNotificationReads BinNotificationRead[]
 
   @@map("accounts")
 }
@@ -55,12 +56,26 @@ model waste_items {
 }
 
 model Bin {
-  id        Int      @id @default(autoincrement())
-  fullAt    DateTime @default(now())
-  binType   Int      @default(1)
-  createdAt DateTime @default(now())
+  id                Int                     @id @default(autoincrement())
+  fullAt            DateTime                @default(now())
+  binType           Int                     @default(1)
+  createdAt         DateTime                @default(now())
+  notificationReads BinNotificationRead[]
 
   @@map("bin_records")
+}
+
+model BinNotificationRead {
+  id        Int      @id @default(autoincrement())
+  accountId Int
+  binId     Int
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  bin     Bin     @relation(fields: [binId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, binId])
+  @@map("bin_notification_reads")
 }
 
 model Coupon {

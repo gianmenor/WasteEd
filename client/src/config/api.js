@@ -45,6 +45,7 @@ export const API_ENDPOINTS = {
   
   // Bin records
   BIN_RECORDS: `${API_BASE_URL}/api/bin/records`,
+  BIN_RECORDS_MARK_READ: `${API_BASE_URL}/api/bin/records/read`,
   BIN_FULL: `${API_BASE_URL}/api/bin/full`,
   BIN_NOTIFICATIONS_STREAM: `${API_BASE_URL}/api/bin/notifications/stream`,
   BIN_ANALYTICS_SUMMARY: `${API_BASE_URL}/api/bin/analytics/summary`,
@@ -86,7 +87,7 @@ export const API_ENDPOINTS = {
 };
 
 // Helper function to get auth headers
-const getAuthHeaders = () => {
+export const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
   return {
     'Content-Type': 'application/json',

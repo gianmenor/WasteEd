@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import { validatePassword, passwordRequirementsMessage } from '../../utils/validation.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { prisma } from '../../utils/database.js';
@@ -52,6 +53,37 @@ const verifyAdmin = async (req, res, next) => {
       username: user.username,
       role: user.role
     };
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid token.' });
+  }
+};
+
+const verifyToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Access denied. No token provided.' });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const user = await prisma.account.findUnique({
+      where: { id: decoded.userId }
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid token. User not found.' });
+    }
+
+    req.user = {
+      id: user.id,
+      username: user.username,
+      role: user.role
+    };
+
     next();
   } catch (error) {
     return res.status(401).json({ message: 'Invalid token.' });
@@ -322,10 +354,10 @@ router.post('/forgot-password/verify-otp', async (req, res) => {
       });
     }
 
-    if (String(newPassword).length < 3) {
+    if (!validatePassword(String(newPassword))) {
       return res.status(400).json({
         success: false,
-        message: 'New password must be at least 3 characters'
+        message: passwordRequirementsMessage
       });
     }
 
@@ -428,4 +460,5 @@ router.post('/dev/clear-data', verifyAdmin, async (req, res) => {
   }
 });
 
+export { verifyToken };
 export default router;

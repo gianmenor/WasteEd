@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from './AuthContext';
 import { usePreferences } from './PreferencesContext';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, getAuthHeaders } from '../config/api';
 
 export const BinNotificationContext = createContext();
 
@@ -78,7 +78,10 @@ export const BinNotificationProvider = ({ children }) => {
 
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_ENDPOINTS.BIN_RECORDS}?limit=50&sortBy=fullAt&sortOrder=desc`);
+      const requestUrl = `${API_ENDPOINTS.BIN_RECORDS}?limit=50&sortBy=fullAt&sortOrder=desc${userRef.current?.id ? '&includeReadStatus=true' : ''}`;
+      const response = await fetch(requestUrl, {
+        headers: userRef.current?.id ? getAuthHeaders() : undefined
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch bin notifications');
@@ -87,23 +90,36 @@ export const BinNotificationProvider = ({ children }) => {
       const data = await response.json();
       
       if (data.success && data.data?.records) {
+        const serverReadIds = new Set();
+
         const binRecords = data.data.records.map(record => {
           const binType = record.binType || 1;
           const binName = getBinName(binType);
-          
+          const recordId = record.id.toString();
+          const isReadFromServer = Boolean(record.isRead);
+
+          if (isReadFromServer) {
+            serverReadIds.add(recordId);
+          }
+
           return {
             id: record.id,
             type: 'bin_full',
             title: `${binName} Bin Full Alert`,
             message: `The ${binName.toLowerCase()} bin is full and needs to be emptied.`,
             timestamp: new Date(record.fullAt),
-            isRead: seenNotifications.current.has(record.id.toString()),
+            isRead: isReadFromServer || seenNotifications.current.has(recordId),
             icon: '🗑️',
             priority: 'high',
             binType: binType,
             binName: binName
           };
         });
+
+        if (serverReadIds.size > 0) {
+          serverReadIds.forEach(id => seenNotifications.current.add(id));
+          persistSeenNotifications(seenNotifications.current);
+        }
 
         setNotifications(binRecords);
       }
@@ -122,8 +138,34 @@ export const BinNotificationProvider = ({ children }) => {
     }
   }, []);
 
+  const markNotificationsReadOnServer = useCallback(async (notificationIds) => {
+    const token = localStorage.getItem('token');
+    if (!token || !Array.isArray(notificationIds) || notificationIds.length === 0) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(API_ENDPOINTS.BIN_RECORDS_MARK_READ, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ids: notificationIds })
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        console.error('Failed to mark notifications as read on server:', errorBody || response.statusText);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to mark notifications as read on server:', error);
+      return false;
+    }
+  }, []);
+
   // Mark notification as read
-  const markAsRead = useCallback((notificationId) => {
+  const markAsRead = useCallback(async (notificationId) => {
     const normalizedId = notificationId.toString();
 
     setNotifications(prev => 
@@ -135,10 +177,11 @@ export const BinNotificationProvider = ({ children }) => {
     );
     
     addSeenNotification(normalizedId);
-  }, [addSeenNotification]);
+    await markNotificationsReadOnServer([normalizedId]);
+  }, [addSeenNotification, markNotificationsReadOnServer]);
 
   // Mark all notifications as read
-  const markAllAsRead = useCallback(() => {
+  const markAllAsRead = useCallback(async () => {
     const allIds = notifications.map(notif => notif.id.toString());
     
     setNotifications(prev => 
@@ -146,7 +189,8 @@ export const BinNotificationProvider = ({ children }) => {
     );
     
     allIds.forEach(addSeenNotification);
-  }, [notifications, addSeenNotification]);
+    await markNotificationsReadOnServer(allIds);
+  }, [notifications, addSeenNotification, markNotificationsReadOnServer]);
 
   // Close modal and mark notification as seen permanently
   const closeModal = useCallback(() => {

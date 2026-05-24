@@ -1,5 +1,15 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { prisma, retryOperation } from '../../utils/database.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../../.env') });
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 
 const router = express.Router();
 
@@ -31,22 +41,81 @@ router.get('/', async (req, res) => {
       }
     }
 
+    // Try to resolve the authenticated user for read status
+    let userId = null;
+    const includeReadStatus = req.query.includeReadStatus === 'true';
+    if (includeReadStatus) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.substring(7);
+          const decoded = jwt.verify(token, JWT_SECRET);
+          const user = await prisma.account.findUnique({
+            where: { id: decoded.userId }
+          });
+          if (user) {
+            userId = user.id;
+          }
+        } catch (error) {
+          console.warn('Bin records read status auth failed:', error.message);
+        }
+      }
+    }
+
+    const allowedSortBy = ['fullAt', 'createdAt', 'binType', 'id'];
+    const sortField = allowedSortBy.includes(sortBy) ? sortBy : 'fullAt';
+    const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    const conditions = [];
+    const values = [];
+
+    if (dateFrom) {
+      conditions.push('b.fullAt >= ?');
+      values.push(new Date(dateFrom));
+    }
+    if (dateTo) {
+      conditions.push('b.fullAt <= ?');
+      values.push(new Date(dateTo));
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
     // Get records with retry operation for reliability
     const [records, totalCount] = await retryOperation(async () => {
-      return await prisma.$transaction([
-        prisma.bin.findMany({
-          where: dateFilter,
-          orderBy: {
-            [sortBy]: sortOrder
-          },
-          skip: skip,
-          take: limitNum,
-        }),
-        prisma.bin.count({
-          where: dateFilter
-        })
-      ]);
+      const recordsQuery = `
+        SELECT
+          b.id,
+          b.fullAt,
+          b.binType,
+          b.createdAt,
+          EXISTS(
+            SELECT 1 FROM bin_notification_reads r
+            WHERE r.accountId = ? AND r.binId = b.id
+          ) AS isRead
+        FROM bin_records b
+        ${whereClause}
+        ORDER BY b.${sortField} ${sortDirection}
+        LIMIT ?
+        OFFSET ?
+      `;
+
+      const recordsResult = await prisma.$queryRawUnsafe(
+        recordsQuery,
+        userId || 0,
+        ...values,
+        limitNum,
+        skip
+      );
+
+      const countResult = await prisma.bin.count({ where: dateFilter });
+
+      return [recordsResult, countResult];
     });
+
+    const formattedRecords = records.map((record) => ({
+      ...record,
+      isRead: Boolean(record.isRead)
+    }));
 
     const totalPages = Math.ceil(totalCount / limitNum);
 
@@ -54,7 +123,7 @@ router.get('/', async (req, res) => {
       success: true,
       message: 'Bin records retrieved successfully',
       data: {
-        records,
+        records: formattedRecords,
         pagination: {
           currentPage: pageNum,
           totalPages,
