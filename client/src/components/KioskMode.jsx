@@ -215,20 +215,6 @@ const KioskMode = () => {
     };
   }, []);
 
-  useEffect(() => {
-    window.history.pushState(null, '', window.location.href);
-
-    const handlePopState = () => {
-      window.history.pushState(null, '', window.location.href);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
-
   const onVideoEnded = useCallback(() => {
     if (isIdlePlayback) {
       restartIdleVideo();

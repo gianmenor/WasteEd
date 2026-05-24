@@ -16,12 +16,18 @@ const sql = rawSql
 (async () => {
   let conn;
   try {
+    const password = process.env.AIVEN_DB_PASSWORD;
+    if (!password) {
+      console.error('Missing AIVEN_DB_PASSWORD environment variable.');
+      process.exit(1);
+    }
+
     conn = await mysql.createConnection({
-      host: process.env.AIVEN_HOST || '<AIVEN_HOST>',
-      port: Number(process.env.AIVEN_PORT || 15607),
-      user: process.env.AIVEN_USER || '<AIVEN_USER>',
-      password: process.env.AIVEN_PASSWORD || '<AIVEN_PASSWORD>',
-      database: process.env.AIVEN_DATABASE || '<AIVEN_DATABASE>',
+      host: 'mysql-291c6724-wasteed12345-e207.f.aivencloud.com',
+      port: 15607,
+      user: 'avnadmin',
+      password,
+      database: 'defaultdb',
       ssl: { rejectUnauthorized: false },
       multipleStatements: true,
     });

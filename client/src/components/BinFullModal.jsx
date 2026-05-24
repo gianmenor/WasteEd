@@ -119,12 +119,6 @@ const BinFullModal = () => {
                 <span className="inline-flex items-center gap-1.5"><DeleteOutlineOutlinedIcon fontSize="small" /> Go to Waste Management</span>
               </button>
             </div>
-            
-            <div className="text-center">
-              <small className="text-gray-400 text-xs">
-                <span className="inline-flex items-center gap-1"><NotificationsOutlinedIcon fontSize="inherit" /> You will continue to receive notifications until the bin is emptied</span>
-              </small>
-            </div>
           </div>
         </div>
       </div>

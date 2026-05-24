@@ -42,9 +42,9 @@ export const useBinNotifications = () => {
 // Helper function to map bin type to display name
 const getBinName = (binType) => {
   const binTypes = {
-    1: 'Recyclable Wastes',
+    1: 'Dry Wastes',
     2: 'Wet Wastes',
-    3: 'Dry Wastes'
+    3: 'Recyclable Wastes'
   };
   return binTypes[binType] || 'Unknown';
 };
