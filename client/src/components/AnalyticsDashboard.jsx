@@ -835,9 +835,84 @@ const AnalyticsDashboard = () => {
     };
   }, [wasteData, timeframe, dateFrom, dateTo, selectedTypes, getDateRange]);
 
+  const summaryAnalyticsData = useMemo(() => {
+    let filteredData = wasteData;
+    const dateRange = getDateRange();
+
+    if (dateRange) {
+      filteredData = wasteData.filter(record => {
+        const recordDate = parseLocalDate(record.date);
+        return recordDate >= dateRange.from && recordDate <= dateRange.to;
+      });
+    }
+
+    const totals = filteredData.reduce((acc, record) => {
+      acc.recyclable += record.recyclable || 0;
+      acc.biodegradable += record.biodegradable || 0;
+      acc.nonBiodegradable += record.nonBiodegradable || 0;
+      acc.total += (record.recyclable || 0) + (record.biodegradable || 0) + (record.nonBiodegradable || 0);
+      return acc;
+    }, { recyclable: 0, biodegradable: 0, nonBiodegradable: 0, total: 0 });
+
+    const dailyTrends = filteredData.length > 0 ? generateDailyTrends(filteredData) || [] : [];
+    const monthlyData = filteredData.length > 0 ? generateMonthlyData(filteredData) || [] : [];
+
+    const percentages = {
+      recyclable: totals.total > 0 ? (totals.recyclable / totals.total * 100).toFixed(1) : 0,
+      biodegradable: totals.total > 0 ? (totals.biodegradable / totals.total * 100).toFixed(1) : 0,
+      nonBiodegradable: totals.total > 0 ? (totals.nonBiodegradable / totals.total * 100).toFixed(1) : 0
+    };
+
+    const trend = 0;
+    const averageDaily = filteredData.length > 0 ? (totals.total / filteredData.length).toFixed(1) : 0;
+    const monthlyAverage = monthlyData.length > 0 ? (totals.total / monthlyData.length).toFixed(1) : 0;
+    const busiestDay = dailyTrends.length > 0
+      ? dailyTrends.reduce((max, day) => (day.total || 0) > (max.total || 0) ? day : max)
+      : null;
+    const overallMonthlyData = wasteData.length > 0
+      ? generateMonthlyData(wasteData.map(record => ({
+          ...record,
+          recyclable: record.recyclable || 0,
+          biodegradable: record.biodegradable || 0,
+          nonBiodegradable: record.nonBiodegradable || 0
+        })))
+      : [];
+    const mostActiveMonth = overallMonthlyData.length > 0
+      ? overallMonthlyData.reduce((max, month) => (month.total || 0) > (max.total || 0) ? month : max)
+      : null;
+    const wasteCategories = [
+      { label: 'Recyclable', value: totals.recyclable },
+      { label: 'Wet Wastes', value: totals.biodegradable },
+      { label: 'Dry Wastes', value: totals.nonBiodegradable }
+    ];
+    const mostCommonWaste = totals.total > 0
+      ? wasteCategories.reduce((max, category) => category.value > max.value ? category : max, wasteCategories[0])
+      : null;
+    const leastCommonWaste = totals.total > 0
+      ? wasteCategories.reduce((min, category) => category.value < min.value ? category : min, wasteCategories[0])
+      : null;
+
+    return {
+      totals,
+      percentages,
+      trend: parseFloat(trend),
+      dailyTrends,
+      monthlyData,
+      averageDaily,
+      monthlyAverage,
+      recordCount: filteredData.length,
+      peakDay: findPeakDay(filteredData),
+      busiestDay,
+      mostActiveMonth,
+      mostCommonWaste,
+      leastCommonWaste
+    };
+  }, [wasteData, timeframe, dateFrom, dateTo, getDateRange]);
+
   const hasAnalyticsRecords = analyticsData.recordCount > 0;
+  const hasSummaryAnalyticsRecords = summaryAnalyticsData.recordCount > 0;
   const hasAnyWasteData = wasteData.length > 0;
-  const showActivityCards = hasAnalyticsRecords || hasAnyWasteData;
+  const showActivityCards = hasSummaryAnalyticsRecords || hasAnyWasteData;
 
   // Derive bin analytics (memoized)
   const binAnalytics = useMemo(() => {
@@ -855,17 +930,6 @@ const AnalyticsDashboard = () => {
       });
     }
     
-    // Filter by selected waste types
-    if (!selectedTypes.RECYCLABLE) {
-      filteredBinData = filteredBinData.filter(r => r.binType !== 'RECYCLABLE');
-    }
-    if (!selectedTypes.WET) {
-      filteredBinData = filteredBinData.filter(r => r.binType !== 'WET');
-    }
-    if (!selectedTypes.DRY) {
-      filteredBinData = filteredBinData.filter(r => r.binType !== 'DRY');
-    }
-    
     return {
       total: filteredBinData.length,
       byType: {
@@ -874,7 +938,7 @@ const AnalyticsDashboard = () => {
         DRY: filteredBinData.filter(r => r.binType === 'DRY').length,
       }
     };
-  }, [binData, timeframe, dateFrom, dateTo, selectedTypes, getDateRange]);
+  }, [binData, timeframe, dateFrom, dateTo, getDateRange]);
 
   // Fixed to light theme per PRD
   const themeClass = 'light-theme';
@@ -961,13 +1025,11 @@ const AnalyticsDashboard = () => {
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Timeframe</label>
               <div className="flex flex-row overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0 sm:overflow-visible sm:flex-wrap sm:pb-0 gap-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                 {[
-                  { value: 'today', label: 'Today' },
                   { value: 'all', label: 'All Time' },
+                  { value: 'today', label: 'Today' },
                   { value: '7d', label: 'Last 7 Days' },
-                  { value: '30d', label: 'Last 30 Days' },
                   { value: 'thisMonth', label: 'This Month' },
                   { value: 'thisYear', label: 'This Year' },
-                  { value: 'lastMonth', label: 'Last Month' },
                   { value: 'custom', label: 'Custom' },
                 ].map((option) => (
                   <button 
@@ -1257,19 +1319,19 @@ const AnalyticsDashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-2">
             <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5">
               <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">Key Insights</h3>
-              {hasAnalyticsRecords ? (
+              {hasSummaryAnalyticsRecords ? (
                 <div className="space-y-2">
                   <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                     <span><EmojiEventsOutlinedIcon fontSize="small" className="text-amber-500" /></span>
-                    <span className="flex-1 mt-0.5">Recycling efficiency: <span className="font-medium">{analyticsData.percentages.recyclable}%</span> of waste was recyclable.</span>
+                    <span className="flex-1 mt-0.5">Recycling efficiency: <span className="font-medium">{summaryAnalyticsData.percentages.recyclable}%</span> of waste was recyclable.</span>
                   </div>
                   <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                     <span><TrendingUpOutlinedIcon fontSize="small" className="text-emerald-500" /></span>
-                    <span className="flex-1 mt-0.5">Most common waste: <span className="font-medium">{analyticsData.mostCommonWaste ? `${analyticsData.mostCommonWaste.label} (${analyticsData.mostCommonWaste.value.toLocaleString()})` : 'No data'}</span></span>
+                    <span className="flex-1 mt-0.5">Most common waste: <span className="font-medium">{summaryAnalyticsData.mostCommonWaste ? `${summaryAnalyticsData.mostCommonWaste.label} (${summaryAnalyticsData.mostCommonWaste.value.toLocaleString()})` : 'No data'}</span></span>
                   </div>
                   <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                     <span><DeleteOutlineOutlinedIcon fontSize="small" className="text-slate-500" /></span>
-                    <span className="flex-1 mt-0.5">Least common waste: <span className="font-medium">{analyticsData.leastCommonWaste ? `${analyticsData.leastCommonWaste.label} (${analyticsData.leastCommonWaste.value.toLocaleString()})` : 'No data'}</span></span>
+                    <span className="flex-1 mt-0.5">Least common waste: <span className="font-medium">{summaryAnalyticsData.leastCommonWaste ? `${summaryAnalyticsData.leastCommonWaste.label} (${summaryAnalyticsData.leastCommonWaste.value.toLocaleString()})` : 'No data'}</span></span>
                   </div>
                 </div>
               ) : (
@@ -1286,11 +1348,11 @@ const AnalyticsDashboard = () => {
                 <div className="space-y-2">
                   <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                     <span><CalendarMonthOutlinedIcon fontSize="small" className="text-blue-500" /></span>
-                    <span className="flex-1 mt-0.5">Busiest day: <span className="font-medium">{analyticsData.busiestDay ? `${formatDate(analyticsData.busiestDay.date)} (${analyticsData.busiestDay.total} disposals)` : 'No data'}</span></span>
+                    <span className="flex-1 mt-0.5">Busiest day: <span className="font-medium">{summaryAnalyticsData.busiestDay ? `${formatDate(summaryAnalyticsData.busiestDay.date)} (${summaryAnalyticsData.busiestDay.total} disposals)` : 'No data'}</span></span>
                   </div>
                   <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
                     <span><InsightsOutlinedIcon fontSize="small" className="text-purple-500" /></span>
-                    <span className="flex-1 mt-0.5">Most active month: <span className="font-medium">{analyticsData.mostActiveMonth ? `${formatMonth(analyticsData.mostActiveMonth.month)} (${analyticsData.mostActiveMonth.total} disposals)` : 'No data'}</span></span>
+                    <span className="flex-1 mt-0.5">Most active month: <span className="font-medium">{summaryAnalyticsData.mostActiveMonth ? `${formatMonth(summaryAnalyticsData.mostActiveMonth.month)} (${summaryAnalyticsData.mostActiveMonth.total} disposals)` : 'No data'}</span></span>
                   </div>
                   {binAnalytics && (
                     <div className="flex items-start gap-2 p-2 sm:p-2.5 bg-gray-50 rounded text-xs sm:text-sm text-gray-700">
