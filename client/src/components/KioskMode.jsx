@@ -6,7 +6,7 @@ import { API_ENDPOINTS } from '../config/api';
 const VIDEO_CACHE_KEY = 'kioskVideoUrlCache.v1';
 const VIDEO_CACHE_TTL = 1000 * 60 * 60 * 24;
 const RETURN_TO_IDLE_DELAY_MS = 4000;
-const IDLE_VIDEO_URL = 'https://storage.googleapis.com/wasteed-3ce3d.firebasestorage.app/videos/idle/idle.mp4';
+const IDLE_VIDEO_URL = 'https://storage.googleapis.com/wasteed-ff8b2.firebasestorage.app/videos/idle/idle.mp4';
 
 const WASTE_TYPES = ['RECYCLABLE', 'WET', 'DRY'];
 
