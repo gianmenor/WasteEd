@@ -358,19 +358,73 @@ const CouponRecords = () => {
     return totalConsumed;
   }, [filteredTransactions, typeFilter, totalConsumed]);
 
-  const summarizedTransactions = useMemo(() => {
+  const getExportDateRange = useCallback((dateRange, customDateFrom, customDateTo) => {
+    let exportDateFrom = null;
+    let exportDateTo = null;
+    const today = new Date();
+    const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    switch (dateRange) {
+      case 'today':
+        exportDateFrom = localToday;
+        exportDateTo = localToday;
+        break;
+      case 'week': {
+        const weekStart = new Date(localToday);
+        weekStart.setDate(localToday.getDate() - localToday.getDay());
+        exportDateFrom = weekStart;
+        exportDateTo = localToday;
+        break;
+      }
+      case 'month':
+        exportDateFrom = new Date(localToday.getFullYear(), localToday.getMonth(), 1);
+        exportDateTo = localToday;
+        break;
+      case 'year':
+        exportDateFrom = new Date(localToday.getFullYear(), 0, 1);
+        exportDateTo = localToday;
+        break;
+      case 'custom':
+        if (customDateFrom) {
+          const [year, month, day] = customDateFrom.split('-').map(Number);
+          exportDateFrom = new Date(year, month - 1, day);
+        }
+        if (customDateTo) {
+          const [year, month, day] = customDateTo.split('-').map(Number);
+          exportDateTo = new Date(year, month - 1, day);
+        }
+        break;
+      default:
+        exportDateFrom = null;
+        exportDateTo = null;
+    }
+
+    return { exportDateFrom, exportDateTo };
+  }, []);
+
+  const matchesExportType = useCallback((transaction, includeExportTypes = { dispensed: true, added: true, removed: true }) => {
+    const isDispensed = transaction.type === 'consume';
+    const isAdded = transaction.type === 'earn' || (transaction.type === 'adjust' && Number(transaction.amount) >= 0);
+    const isRemoved = transaction.type === 'adjust' && Number(transaction.amount) < 0;
+
+    if (isDispensed && includeExportTypes.dispensed) return true;
+    if (isAdded && includeExportTypes.added) return true;
+    if (isRemoved && includeExportTypes.removed) return true;
+    return false;
+  }, []);
+
+  const summarizeTransactionGroups = useCallback((transactionsToSummarize) => {
     const grouped = {};
 
-    filteredTransactions.forEach((transaction) => {
+    transactionsToSummarize.forEach((transaction) => {
       const dateObj = parseLocalDate(transaction.createdAt);
       const dateKey = getLocalDateKey(dateObj);
       let typeKey = transaction.type || 'unknown';
-      
-      // Differentiate added vs removed adjustments
+
       if (typeKey === 'adjust') {
         typeKey = Number(transaction.amount) >= 0 ? 'adjust-added' : 'adjust-removed';
       }
-      
+
       const key = `${dateKey}-${typeKey}`;
 
       if (!grouped[key]) {
@@ -398,7 +452,28 @@ const CouponRecords = () => {
 
       return getTransactionTypeLabel(a.type, a.amount).localeCompare(getTransactionTypeLabel(b.type, b.amount));
     });
-  }, [filteredTransactions, getTransactionTypeLabel]);
+  }, [getTransactionTypeLabel]);
+
+  const summarizedTransactions = useMemo(() => summarizeTransactionGroups(filteredTransactions), [filteredTransactions, summarizeTransactionGroups]);
+
+  const getExportTransactions = useCallback((options = {}) => {
+    const { dateRange = 'all', customDateFrom = null, customDateTo = null, includeExportTypes = { dispensed: true, added: true, removed: true } } = options;
+    const { exportDateFrom, exportDateTo } = getExportDateRange(dateRange, customDateFrom, customDateTo);
+
+    return [...transactions]
+      .filter((transaction) => {
+        const transactionDate = new Date(transaction.createdAt);
+        if (exportDateFrom && transactionDate < startOfLocalDay(exportDateFrom)) {
+          return false;
+        }
+        if (exportDateTo && transactionDate > endOfLocalDay(exportDateTo)) {
+          return false;
+        }
+        return true;
+      })
+      .filter((transaction) => matchesExportType(transaction, includeExportTypes))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [transactions, getExportDateRange, matchesExportType]);
 
   const totalItems = filteredTransactions.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
@@ -456,8 +531,36 @@ const CouponRecords = () => {
     });
   }, [safeCurrentPage, totalPages]);
 
-  const handleExcelExport = useCallback(() => {
-    const exportData = summarizedTransactions.map((transaction) => ({
+  const getExportTotalLabel = useCallback((includeExportTypes) => {
+    const selectedTypes = includeExportTypes || { dispensed: true, added: true, removed: true };
+    const active = Object.entries(selectedTypes)
+      .filter(([, enabled]) => enabled)
+      .map(([key]) => key);
+
+    if (active.length === 1) {
+      switch (active[0]) {
+        case 'dispensed': return 'Total Coupons Dispensed';
+        case 'added': return 'Total Coupons Added';
+        case 'removed': return 'Total Coupons Removed';
+        default: return 'Total Selected Transactions';
+      }
+    }
+
+    return 'Total Selected Transactions';
+  }, []);
+
+  const getExportTotal = useCallback((transactionsToExport) => {
+    return Math.abs(transactionsToExport.reduce((sum, transaction) => (
+      sum + Number(transaction.amount || 0)
+    ), 0));
+  }, []);
+
+  const handleExcelExport = useCallback((exportTransactions, options) => {
+    const exportSummaries = summarizeTransactionGroups(exportTransactions);
+    const totalLabel = getExportTotalLabel(options.includeExportTypes);
+    const exportTotalValue = getExportTotal(exportTransactions);
+
+    const exportData = exportSummaries.map((transaction) => ({
       'Date & Time': transaction.date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -468,17 +571,11 @@ const CouponRecords = () => {
       Details: transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-',
     }));
 
-    const totalLabel = typeFilter === 'adjust-added'
-      ? 'Total Added'
-      : typeFilter === 'adjust-removed'
-        ? 'Total Removed'
-        : 'Total Coupons Dispensed';
-
     exportData.push({});
     exportData.push({
       'Date & Time': totalLabel,
       Type: '',
-      Amount: formatInt(exportTotal),
+      Amount: formatInt(exportTotalValue),
       Details: '',
     });
 
@@ -487,9 +584,9 @@ const CouponRecords = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Coupon Transactions');
     XLSX.writeFile(wb, `coupon-transactions-${new Date().toISOString().split('T')[0]}.xlsx`);
     showMessage('Excel file exported successfully.', 'success');
-  }, [summarizedTransactions, typeFilter, getTransactionTypeLabel, formatInt, showMessage]);
+  }, [formatInt, getExportTotal, getExportTotalLabel, getTransactionTypeLabel, showMessage, summarizeTransactionGroups]);
 
-  const handlePDFExport = useCallback(() => {
+  const handlePDFExport = useCallback((exportTransactions, options) => {
     const doc = new jsPDF();
 
     doc.setFontSize(18);
@@ -500,20 +597,21 @@ const CouponRecords = () => {
     doc.setTextColor(107, 114, 128);
 
     let dateRangeLabel = 'Period: All time';
-    if (dateFrom && dateTo) {
-      dateRangeLabel = `Period: ${dateFrom.toLocaleDateString()} to ${dateTo.toLocaleDateString()}`;
-    } else if (dateFrom) {
-      dateRangeLabel = `Period: From ${dateFrom.toLocaleDateString()}`;
-    } else if (dateTo) {
-      dateRangeLabel = `Period: Until ${dateTo.toLocaleDateString()}`;
-    } else if (period !== 'all') {
-      dateRangeLabel = `Period: ${period.charAt(0).toUpperCase()}${period.slice(1)}`;
+    if (options.dateRange === 'custom' && options.customDateFrom && options.customDateTo) {
+      dateRangeLabel = `Period: ${options.customDateFrom} to ${options.customDateTo}`;
+    } else if (options.dateRange === 'custom' && options.customDateFrom) {
+      dateRangeLabel = `Period: From ${options.customDateFrom}`;
+    } else if (options.dateRange === 'custom' && options.customDateTo) {
+      dateRangeLabel = `Period: Until ${options.customDateTo}`;
+    } else if (options.dateRange && options.dateRange !== 'all') {
+      dateRangeLabel = `Period: ${options.dateRange.charAt(0).toUpperCase()}${options.dateRange.slice(1)}`;
     }
 
     doc.text(dateRangeLabel, 14, 30);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 36);
 
-    const tableData = summarizedTransactions.map((transaction) => ([
+    const exportSummaries = summarizeTransactionGroups(exportTransactions);
+    const tableData = exportSummaries.map((transaction) => ([
       transaction.date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -534,83 +632,33 @@ const CouponRecords = () => {
     });
 
     const finalY = doc.lastAutoTable.finalY + 10;
-    const totalLabel = typeFilter === 'adjust-added'
-      ? 'Total Added'
-      : typeFilter === 'adjust-removed'
-        ? 'Total Removed'
-        : 'Total Coupons Dispensed';
+    const totalLabel = getExportTotalLabel(options.includeExportTypes);
+    const exportTotalValue = getExportTotal(exportTransactions);
 
     doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
     doc.text('Summary:', 14, finalY);
     doc.setFont(undefined, 'normal');
-    doc.text(`${totalLabel}: ${formatInt(exportTotal)}`, 14, finalY + 7);
+    doc.text(`${totalLabel}: ${formatInt(exportTotalValue)}`, 14, finalY + 7);
 
     doc.save(`coupon-transactions-${new Date().toISOString().split('T')[0]}.pdf`);
     showMessage('PDF file exported successfully.', 'success');
-  }, [summarizedTransactions, typeFilter, dateFrom, dateTo, period, getTransactionTypeLabel, formatInt, showMessage]);
+  }, [formatInt, getExportTotal, getExportTotalLabel, getTransactionTypeLabel, showMessage, summarizeTransactionGroups]);
 
   const handleExport = useCallback((options) => {
-    // Process date range from modal
-    const { dateRange, customDateFrom, customDateTo } = options;
-    let exportDateFrom = dateFrom;
-    let exportDateTo = dateTo;
+    const exportTransactions = getExportTransactions(options);
 
-    if (dateRange && dateRange !== 'all') {
-      const today = new Date();
-      const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
-      switch (dateRange) {
-        case 'today':
-          exportDateFrom = localToday;
-          exportDateTo = localToday;
-          break;
-        case 'week': {
-          const weekStart = new Date(localToday);
-          weekStart.setDate(localToday.getDate() - localToday.getDay());
-          exportDateFrom = weekStart;
-          exportDateTo = localToday;
-          break;
-        }
-        case 'month':
-          exportDateFrom = new Date(localToday.getFullYear(), localToday.getMonth(), 1);
-          exportDateTo = localToday;
-          break;
-        case 'year':
-          exportDateFrom = new Date(localToday.getFullYear(), 0, 1);
-          exportDateTo = localToday;
-          break;
-        case 'custom':
-          if (customDateFrom) {
-            const [year, month, day] = customDateFrom.split('-').map(Number);
-            exportDateFrom = new Date(year, month - 1, day);
-          }
-          if (customDateTo) {
-            const [year, month, day] = customDateTo.split('-').map(Number);
-            exportDateTo = new Date(year, month - 1, day);
-          }
-          break;
-        default:
-          exportDateFrom = null;
-          exportDateTo = null;
-      }
+    if (exportTransactions.length === 0) {
+      showMessage('No data available to export for selected criteria.', 'error');
+      return;
     }
 
-    // Temporarily set date states for export
-    setDateFrom(exportDateFrom);
-    setDateTo(exportDateTo);
-
-    // Execute export in next render
-    setTimeout(() => {
-      if (options.format === 'excel') {
-        handleExcelExport();
-      } else if (options.format === 'pdf') {
-        handlePDFExport();
-      }
-
-      setShowExportModal(false);
-    }, 0);
-  }, [handleExcelExport, handlePDFExport]);
+    if (options.format === 'excel') {
+      handleExcelExport(exportTransactions, options);
+    } else if (options.format === 'pdf') {
+      handlePDFExport(exportTransactions, options);
+    }
+  }, [getExportTransactions, handleExcelExport, handlePDFExport, showMessage]);
 
   const balance = useMemo(() => {
     const rawBalance = balanceData?.data?.balance;
@@ -1016,6 +1064,7 @@ const CouponRecords = () => {
           onExport={handleExport}
           title="Export Coupon Transactions"
           showWasteTypes={false}
+          showExportTypes={true}
           showDateRange={true}
         />
       </div>

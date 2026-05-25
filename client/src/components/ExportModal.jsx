@@ -7,14 +7,22 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import RecyclingOutlinedIcon from '@mui/icons-material/RecyclingOutlined';
 import SpaOutlinedIcon from '@mui/icons-material/SpaOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import RedeemOutlinedIcon from '@mui/icons-material/RedeemOutlined';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 import { formatLocalDateForApi } from '../utils/date';
 
-const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWasteTypes = true, showDateRange = true }) => {
+const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWasteTypes = true, showExportTypes = false, showDateRange = true }) => {
   const [exportFormat, setExportFormat] = useState('excel');
   const [includeTypes, setIncludeTypes] = useState({
     recyclable: true,
     wet: true,
     dry: true
+  });
+  const [includeExportTypes, setIncludeExportTypes] = useState({
+    dispensed: true,
+    added: true,
+    removed: true,
   });
   const [dateRange, setDateRange] = useState('all');
   const [customDateFrom, setCustomDateFrom] = useState(null);
@@ -26,6 +34,7 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
     onExport({
       format: exportFormat,
       includeTypes,
+      includeExportTypes,
       dateRange,
       customDateFrom: customDateFrom ? formatLocalDateForApi(customDateFrom) : null,
       customDateTo: customDateTo ? formatLocalDateForApi(customDateTo) : null
@@ -56,6 +65,42 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
               <option value="pdf">PDF - Formatted report with charts</option>
             </select>
           </div>
+
+          {/* Export Transaction Types */}
+          {showExportTypes && (
+            <div className="flex flex-col gap-3">
+              <label className="text-sm font-semibold text-gray-900">Include Transaction Types</label>
+              <div className="flex flex-col gap-3 p-4 bg-gray-50 rounded-lg">
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-900">
+                  <input
+                    type="checkbox"
+                    className="cursor-pointer w-[18px] h-[18px] accent-green-500"
+                    checked={includeExportTypes.dispensed}
+                    onChange={(e) => setIncludeExportTypes(prev => ({ ...prev, dispensed: e.target.checked }))}
+                  />
+                  <span className="inline-flex items-center gap-1.5"><RedeemOutlinedIcon fontSize="small" /> Dispensed</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-900">
+                  <input
+                    type="checkbox"
+                    className="cursor-pointer w-[18px] h-[18px] accent-green-500"
+                    checked={includeExportTypes.added}
+                    onChange={(e) => setIncludeExportTypes(prev => ({ ...prev, added: e.target.checked }))}
+                  />
+                  <span className="inline-flex items-center gap-1.5"><AddIcon fontSize="small" /> Added</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-900">
+                  <input
+                    type="checkbox"
+                    className="cursor-pointer w-[18px] h-[18px] accent-green-500"
+                    checked={includeExportTypes.removed}
+                    onChange={(e) => setIncludeExportTypes(prev => ({ ...prev, removed: e.target.checked }))}
+                  />
+                  <span className="inline-flex items-center gap-1.5"><RemoveIcon fontSize="small" /> Removed</span>
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Waste Types Selection */}
           {showWasteTypes && (
@@ -150,7 +195,10 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
           <button 
             className="px-6 py-3 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 border-none bg-green-500 text-white shadow-sm hover:bg-green-600 hover:shadow-md hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed max-sm:w-full" 
             onClick={handleExport}
-            disabled={showWasteTypes && !includeTypes.recyclable && !includeTypes.wet && !includeTypes.dry}
+            disabled={
+              (showWasteTypes && !includeTypes.recyclable && !includeTypes.wet && !includeTypes.dry) ||
+              (showExportTypes && !includeExportTypes.dispensed && !includeExportTypes.added && !includeExportTypes.removed)
+            }
           >
             Export Data
           </button>
