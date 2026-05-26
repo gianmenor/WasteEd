@@ -1,7 +1,17 @@
 import express from 'express';
 import { prisma, retryOperation } from '../../utils/database.js';
-import { uploadVideo, deleteVideo, listVideosByWasteType, getSignedVideoUrl, fileExists, getLatestVideoByWasteType, getStorageBucket } from '../../utils/firebase.js';
+import firebaseUtils from '../../utils/firebase.js';
 import multer from 'multer';
+
+const {
+  uploadVideo,
+  deleteVideo,
+  listVideosByWasteType,
+  getSignedVideoUrl,
+  fileExists,
+  getLatestVideoByWasteType,
+  getStorageBucket
+} = firebaseUtils;
 
 const LEGACY_VIDEO_PATH_MAP = {
   'videos/recyclable/': 'videos/recyclable-wastes/',
