@@ -22,6 +22,19 @@ export const initializeFirebase = () => {
       return firebaseApp;
     }
 
+    if (!process.env.FIREBASE_PRIVATE_KEY) {
+      try {
+        const rawEnv = fs.readFileSync(path.join(__dirname, '../.env'), 'utf8');
+        const match = rawEnv.match(/FIREBASE_PRIVATE_KEY="([\s\S]*?)"/);
+        if (match) {
+          process.env.FIREBASE_PRIVATE_KEY = match[1].replace(/\\n/g, '\n');
+          console.log('Loaded multiline FIREBASE_PRIVATE_KEY from raw .env'.yellow);
+        }
+      } catch (error) {
+        console.warn('Could not parse multiline FIREBASE_PRIVATE_KEY from .env:'.yellow, error.message);
+      }
+    }
+
     let serviceAccount;
 
     if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
@@ -29,12 +42,14 @@ export const initializeFirebase = () => {
         ? process.env.FIREBASE_SERVICE_ACCOUNT_PATH
         : path.resolve(__dirname, '..', process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
 
-      if (!fs.existsSync(serviceAccountPath)) {
-        throw new Error(`Firebase service account file not found: ${serviceAccountPath}`);
+      if (fs.existsSync(serviceAccountPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
+      } else {
+        console.warn(`Firebase service account file not found: ${serviceAccountPath}. Falling back to environment variable credentials.`.yellow);
       }
+    }
 
-      serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
-    } else {
+    if (!serviceAccount) {
       serviceAccount = {
         type: 'service_account',
         project_id: process.env.FIREBASE_PROJECT_ID,
@@ -60,8 +75,6 @@ export const initializeFirebase = () => {
 
     console.log('Firebase Admin SDK initialized successfully'.green);
     return firebaseApp;
-
-    storage = admin.storage();
 
     console.log('Firebase Admin SDK initialized successfully'.green);
     return firebaseApp;
@@ -204,6 +217,32 @@ export const listVideosByWasteType = async (wasteType) => {
   }
 };
 
+export const fileExists = async (videoPath) => {
+  try {
+    const bucket = getStorageBucket();
+    const file = bucket.file(videoPath);
+    const [exists] = await file.exists();
+    return exists;
+  } catch (error) {
+    console.error('Failed to check video existence:'.red, error.message);
+    throw error;
+  }
+};
+
+export const getLatestVideoByWasteType = async (wasteType) => {
+  const videos = await listVideosByWasteType(wasteType);
+  if (!videos || videos.length === 0) {
+    return null;
+  }
+
+  return videos.sort((a, b) => {
+    const aUpdated = a.metadata?.updated ? Date.parse(a.metadata.updated) : 0;
+    const bUpdated = b.metadata?.updated ? Date.parse(b.metadata.updated) : 0;
+    if (bUpdated !== aUpdated) return bUpdated - aUpdated;
+    return b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'base' });
+  })[0];
+};
+
 export default {
   initializeFirebase,
   getStorageBucket,
@@ -211,4 +250,6 @@ export default {
   getSignedVideoUrl,
   deleteVideo,
   listVideosByWasteType,
+  fileExists,
+  getLatestVideoByWasteType,
 };
