@@ -49,6 +49,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Don't try to cache non-GET requests, especially POSTs
+  if (event.request.method !== 'GET') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   // Network-first strategy for API calls
   if (event.request.url.includes('/api/')) {
     event.respondWith(
