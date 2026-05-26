@@ -88,14 +88,25 @@ export const getStorageBucket = () => {
  * @param {string} fileName - Original filename
  * @returns {Promise<{videoUrl: string, videoPath: string}>}
  */
+const WASTE_FOLDER_MAP = {
+  RECYCLABLE: 'recyclable-wastes',
+  WET: 'wet-wastes',
+  DRY: 'dry-wastes'
+};
+
+const getWasteFolderName = (wasteType) => {
+  const normalizedType = wasteType.toUpperCase();
+  return WASTE_FOLDER_MAP[normalizedType] || normalizedType.toLowerCase().replace(/\s+/g, '-');
+};
+
 export const uploadVideo = async (fileBuffer, wasteType, fileName) => {
   try {
     const bucket = getStorageBucket();
     
     // Create a unique filename with timestamp
     const timestamp = Date.now();
-    const sanitizedWasteType = wasteType.toLowerCase().replace(/\s+/g, '-');
-    const videoPath = `videos/${sanitizedWasteType}/${timestamp}-${fileName}`;
+    const folderName = getWasteFolderName(wasteType);
+    const videoPath = `videos/${folderName}/${timestamp}-${fileName}`;
     
     const file = bucket.file(videoPath);
     
@@ -177,8 +188,8 @@ export const deleteVideo = async (videoPath) => {
 export const listVideosByWasteType = async (wasteType) => {
   try {
     const bucket = getStorageBucket();
-    const sanitizedWasteType = wasteType.toLowerCase().replace(/\s+/g, '-');
-    const prefix = `videos/${sanitizedWasteType}/`;
+    const folderName = getWasteFolderName(wasteType);
+    const prefix = `videos/${folderName}/`;
     
     const [files] = await bucket.getFiles({ prefix });
     
