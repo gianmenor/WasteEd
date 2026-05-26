@@ -65,7 +65,6 @@ const KioskMode = () => {
   const [activeVideoUrl, setActiveVideoUrl] = useState('');
   const [isIdlePlayback, setIsIdlePlayback] = useState(true);
 
-  const wasteVideoMapRef = useRef({});
   const returnToIdleTimerRef = useRef(null);
   const videoRef = useRef(null);
 
@@ -101,21 +100,34 @@ const KioskMode = () => {
     }, RETURN_TO_IDLE_DELAY_MS);
   }, [resetToIdle]);
 
-  const playWasteVideo = useCallback((wasteType) => {
-    const wasteVideoUrl = wasteVideoMapRef.current[wasteType];
-
-    if (!wasteVideoUrl) {
-      resetToIdle();
-      return;
+  const fetchWasteVideoUrl = useCallback(async (wasteType) => {
+    const response = await fetch(API_ENDPOINTS.VIDEO_SIGNED_URL(wasteType));
+    if (!response.ok) {
+      return '';
     }
 
-    if (returnToIdleTimerRef.current) {
-      clearTimeout(returnToIdleTimerRef.current);
-    }
+    const data = await response.json();
+    return data?.data?.url || '';
+  }, []);
 
-    setIsIdlePlayback(false);
-    setActiveVideoUrl(wasteVideoUrl);
-  }, [resetToIdle]);
+  const playWasteVideo = useCallback(
+    async (wasteType) => {
+      const wasteVideoUrl = await fetchWasteVideoUrl(wasteType);
+
+      if (!wasteVideoUrl) {
+        resetToIdle();
+        return;
+      }
+
+      if (returnToIdleTimerRef.current) {
+        clearTimeout(returnToIdleTimerRef.current);
+      }
+
+      setIsIdlePlayback(false);
+      setActiveVideoUrl(wasteVideoUrl);
+    },
+    [fetchWasteVideoUrl, resetToIdle]
+  );
 
   useEffect(() => {
     if (isIdlePlayback && activeVideoUrl === idleVideoUrl && videoRef.current) {
@@ -126,34 +138,15 @@ const KioskMode = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const fetchWasteVideoUrl = async (wasteType) => {
-      return resolveCachedUrl(`waste-${wasteType}`, async () => {
-        const response = await fetch(API_ENDPOINTS.VIDEO_MAPPING_BY_TYPE(wasteType));
-        if (!response.ok) {
-          return '';
-        }
-
-        const data = await response.json();
-        return data?.data?.videoUrl || '';
-      });
-    };
-
     const loadKioskMedia = async () => {
       try {
         const idleUrl = await resolveCachedUrl('idle', async () => {
           return IDLE_VIDEO_URL;
         });
 
-        const wastePairs = await Promise.all(
-          WASTE_TYPES.map(async (type) => [type, await fetchWasteVideoUrl(type)])
-        );
-
         if (!isMounted) {
           return;
         }
-
-        const wasteMap = Object.fromEntries(wastePairs);
-        wasteVideoMapRef.current = wasteMap;
 
         setIdleVideoUrl(idleUrl);
         setActiveVideoUrl(idleUrl);
@@ -181,7 +174,7 @@ const KioskMode = () => {
   useEffect(() => {
     const eventSource = new EventSource(API_ENDPOINTS.BIN_NOTIFICATIONS_STREAM);
 
-    eventSource.onmessage = (event) => {
+    eventSource.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
 
@@ -191,7 +184,7 @@ const KioskMode = () => {
 
         if (data?.type === 'WASTE_INSERTED') {
           const wasteType = detectWasteType(data.data || {});
-          playWasteVideo(wasteType);
+          await playWasteVideo(wasteType);
         }
       } catch (parseError) {
         console.error('Kiosk SSE parse error:', parseError);
