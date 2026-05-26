@@ -290,7 +290,7 @@ CREATE TABLE `video_mappings` (
 
 LOCK TABLES `video_mappings` WRITE;
 /*!40000 ALTER TABLE `video_mappings` DISABLE KEYS */;
-INSERT INTO `video_mappings` VALUES (7,'RECYCLABLE','https://storage.googleapis.com/wasteed-3ce3d.firebasestorage.app/videos/recyclable/1779426741668-RECYCLABLEE.mp4','videos/recyclable/1779426741668-RECYCLABLEE.mp4',NULL,NULL,'2026-05-18 12:13:17.839','2026-05-22 05:12:26.857'),(8,'WET','https://storage.googleapis.com/wasteed-3ce3d.firebasestorage.app/videos/wet/1779426677671-WET.mp4','videos/wet/1779426677671-WET.mp4',NULL,NULL,'2026-05-18 12:13:17.839','2026-05-22 05:11:21.798'),(9,'DRY','https://storage.googleapis.com/wasteed-3ce3d.firebasestorage.app/videos/dry/1779426710946-DRY.mp4','videos/dry/1779426710946-DRY.mp4',NULL,NULL,'2026-05-18 12:13:17.839','2026-05-22 05:12:00.986');
+INSERT INTO `video_mappings` VALUES (7,'RECYCLABLE','https://storage.googleapis.com/wasteed-ff8b2.firebasestorage.app/videos/recyclable-wastes/Recyclable.mp4','videos/recyclable-wastes/Recyclable.mp4',NULL,NULL,'2026-05-18 12:13:17.839','2026-05-22 05:12:26.857'),(8,'WET','https://storage.googleapis.com/wasteed-ff8b2.firebasestorage.app/videos/wet-wastes/WetWaste.mp4','videos/wet-wastes/WetWaste.mp4',NULL,NULL,'2026-05-18 12:13:17.839','2026-05-22 05:11:21.798'),(9,'DRY','https://storage.googleapis.com/wasteed-ff8b2.firebasestorage.app/videos/dry-wastes/DryWaste.mp4','videos/dry-wastes/DryWaste.mp4',NULL,NULL,'2026-05-18 12:13:17.839','2026-05-22 05:12:00.986');
 /*!40000 ALTER TABLE `video_mappings` ENABLE KEYS */;
 UNLOCK TABLES;
 

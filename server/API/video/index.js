@@ -1,7 +1,39 @@
 import express from 'express';
 import { prisma, retryOperation } from '../../utils/database.js';
-import { uploadVideo, deleteVideo, listVideosByWasteType, getSignedVideoUrl } from '../../utils/firebase.js';
+import { uploadVideo, deleteVideo, listVideosByWasteType, getSignedVideoUrl, fileExists, getLatestVideoByWasteType, getStorageBucket } from '../../utils/firebase.js';
 import multer from 'multer';
+
+const LEGACY_VIDEO_PATH_MAP = {
+  'videos/recyclable/': 'videos/recyclable-wastes/',
+  'videos/wet/': 'videos/wet-wastes/',
+  'videos/dry/': 'videos/dry-wastes/'
+};
+
+const NEW_VIDEO_PATH_BY_TYPE = {
+  RECYCLABLE: 'videos/recyclable-wastes/Recyclable.mp4',
+  WET: 'videos/wet-wastes/WetWaste.mp4',
+  DRY: 'videos/dry-wastes/DryWaste.mp4'
+};
+
+const getLegacyVideoPath = (videoPath) => {
+  if (!videoPath || typeof videoPath !== 'string') {
+    return null;
+  }
+
+  for (const [legacyPrefix, modernPrefix] of Object.entries(LEGACY_VIDEO_PATH_MAP)) {
+    if (videoPath.startsWith(legacyPrefix)) {
+      return videoPath.replace(legacyPrefix, modernPrefix);
+    }
+  }
+
+  return null;
+};
+
+const getKnownVideoPathForType = (wasteType) => {
+  return NEW_VIDEO_PATH_BY_TYPE[wasteType] || null;
+};
+
+const getStorageUrl = (bucketName, videoPath) => `https://storage.googleapis.com/${bucketName}/${videoPath}`;
 
 const router = express.Router();
 
@@ -50,7 +82,7 @@ router.get('/mapping/:wasteType', async (req, res) => {
     const { wasteType } = req.params;
     const normalizedType = wasteType.toUpperCase();
 
-    const mapping = await retryOperation(async () => {
+    let mapping = await retryOperation(async () => {
       return await prisma.videoMapping.findUnique({
         where: { wasteType: normalizedType }
       });
@@ -61,6 +93,62 @@ router.get('/mapping/:wasteType', async (req, res) => {
         success: false,
         message: `No video mapping found for ${wasteType}`
       });
+    }
+
+    const bucket = getStorageBucket();
+    let updatedPath = mapping.videoPath;
+    let exists = await fileExists(updatedPath);
+
+    if (!exists) {
+      const legacyPath = getLegacyVideoPath(mapping.videoPath);
+      if (legacyPath) {
+        const legacyExists = await fileExists(legacyPath);
+        if (legacyExists) {
+          updatedPath = legacyPath;
+          exists = true;
+        }
+      }
+    }
+
+    if (!exists) {
+      const knownPath = getKnownVideoPathForType(normalizedType);
+      if (knownPath) {
+        const knownExists = await fileExists(knownPath);
+        if (knownExists) {
+          updatedPath = knownPath;
+          exists = true;
+        }
+      }
+    }
+
+    const expectedVideoUrl = getStorageUrl(bucket.name, updatedPath);
+
+    if (exists && (updatedPath !== mapping.videoPath || mapping.videoUrl !== expectedVideoUrl)) {
+      mapping = await retryOperation(async () => {
+        return await prisma.videoMapping.update({
+          where: { wasteType: normalizedType },
+          data: {
+            videoPath: updatedPath,
+            videoUrl: expectedVideoUrl
+          }
+        });
+      });
+    }
+
+    if (!exists) {
+      const fallbackVideo = await getLatestVideoByWasteType(normalizedType);
+
+      if (fallbackVideo) {
+        mapping = await retryOperation(async () => {
+          return await prisma.videoMapping.update({
+            where: { wasteType: normalizedType },
+            data: {
+              videoUrl: fallbackVideo.url,
+              videoPath: fallbackVideo.name
+            }
+          });
+        });
+      }
     }
 
     res.json({
