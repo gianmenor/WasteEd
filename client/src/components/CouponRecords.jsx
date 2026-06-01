@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '../contexts/ToastContext';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
@@ -111,14 +112,13 @@ const CouponRecords = () => {
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState('all');
   const [adjustmentAmount, setAdjustmentAmount] = useState('');
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
   const [typeFilter, setTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const { showToast } = useToast();
 
   const toInt = useCallback((value) => {
     const parsed = parseInt(String(value ?? '').replace(/,/g, ''), 10);
@@ -130,14 +130,7 @@ const CouponRecords = () => {
     return intValue.toLocaleString('en-US');
   }, [toInt]);
 
-  const showMessage = useCallback((text, type = 'success') => {
-    setMessage(text);
-    setMessageType(type);
-    setTimeout(() => {
-      setMessage('');
-      setMessageType('');
-    }, 3000);
-  }, []);
+  const showMessage = showToast;
 
   const { data: balanceData, isLoading: balanceLoading } = useQuery({
     queryKey: ['couponBalance'],
@@ -674,30 +667,6 @@ const CouponRecords = () => {
       <div className="max-w-7xl mx-auto">
         {loading && <LoadingSpinner fullscreen message="Loading..." />}
 
-        {message && (
-          <div
-            className={`fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg border transition-all ${
-              messageType === 'error'
-                ? 'bg-red-50 border-red-200 text-red-800'
-                : 'bg-green-50 border-green-200 text-green-800'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="inline-flex items-center gap-2">
-                {messageType === 'error'
-                  ? <ErrorOutlineOutlinedIcon fontSize="small" />
-                  : <CheckCircleOutlineOutlinedIcon fontSize="small" />}
-                <span className="font-medium text-sm">{message}</span>
-              </div>
-              <button
-                className="text-gray-500 hover:text-gray-700 ml-4 inline-flex items-center"
-                onClick={() => setMessage('')}
-              >
-                <CloseRoundedIcon fontSize="small" />
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">

@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PreferencesProvider } from './contexts/PreferencesContext';
 import { BinNotificationProvider } from './contexts/BinNotificationContext';
 import ThemeProvider from './contexts/ThemeProvider';
+import { ToastProvider } from './contexts/ToastContext';
 import Login from './components/Login';
 import ForgotPassword from './components/ForgotPassword';
 import Dashboard from './components/Dashboard';
@@ -197,7 +198,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppContent />
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
