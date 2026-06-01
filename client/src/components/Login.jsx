@@ -114,7 +114,7 @@ const Login = () => {
       {/* Logo Section - Outside the card */}
       <div className="text-center mb-8 animate-fadeInDown">
         <img src={brandLogo} alt="Waste-Ed Logo" className="w-[180px] h-auto mb-4 block mx-auto" />
-        <p className="text-gray-500 text-base mt-2 mb-0 font-medium">Smart Waste Management System</p>
+        <p className="text-gray-500 text-base mt-2 mb-0 font-medium">Waste Management System</p>
       </div>
 
       <div className="w-full max-w-[420px] animate-fadeInUp">
