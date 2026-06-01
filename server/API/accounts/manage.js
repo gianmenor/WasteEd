@@ -186,7 +186,7 @@ router.delete('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const accountId = parseInt(req.params.id);
-    const { username, password, email } = req.body;
+    const { username, password, email, currentPassword } = req.body;
 
     // Validate account ID
     if (isNaN(accountId)) {
@@ -238,6 +238,21 @@ router.put('/:id', async (req, res) => {
     }
 
     if (password) {
+      if (!currentPassword) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Current password is required to change password' 
+        });
+      }
+
+      const currentPasswordValid = await bcrypt.compare(currentPassword, account.password);
+      if (!currentPasswordValid) {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Current password is incorrect' 
+        });
+      }
+
       if (password.length < 6) {
         return res.status(400).json({ 
           success: false, 

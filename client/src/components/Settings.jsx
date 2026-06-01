@@ -7,6 +7,7 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
+import { useToast } from '../contexts/ToastContext';
 import LoadingSpinner from './LoadingSpinner';
 
 const Settings = () => {
@@ -16,16 +17,17 @@ const Settings = () => {
   
   const [activeTab, setActiveTab] = useState('system');
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('');
+  const { showToast } = useToast();
   
   const [profile, setProfile] = useState({
     username: user?.username || '',
     email: user?.email || '',
+    currentPassword: '',
     password: '',
     confirmPassword: ''
   });
 
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -37,15 +39,7 @@ const Settings = () => {
     }));
   }, [user?.email, user?.username]);
 
-  // Memoize message handler
-  const showMessage = useCallback((text, type = 'success') => {
-    setMessage(text);
-    setMessageType(type);
-    setTimeout(() => {
-      setMessage('');
-      setMessageType('');
-    }, 3000);
-  }, []);
+  const showMessage = showToast;
 
   // Memoized handlers with optimistic updates
   const handleSettingChange = useCallback(async (setting, value) => {
@@ -116,6 +110,11 @@ const Settings = () => {
   }, [profile.username, saveAccountChanges]);
 
   const handlePasswordSave = useCallback(async () => {
+    if (!profile.currentPassword) {
+      showMessage('Enter your current password first', 'error');
+      return;
+    }
+
     if (!profile.password) {
       showMessage('Enter a new password first', 'error');
       return;
@@ -140,17 +139,18 @@ const Settings = () => {
     }
 
     await saveAccountChanges(
-      { password: profile.password },
+      { currentPassword: profile.currentPassword, password: profile.password },
       'Password updated successfully',
       () => {
         setProfile(prev => ({
           ...prev,
+          currentPassword: '',
           password: '',
           confirmPassword: ''
         }));
       }
     );
-  }, [profile.confirmPassword, profile.password, saveAccountChanges, showMessage]);
+  }, [profile.confirmPassword, profile.currentPassword, profile.password, saveAccountChanges, showMessage]);
 
   const handleLaunchKiosk = useCallback(() => {
     navigate('/kiosk', { replace: true });
@@ -177,15 +177,6 @@ const Settings = () => {
         <h1 className="text-2xl font-semibold text-[#1f2328] m-0">Settings</h1>
       </div>
 
-      {message && (
-        <div className={`p-3 px-4 rounded-md text-sm mb-4 border ${
-          messageType === 'error' 
-            ? 'bg-[#f8d7da] border-[#f5c2c7] text-[#842029]' 
-            : 'bg-[#d1e7dd] border-[#badbcc] text-[#0f5132]'
-        }`}>
-          {message}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-[296px_1fr] gap-6">
         {/* Sidebar Navigation */}
@@ -310,6 +301,26 @@ const Settings = () => {
 
                   <div className="border border-[#d1d9e0] rounded-md p-4">
                     <h3 className="text-sm font-semibold text-[#1f2328] mt-0 mb-4">Change Password</h3>
+
+                    <div className="mb-4">
+                      <label className="block text-sm font-semibold text-[#1f2328] mb-2">Current Password</label>
+                      <div className="relative max-w-[320px]">
+                        <input
+                          type={showCurrentPassword ? "text" : "password"}
+                          className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md text-[#1f2328] text-sm py-1.5 px-3 w-full focus:bg-white focus:border-[#0969da] focus:outline-none focus:shadow-[0_0_0_3px_rgba(9,105,218,0.3)]"
+                          value={profile.currentPassword}
+                          onChange={(e) => setProfile(prev => ({ ...prev, currentPassword: e.target.value }))}
+                          placeholder="Enter current password"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        >
+                          {showCurrentPassword ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="mb-4">
                       <label className="block text-sm font-semibold text-[#1f2328] mb-2">New Password</label>
