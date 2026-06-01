@@ -335,22 +335,6 @@ const CouponRecords = () => {
       .reduce((sum, transaction) => sum + Math.abs(Number(transaction.amount || 0)), 0)
   ), [filteredTransactions]);
 
-  const exportTotal = useMemo(() => {
-    if (typeFilter === 'adjust-added') {
-      return filteredTransactions
-        .filter((transaction) => transaction.type === 'adjust' && Number(transaction.amount) >= 0)
-        .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
-    }
-
-    if (typeFilter === 'adjust-removed') {
-      return Math.abs(filteredTransactions
-        .filter((transaction) => transaction.type === 'adjust' && Number(transaction.amount) < 0)
-        .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0));
-    }
-
-    return totalConsumed;
-  }, [filteredTransactions, typeFilter, totalConsumed]);
-
   const getExportDateRange = useCallback((dateRange, customDateFrom, customDateTo) => {
     let exportDateFrom = null;
     let exportDateTo = null;
@@ -446,8 +430,6 @@ const CouponRecords = () => {
       return getTransactionTypeLabel(a.type, a.amount).localeCompare(getTransactionTypeLabel(b.type, b.amount));
     });
   }, [getTransactionTypeLabel]);
-
-  const summarizedTransactions = useMemo(() => summarizeTransactionGroups(filteredTransactions), [filteredTransactions, summarizeTransactionGroups]);
 
   const getExportTransactions = useCallback((options = {}) => {
     const { dateRange = 'all', customDateFrom = null, customDateTo = null, includeExportTypes = { dispensed: true, added: true, removed: true } } = options;
@@ -675,7 +657,15 @@ const CouponRecords = () => {
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
         <head>
           <meta charset="utf-8" />
-          <title>Coupon Transaction Report</title>
+          <title>Coupon.docx</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #374151; margin: 20px; }
+            h1 { color: #16a34a; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+            th, td { padding: 8px; border: 1px solid #ddd; }
+            th { background: #f3f4f6; text-align: left; }
+            td:last-child { word-break: break-word; }
+          </style>
         </head>
         <body>
           <h1 style="font-family:Arial, sans-serif;color:#16a34a;">Coupon Transaction Report</h1>
@@ -725,7 +715,7 @@ const CouponRecords = () => {
     }
 
     handleWordExport(filteredTransactions, exportOptions);
-  }, [dateFrom, dateTo, filteredTransactions, formatLocalDateForApi, handleWordExport, period, showMessage]);
+  }, [dateFrom, dateTo, filteredTransactions, handleWordExport, period, showMessage]);
 
   const handleExport = useCallback((options) => {
     const exportTransactions = getExportTransactions(options);
@@ -913,7 +903,7 @@ const CouponRecords = () => {
                 className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ReceiptLongOutlinedIcon fontSize="small" />
-                Print Coupon.docx
+                Download Coupon
               </button>
             </div>
           </div>
