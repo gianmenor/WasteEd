@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useToast } from '../contexts/ToastContext';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
@@ -63,19 +64,18 @@ const ProfitRewards = () => {
   
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [exportFormat, setExportFormat] = useState('excel');
-  const [dateRangeMode, setDateRangeMode] = useState('month'); // 'month' | 'custom'
+  const [dateRangeMode, setDateRangeMode] = useState('month');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const { showToast } = useToast();
   
   // Form state
   const [formData, setFormData] = useState({
@@ -94,14 +94,7 @@ const ProfitRewards = () => {
     staleTime: 2 * 60 * 1000,
   });
 
-  const showMessage = useCallback((text, type = 'success') => {
-    setMessage(text);
-    setMessageType(type);
-    setTimeout(() => {
-      setMessage('');
-      setMessageType('');
-    }, 3000);
-  }, []);
+  const showMessage = showToast;
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
@@ -171,7 +164,7 @@ const ProfitRewards = () => {
         });
 
         if (response.ok) {
-          showMessage(`Record added: Revenue ₱${revenue.toFixed(2)}`);
+          showMessage('Record successfully added');
         } else {
           const error = await response.json();
           showMessage(error.message || 'Failed to add record', 'error');
@@ -595,11 +588,6 @@ const ProfitRewards = () => {
       {loading && <LoadingSpinner fullscreen message="Loading data..." />}
 
       {/* Alert Messages */}
-      {message && (
-        <div className={`p-4 rounded-md mb-6 text-sm font-medium animate-slideDown ${messageType === 'error' ? 'bg-[rgba(239,68,68,0.1)] text-[var(--error-color)] border border-[var(--error-color)]' : 'bg-[rgba(34,197,94,0.1)] text-[var(--success-color)] border border-[var(--success-color)]'}`}>
-          {message}
-        </div>
-      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

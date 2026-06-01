@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useToast } from '../contexts/ToastContext';
 import { getInventoryItems, createInventoryItem, updateInventoryItem, updateItemStock, deleteInventoryItem } from '../config/api';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -13,7 +14,6 @@ export default function InventoryManagement() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -21,6 +21,7 @@ export default function InventoryManagement() {
   const [showQuickStockConfirm, setShowQuickStockConfirm] = useState(false);
   const [quickStockChange, setQuickStockChange] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const { showToast } = useToast();
   const [showExportModal, setShowExportModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -73,9 +74,16 @@ export default function InventoryManagement() {
     const cleaned = String(rawValue ?? '').replace(/[^\d.]/g, '');
     if (!cleaned) return '';
 
-    const [wholePart, ...decimalParts] = cleaned.split('.');
+    const parts = cleaned.split('.');
+    const wholePart = parts[0] ?? '';
+    const decimalParts = parts.slice(1);
     const normalizedWholePart = wholePart ? wholePart.replace(/^0+(?=\d)/, '') : '0';
     const limitedWholePart = normalizedWholePart.slice(0, 4) || '0';
+
+    if (cleaned.endsWith('.') && decimalParts.length === 1 && decimalParts[0] === '') {
+      return `${limitedWholePart}.`;
+    }
+
     const decimalPart = decimalParts.join('').slice(0, 2);
     const normalizedValue = decimalPart ? `${limitedWholePart}.${decimalPart}` : limitedWholePart;
     const parsed = Number.parseFloat(normalizedValue);
@@ -154,8 +162,7 @@ export default function InventoryManagement() {
       await createInventoryItem(payload);
       setShowAddModal(false);
       resetForm();
-      setSuccessMessage(`✓ Item "${formData.name}" added successfully!`);
-      setTimeout(() => setSuccessMessage(null), 5000);
+      showToast(`Item "${formData.name}" added successfully!`, 'success');
       fetchItems();
     } catch (err) {
       setError(err.message || 'Failed to create item');
@@ -171,8 +178,7 @@ export default function InventoryManagement() {
       setShowEditModal(false);
       setSelectedItem(null);
       resetForm();
-      setSuccessMessage(`✓ Item "${formData.name}" updated successfully!`);
-      setTimeout(() => setSuccessMessage(null), 5000);
+      showToast(`Item "${formData.name}" updated successfully!`, 'success');
       fetchItems();
     } catch (err) {
       setError(err.message || 'Failed to update item');
@@ -193,8 +199,7 @@ export default function InventoryManagement() {
       await updateItemStock(quickStockChange.itemId, quickStockChange.adjustment);
       setShowQuickStockConfirm(false);
       setQuickStockChange(null);
-      setSuccessMessage(`✓ Quick stock adjustment: ${quickStockChange.adjustment > 0 ? '+' : ''}${quickStockChange.adjustment} for "${item?.name}"!`);
-      setTimeout(() => setSuccessMessage(null), 5000);
+      showToast(`Quick stock adjustment ${quickStockChange.adjustment > 0 ? '+' : ''}${quickStockChange.adjustment} for "${item?.name}" completed!`, 'success');
       fetchItems();
     } catch (err) {
       setError(err.message || 'Failed to adjust stock');
@@ -217,8 +222,7 @@ export default function InventoryManagement() {
       await deleteInventoryItem(itemToDelete);
       setShowDeleteConfirm(false);
       setItemToDelete(null);
-      setSuccessMessage(`✓ Item "${item?.name || 'Item'}" deleted successfully!`);
-      setTimeout(() => setSuccessMessage(null), 5000);
+      showToast(`Item "${item?.name || 'Item'}" deleted successfully!`, 'success');
       fetchItems();
     } catch (err) {
       setError(err.message || 'Failed to delete item');
@@ -422,12 +426,6 @@ export default function InventoryManagement() {
         </div>
       )}
 
-      {successMessage && (
-        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-5 flex justify-between items-center">
-          {successMessage}
-          <button onClick={() => setSuccessMessage(null)} className="bg-transparent border-none text-green-800 text-xl cursor-pointer px-2 hover:text-green-600">×</button>
-        </div>
-      )}
 
       {/* Filters Section - Compact Grid Layout */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 md:p-5 mb-5 shadow-sm">
@@ -711,7 +709,9 @@ export default function InventoryManagement() {
                 <div className="mb-5">
                   <label className="block mb-2 font-medium text-gray-900">Price (₱)</label>
                   <input
-                    type="text"
+                    type="number"
+                    step="0.01"
+                    min="0"
                     inputMode="decimal"
                     value={formData.price}
                     onChange={(e) => {
@@ -824,7 +824,9 @@ export default function InventoryManagement() {
                 <div className="mb-5">
                   <label className="block mb-2 font-medium text-gray-900">Price (₱)</label>
                   <input
-                    type="text"
+                    type="number"
+                    step="0.01"
+                    min="0"
                     inputMode="decimal"
                     value={formData.price}
                     onChange={(e) => {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useToast } from '../contexts/ToastContext';
 import { getInventoryItems, redeemInventoryItem, getRedemptionHistory } from '../config/api';
 import { API_ENDPOINTS } from '../config/api';
 import SearchIcon from '@mui/icons-material/Search';
@@ -13,7 +14,6 @@ export default function RewardsShop() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -21,6 +21,7 @@ export default function RewardsShop() {
   const [redemptionHistory, setRedemptionHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [couponBalance, setCouponBalance] = useState(0);
+  const { showToast } = useToast();
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -104,18 +105,18 @@ export default function RewardsShop() {
     const totalCost = selectedItem.cost * quantity;
     
     if (totalCost > couponBalance) {
-      setError('Insufficient coupon balance');
+      showToast('Insufficient coupon balance', 'error');
       return;
     }
 
     if (quantity > selectedItem.stock) {
-      setError('Not enough items in stock');
+      showToast('Not enough items in stock', 'error');
       return;
     }
 
     try {
       await redeemInventoryItem(selectedItem.id, quantity);
-      setSuccess(`Successfully redeemed ${quantity}x ${selectedItem.name}!`);
+      showToast('Record successfully added', 'success');
       setShowRedeemModal(false);
       setSelectedItem(null);
       setQuantity(1);
@@ -123,11 +124,8 @@ export default function RewardsShop() {
       
       // Refresh coupon balance
       fetchCouponBalance();
-
-      // Auto-hide success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError(err.message || 'Failed to redeem item');
+      showToast(err.message || 'Failed to redeem item', 'error');
       console.error('Error redeeming item:', err);
     }
   };
@@ -235,15 +233,6 @@ export default function RewardsShop() {
             <div className="flex items-center justify-between">
               <span className="font-medium text-sm">{error}</span>
               <button className="text-gray-500 hover:text-gray-700 ml-4" onClick={() => setError(null)}>×</button>
-            </div>
-          </div>
-        )}
-
-        {success && (
-          <div className="fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg border bg-green-50 border-green-200 text-green-800">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">{success}</span>
-              <button className="text-gray-500 hover:text-gray-700 ml-4" onClick={() => setSuccess(null)}>×</button>
             </div>
           </div>
         )}
