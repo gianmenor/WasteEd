@@ -29,7 +29,7 @@ import * as XLSX from 'xlsx';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 import ExportModal from './ExportModal';
-import { endOfLocalDay, getLocalDateKey, parseLocalDate, startOfLocalDay } from '../utils/date';
+import { endOfLocalDay, formatLocalDateForApi, getLocalDateKey, parseLocalDate, startOfLocalDay } from '../utils/date';
 
 const fetchCouponBalance = async () => {
   const token = localStorage.getItem('token');
@@ -330,9 +330,9 @@ const CouponRecords = () => {
   }, [transactions, period, dateFrom, dateTo, typeFilter]);
 
   const totalConsumed = useMemo(() => (
-    Math.abs(filteredTransactions
-      .filter((transaction) => Number(transaction.amount) < 0 || transaction.type === 'consume')
-      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0))
+    filteredTransactions
+      .filter((transaction) => transaction.type === 'consume')
+      .reduce((sum, transaction) => sum + Math.abs(Number(transaction.amount || 0)), 0)
   ), [filteredTransactions]);
 
   const exportTotal = useMemo(() => {
@@ -638,6 +638,95 @@ const CouponRecords = () => {
     showMessage('PDF file exported successfully.', 'success');
   }, [formatInt, getExportTotal, getExportTotalLabel, getTransactionTypeLabel, showMessage, summarizeTransactionGroups]);
 
+  const escapeHtml = useCallback((value) => {
+    return String(value ?? '').replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }, []);
+
+  const handleWordExport = useCallback((exportTransactions, options) => {
+    const exportSummaries = summarizeTransactionGroups(exportTransactions);
+    const totalLabel = getExportTotalLabel(options.includeExportTypes);
+    const exportTotalValue = getExportTotal(exportTransactions);
+
+    let dateRangeLabel = 'Period: All time';
+    if (options.dateRange === 'custom' && options.customDateFrom && options.customDateTo) {
+      dateRangeLabel = `Period: ${options.customDateFrom} to ${options.customDateTo}`;
+    } else if (options.dateRange === 'custom' && options.customDateFrom) {
+      dateRangeLabel = `Period: From ${options.customDateFrom}`;
+    } else if (options.dateRange === 'custom' && options.customDateTo) {
+      dateRangeLabel = `Period: Until ${options.customDateTo}`;
+    } else if (options.dateRange && options.dateRange !== 'all') {
+      dateRangeLabel = `Period: ${options.dateRange.charAt(0).toUpperCase()}${options.dateRange.slice(1)}`;
+    }
+
+    const rowsHtml = exportSummaries.map((transaction) => `
+      <tr>
+        <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(transaction.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }))}</td>
+        <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(getTransactionTypeLabel(transaction.type, transaction.amount))}</td>
+        <td style="padding:8px;border:1px solid #ddd;text-align:right;">${escapeHtml(formatInt(transaction.amount))}</td>
+        <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(transaction.details.size > 0 ? Array.from(transaction.details).join(' | ') : '-')}</td>
+      </tr>
+    `).join('');
+
+    const html = `<!DOCTYPE html>
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="utf-8" />
+          <title>Coupon Transaction Report</title>
+        </head>
+        <body>
+          <h1 style="font-family:Arial, sans-serif;color:#16a34a;">Coupon Transaction Report</h1>
+          <p style="font-family:Arial, sans-serif;color:#374151;">${escapeHtml(dateRangeLabel)}</p>
+          <p style="font-family:Arial, sans-serif;color:#374151;">Generated: ${escapeHtml(new Date().toLocaleString())}</p>
+          <table style="width:100%;border-collapse:collapse;font-family:Arial, sans-serif;">
+            <thead>
+              <tr>
+                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Date & Time</th>
+                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Type</th>
+                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:right;">Amount</th>
+                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          <p style="font-family:Arial, sans-serif;color:#374151;font-weight:bold;margin-top:16px;">${escapeHtml(totalLabel)}: ${escapeHtml(formatInt(exportTotalValue))}</p>
+        </body>
+      </html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const fileName = 'Coupon.docx';
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(anchor.href);
+
+    showMessage('Coupon.docx downloaded successfully.', 'success');
+  }, [escapeHtml, formatInt, getExportTotal, getExportTotalLabel, getTransactionTypeLabel, showMessage, summarizeTransactionGroups]);
+
+  const handleWordDownload = useCallback(() => {
+    const exportOptions = {
+      dateRange: dateFrom || dateTo ? 'custom' : period,
+      customDateFrom: dateFrom ? formatLocalDateForApi(dateFrom) : null,
+      customDateTo: dateTo ? formatLocalDateForApi(dateTo) : null,
+      includeExportTypes: { dispensed: true, added: true, removed: true },
+    };
+
+    if (filteredTransactions.length === 0) {
+      showMessage('No transactions available to print.', 'error');
+      return;
+    }
+
+    handleWordExport(filteredTransactions, exportOptions);
+  }, [dateFrom, dateTo, filteredTransactions, formatLocalDateForApi, handleWordExport, period, showMessage]);
+
   const handleExport = useCallback((options) => {
     const exportTransactions = getExportTransactions(options);
 
@@ -808,7 +897,7 @@ const CouponRecords = () => {
               </select>
             </div>
 
-            <div className="flex items-end">
+            <div className="flex flex-col gap-3 items-stretch md:items-end">
               <button
                 onClick={() => setShowExportModal(true)}
                 disabled={filteredTransactions.length === 0}
@@ -816,6 +905,15 @@ const CouponRecords = () => {
               >
                 <FileDownloadOutlinedIcon fontSize="small" />
                 Export
+              </button>
+              <button
+                type="button"
+                onClick={handleWordDownload}
+                disabled={filteredTransactions.length === 0}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ReceiptLongOutlinedIcon fontSize="small" />
+                Print Coupon.docx
               </button>
             </div>
           </div>
