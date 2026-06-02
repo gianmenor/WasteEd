@@ -11,6 +11,8 @@ import { useToast } from '../contexts/ToastContext';
 import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 
+const VIDEO_CACHE_KEY = 'kioskVideoUrlCache.v1';
+
 const Settings = () => {
   const navigate = useNavigate();
   const { user, updateUser, logout } = useAuth();
@@ -191,6 +193,7 @@ const Settings = () => {
 
       setIdleUploadStatus('Idle video uploaded successfully.');
       setIdleVideoFile(null);
+      localStorage.removeItem(VIDEO_CACHE_KEY);
       showMessage('Idle video uploaded successfully');
     } catch (error) {
       console.error('Idle upload failed:', error);
