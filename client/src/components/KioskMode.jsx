@@ -6,7 +6,6 @@ import { API_ENDPOINTS } from '../config/api';
 const VIDEO_CACHE_KEY = 'kioskVideoUrlCache.v1';
 const VIDEO_CACHE_TTL = 1000 * 60 * 60 * 24;
 const RETURN_TO_IDLE_DELAY_MS = 4000;
-const IDLE_VIDEO_URL = 'https://storage.googleapis.com/wasteed-ff8b2.firebasestorage.app/videos/idle/idle.mp4';
 
 const WASTE_TYPES = ['RECYCLABLE', 'WET', 'DRY'];
 
@@ -141,7 +140,20 @@ const KioskMode = () => {
     const loadKioskMedia = async () => {
       try {
         const idleUrl = await resolveCachedUrl('idle', async () => {
-          return IDLE_VIDEO_URL;
+          const response = await fetch(API_ENDPOINTS.VIDEO_SIGNED_URL('idle'));
+          if (!response.ok) {
+            const errorBody = await response.text().catch(() => '');
+            throw new Error(`Failed to load idle video: ${response.status} ${errorBody}`);
+          }
+
+          const data = await response.json();
+          const url = data?.data?.url;
+
+          if (!url) {
+            throw new Error('Idle video URL not found');
+          }
+
+          return url;
         });
 
         if (!isMounted) {

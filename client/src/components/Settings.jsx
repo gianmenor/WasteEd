@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { useToast } from '../contexts/ToastContext';
+import { API_ENDPOINTS } from '../config/api';
 import LoadingSpinner from './LoadingSpinner';
 
 const Settings = () => {
@@ -30,6 +31,9 @@ const Settings = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [idleVideoFile, setIdleVideoFile] = useState(null);
+  const [idleUploadStatus, setIdleUploadStatus] = useState('');
+  const [idleUploadLoading, setIdleUploadLoading] = useState(false);
 
   useEffect(() => {
     setProfile((current) => ({
@@ -156,6 +160,47 @@ const Settings = () => {
     navigate('/kiosk', { replace: true });
   }, [navigate]);
 
+  const handleIdleVideoUpload = useCallback(async () => {
+    if (!idleVideoFile) {
+      showMessage('Please choose an idle video file before uploading', 'error');
+      return;
+    }
+
+    setIdleUploadLoading(true);
+    setIdleUploadStatus('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('video', idleVideoFile);
+      formData.append('wasteType', 'IDLE');
+
+      const response = await fetch(API_ENDPOINTS.VIDEO_UPLOAD, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: formData
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Idle video upload failed');
+      }
+
+      setIdleUploadStatus('Idle video uploaded successfully.');
+      setIdleVideoFile(null);
+      showMessage('Idle video uploaded successfully');
+    } catch (error) {
+      console.error('Idle upload failed:', error);
+      setIdleUploadStatus(error.message || 'Failed to upload idle video');
+      showMessage(error.message || 'Failed to upload idle video', 'error');
+    } finally {
+      setIdleUploadLoading(false);
+    }
+  }, [idleVideoFile, showMessage]);
+
   // Memoize tabs array - removed accounts tab per PRD (single admin user)
   const tabs = useMemo(() => [
     { id: 'system', label: 'System', icon: <SettingsOutlinedIcon fontSize="small" /> },
@@ -271,6 +316,45 @@ const Settings = () => {
                       <OpenInNewOutlinedIcon fontSize="small" />
                       Launch Kiosk
                     </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between p-4 px-5 border-t border-[#d1d9e0] gap-3 md:gap-0">
+                  <div className="flex-1 md:mr-4">
+                    <label className="text-sm font-semibold text-[#1f2328] mb-1 block">Idle Video Upload</label>
+                    <p className="text-[13px] text-[#656d76] m-0 leading-snug">
+                      Upload a new idle screen video for kiosk mode. This video plays when the kiosk is not processing a waste input.
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 flex flex-col items-end gap-3">
+                    <div className="flex items-center gap-3">
+                      <label className="cursor-pointer rounded-md border border-[#d1d9e0] bg-white px-3 py-2 text-sm text-[#1f2328] hover:bg-[#f6f8fa]">
+                        <input
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            setIdleUploadStatus('');
+                            setIdleVideoFile(e.target.files?.[0] || null);
+                          }}
+                        />
+                        {idleVideoFile ? 'Change file' : 'Choose video'}
+                      </label>
+                      <span className="text-sm text-[#656d76] break-all max-w-[220px]">
+                        {idleVideoFile?.name || 'No file selected'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="border rounded-md cursor-pointer text-sm font-medium py-2 px-3 transition-all duration-150 inline-flex items-center gap-2 bg-[#1f883d] border-[#1f883d] text-white hover:bg-[#1a7f37] hover:border-[#1a7f37] disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleIdleVideoUpload}
+                      disabled={idleUploadLoading || !idleVideoFile}
+                    >
+                      {idleUploadLoading ? 'Uploading...' : 'Upload Idle Video'}
+                    </button>
+                    {idleUploadStatus && (
+                      <p className="text-sm text-[#1f883d] m-0">{idleUploadStatus}</p>
+                    )}
                   </div>
                 </div>
               </div>

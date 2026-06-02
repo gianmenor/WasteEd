@@ -22,7 +22,8 @@ const LEGACY_VIDEO_PATH_MAP = {
 const NEW_VIDEO_PATH_BY_TYPE = {
   RECYCLABLE: 'videos/recyclable-wastes/Recyclable.mp4',
   WET: 'videos/wet-wastes/WetWaste.mp4',
-  DRY: 'videos/dry-wastes/DryWaste.mp4'
+  DRY: 'videos/dry-wastes/DryWaste.mp4',
+  IDLE: 'videos/idle/idle.mp4'
 };
 
 const getLegacyVideoPath = (videoPath) => {
@@ -195,7 +196,7 @@ router.post('/upload', upload.single('video'), async (req, res) => {
     }
 
     const normalizedType = wasteType.toUpperCase();
-    const validTypes = ['WET', 'DRY', 'RECYCLABLE'];
+    const validTypes = ['WET', 'DRY', 'RECYCLABLE', 'IDLE'];
 
     if (!validTypes.includes(normalizedType)) {
       return res.status(400).json({
