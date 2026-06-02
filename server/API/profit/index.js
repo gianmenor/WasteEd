@@ -54,7 +54,10 @@ router.get('/records', async (req, res) => {
       return await prisma.$transaction([
         prisma.profitReward.findMany({
           where,
-          orderBy: { date: 'desc' },
+          orderBy: [
+            { date: 'desc' },
+            { createdAt: 'desc' }
+          ],
           skip,
           take: limitNum
         }),
@@ -199,11 +202,20 @@ router.put('/update/:id', async (req, res) => {
       }
       updateData.date = parsedDate;
     }
-    if (profitFromRecyclables !== undefined) updateData.profitFromRecyclables = profit;
-    if (rewardsSpent !== undefined) updateData.rewardsSpent = rewards;
-    if (notes !== undefined) updateData.notes = notes;
 
-    const updated = await retryOperation(async () => {
+    if (profitFromRecyclables !== undefined) {
+      updateData.profitFromRecyclables = roundTwo(profitFromRecyclables);
+    }
+
+    if (rewardsSpent !== undefined) {
+      updateData.rewardsSpent = roundTwo(rewardsSpent);
+    }
+
+    if (notes !== undefined) {
+      updateData.notes = notes || null;
+    }
+
+    const updatedRecord = await retryOperation(async () => {
       return await prisma.profitReward.update({
         where: { id: recordId },
         data: updateData
@@ -212,8 +224,8 @@ router.put('/update/:id', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Record updated successfully',
-      data: updated
+      message: 'Profit/reward record updated successfully',
+      data: updatedRecord
     });
   } catch (error) {
     console.error('Error updating profit record:', error);
@@ -225,13 +237,13 @@ router.put('/update/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/profit/delete/:id - Delete record
+// DELETE /api/profit/delete/:id - Delete a profit/reward record
 router.delete('/delete/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const recordId = parseInt(id);
 
-    const deleted = await retryOperation(async () => {
+    const deletedRecord = await retryOperation(async () => {
       return await prisma.profitReward.delete({
         where: { id: recordId }
       });
@@ -239,151 +251,14 @@ router.delete('/delete/:id', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Record deleted successfully',
-      data: deleted
+      message: 'Profit/reward record deleted successfully',
+      data: deletedRecord
     });
   } catch (error) {
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        success: false,
-        message: 'Record not found'
-      });
-    }
-
     console.error('Error deleting profit record:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to delete profit record',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/profit/summary - Aggregated summary
-router.get('/summary', async (req, res) => {
-  try {
-    const { period = 'all', year, month } = req.query;
-
-    const dateFilter = {};
-    const now = new Date();
-
-    // Check month first (more specific than year)
-    if (period === 'month' || month) {
-      const targetMonth = month ? parseInt(month) - 1 : now.getMonth();
-      const targetYear = year ? parseInt(year) : now.getFullYear();
-      dateFilter.gte = new Date(targetYear, targetMonth, 1);
-      dateFilter.lt = new Date(targetYear, targetMonth + 1, 1);
-    } else if (period === 'year' || year) {
-      const targetYear = year ? parseInt(year) : now.getFullYear();
-      dateFilter.gte = new Date(targetYear, 0, 1);
-      dateFilter.lt = new Date(targetYear + 1, 0, 1);
-    } else if (period === 'week') {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      dateFilter.gte = weekAgo;
-    } else if (period === 'day') {
-      dateFilter.gte = new Date(now.setHours(0, 0, 0, 0));
-    }
-
-    const where = {};
-    if (Object.keys(dateFilter).length > 0) {
-      where.date = dateFilter;
-    }
-
-    const records = await retryOperation(async () => {
-      return await prisma.profitReward.findMany({ where });
-    });
-
-    const summary = {
-      totalProfit: 0,
-      totalRewardsSpent: 0,
-      totalNetProfit: 0,
-      recordCount: records.length,
-      averageProfit: 0,
-      averageRewards: 0,
-      averageNetProfit: 0
-    };
-
-    records.forEach(record => {
-      summary.totalProfit += record.profitFromRecyclables;
-      summary.totalRewardsSpent += record.rewardsSpent;
-      summary.totalNetProfit += record.netProfit;
-    });
-
-    if (records.length > 0) {
-      summary.averageProfit = summary.totalProfit / records.length;
-      summary.averageRewards = summary.totalRewardsSpent / records.length;
-      summary.averageNetProfit = summary.totalNetProfit / records.length;
-    }
-
-    res.json({
-      success: true,
-      data: summary,
-      period
-    });
-  } catch (error) {
-    console.error('Error generating summary:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate summary',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/profit/net-profit - Calculate net profit with filters
-router.get('/net-profit', async (req, res) => {
-  try {
-    const { period = 'all', year, month } = req.query;
-
-    const dateFilter = {};
-    const now = new Date();
-
-    if (period === 'year' || year) {
-      const targetYear = year ? parseInt(year) : now.getFullYear();
-      dateFilter.gte = new Date(targetYear, 0, 1);
-      dateFilter.lt = new Date(targetYear + 1, 0, 1);
-    } else if (period === 'month' || month) {
-      const targetMonth = month ? parseInt(month) - 1 : now.getMonth();
-      const targetYear = year ? parseInt(year) : now.getFullYear();
-      dateFilter.gte = new Date(targetYear, targetMonth, 1);
-      dateFilter.lt = new Date(targetYear, targetMonth + 1, 1);
-    }
-
-    const where = {};
-    if (Object.keys(dateFilter).length > 0) {
-      where.date = dateFilter;
-    }
-
-    const records = await retryOperation(async () => {
-      return await prisma.profitReward.findMany({
-        where,
-        orderBy: { date: 'asc' }
-      });
-    });
-
-    const netProfitData = records.map(record => ({
-      date: record.date,
-      profit: record.profitFromRecyclables,
-      rewards: record.rewardsSpent,
-      netProfit: record.netProfit
-    }));
-
-    const totalNetProfit = records.reduce((sum, r) => sum + r.netProfit, 0);
-
-    res.json({
-      success: true,
-      data: {
-        totalNetProfit,
-        records: netProfitData,
-        count: records.length
-      }
-    });
-  } catch (error) {
-    console.error('Error calculating net profit:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to calculate net profit',
       error: error.message
     });
   }

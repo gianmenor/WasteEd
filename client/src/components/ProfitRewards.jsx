@@ -356,7 +356,16 @@ const ProfitRewards = () => {
   }, [customDateFrom, todayDateString]);
 
   const filteredRecords = useMemo(() => {
-    const sortedRecords = [...records].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const sortedRecords = [...records].sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      if (dateA !== dateB) {
+        return dateB - dateA;
+      }
+      const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return createdB - createdA;
+    });
 
     if (dateRangeMode === 'month') {
       return sortedRecords.filter((record) => {
@@ -430,7 +439,16 @@ const ProfitRewards = () => {
 
     const rows = recordsToExport
       .slice()
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateA !== dateB) {
+          return dateB - dateA;
+        }
+        const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return createdB - createdA;
+      })
       .map((record) => ({
         Date: new Date(record.date).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -517,6 +535,8 @@ const ProfitRewards = () => {
   );
 
   const loading = recordsLoading;
+  const showOverlay = recordsLoading || isSubmitting;
+  const loadingMessage = isSubmitting ? 'Processing record...' : 'Loading records...';
   
   const years = useMemo(() => {
     const startYear = 2025;
@@ -635,7 +655,7 @@ const ProfitRewards = () => {
 
   return (
     <div className={`max-w-[1400px] mx-auto p-4 md:p-8 bg-[var(--bg-primary)] min-h-screen ${uiSizeClass}`}>
-      {loading && <LoadingSpinner fullscreen message="Loading data..." />}
+      {showOverlay && <LoadingSpinner fullscreen message={loadingMessage} />}
 
       {/* Alert Messages */}
 
@@ -758,14 +778,14 @@ const ProfitRewards = () => {
                   max={todayDateString}
                 />
               </div>
-              {(customDateFrom || customDateTo) && (
+              {customDateFrom || customDateTo ? (
                 <button
                   className="px-3 py-2 border border-[var(--border-color)] rounded bg-transparent text-[var(--text-secondary)] text-[0.8125rem] cursor-pointer transition-all self-end hover:border-[var(--danger-color)] hover:text-[var(--danger-color)] hover:bg-[rgba(239,68,68,0.06)] sm:mt-auto"
                   onClick={() => { setCustomDateFrom(''); setCustomDateTo(''); }}
                 >
                   Clear
                 </button>
-              )}
+              ) : null}
             </div>
           )}
         </div>
@@ -1019,10 +1039,8 @@ const ProfitRewards = () => {
                       <span className="flex items-center justify-center px-3 text-sm font-semibold bg-[rgba(34,197,94,0.07)] border-r border-[var(--border-color)] text-[var(--success-color)] select-none">₱</span>
                       <input
                         id="profitAmount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="9999.99"
+                        type="text"
+                        inputMode="decimal"
                         className="border-none border-l-[3px] border-l-[var(--success-color)] rounded-none flex-1 min-w-0 shadow-none focus:outline-none focus:border-transparent focus:shadow-none px-4 py-2 text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] transition-all"
                         value={formData.profitAmount}
                         onChange={(e) => {
@@ -1031,12 +1049,6 @@ const ProfitRewards = () => {
                             if (value === '' || Number(value) <= 9999.99) {
                               setFormData(prev => ({ ...prev, profitAmount: value }));
                             }
-                          }
-                        }}
-                        onInput={(e) => {
-                          const value = e.target.value;
-                          if (value !== '' && Number(value) > 9999.99) {
-                            e.target.value = '9999.99';
                           }
                         }}
                         placeholder="0.00"
@@ -1052,10 +1064,8 @@ const ProfitRewards = () => {
                       <span className="flex items-center justify-center px-3 text-sm font-semibold bg-[rgba(239,68,68,0.07)] border-r border-[var(--border-color)] text-[var(--danger-color,#ef4444)] select-none">₱</span>
                       <input
                         id="expenseAmount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="9999.99"
+                        type="text"
+                        inputMode="decimal"
                         className="border-none border-l-[3px] border-l-[var(--danger-color,#ef4444)] rounded-none flex-1 min-w-0 shadow-none focus:outline-none focus:border-transparent focus:shadow-none px-4 py-2 text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] transition-all"
                         value={formData.expenseAmount}
                         onChange={(e) => {
@@ -1064,12 +1074,6 @@ const ProfitRewards = () => {
                             if (value === '' || Number(value) <= 9999.99) {
                               setFormData(prev => ({ ...prev, expenseAmount: value }));
                             }
-                          }
-                        }}
-                        onInput={(e) => {
-                          const value = e.target.value;
-                          if (value !== '' && Number(value) > 9999.99) {
-                            e.target.value = '9999.99';
                           }
                         }}
                         placeholder="0.00"

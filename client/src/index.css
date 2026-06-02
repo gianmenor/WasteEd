@@ -18,6 +18,7 @@
   --background-color: #f8fdf8;
   --background-secondary: #ffffff;
   --primary-color: #16a34a;
+  --primary-hover: #15803d;
 }
 /* Single light theme is applied globally via CSS variables above. */
 
@@ -38,4 +39,3 @@
 .password-input::placeholder {
   color: inherit;
 }
-
