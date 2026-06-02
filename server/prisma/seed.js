@@ -365,30 +365,6 @@ async function main() {
     });
     console.log('✅ Initialized coupon balance: 1000 coupons');
 
-    // Create sample profit/reward records
-    console.log('\n💰 Creating sample profit and reward records...');
-    const profitRewards = [];
-    const profitStartDate = new Date(2025, 0, 1); // January 1, 2025
-    
-    for (let i = 0; i < 12; i++) {
-      const monthDate = new Date(2025, i, 15);
-      const profitAmount = Math.floor(Math.random() * 5000) + 2000;
-      const rewardAmount = Math.floor(Math.random() * 2000) + 500;
-      
-      profitRewards.push({
-        date: monthDate,
-        profitFromRecyclables: profitAmount,
-        rewardsSpent: rewardAmount,
-        netProfit: profitAmount - rewardAmount,
-        notes: `Monthly record for ${monthDate.toLocaleString('default', { month: 'long', year: 'numeric' })}`
-      });
-    }
-    
-    await prisma.profitReward.createMany({
-      data: profitRewards
-    });
-    console.log(`✅ Created ${profitRewards.length} profit/reward records for 2025`);
-
     // Create initial inventory items
     const inventoryItems = [
       { name: 'Eraser', description: 'Standard white eraser', cost: 1, price: 5.00, stock: 50 },

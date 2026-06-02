@@ -265,6 +265,14 @@ const ProfitRewards = () => {
     }).format(amount);
   }, []);
 
+  const formatExportNumber = useCallback((value) => {
+    const numberValue = Number(value) || 0;
+    return numberValue.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }, []);
+
   const getExportDateRange = useCallback((dateRange, customDateFrom, customDateTo) => {
     const today = new Date();
     const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -409,7 +417,9 @@ const ProfitRewards = () => {
 
   const handleExport = useCallback((options) => {
     const { format = 'excel', dateRange = 'all', customDateFrom = null, customDateTo = null } = options;
-    const recordsToExport = filterRecordsByExportRange(records, dateRange, customDateFrom, customDateTo);
+    const recordsToExport = dateRange === 'all'
+      ? filteredRecords
+      : filterRecordsByExportRange(records, dateRange, customDateFrom, customDateTo);
 
     if (!recordsToExport || recordsToExport.length === 0) {
       showMessage('No records to export', 'error');
@@ -427,17 +437,17 @@ const ProfitRewards = () => {
           month: 'short',
           day: 'numeric',
         }),
-        'Total Amount Collected (PHP)': Math.round((Number(record.profitFromRecyclables) || 0) * 100) / 100,
-        'Expense (PHP)': Math.round((Number(record.rewardsSpent) || 0) * 100) / 100,
-        'Net Revenue (PHP)': Math.round((Number(record.netProfit) || 0) * 100) / 100,
+        'Total Amount Collected (PHP)': formatExportNumber(record.profitFromRecyclables),
+        'Expense (PHP)': formatExportNumber(record.rewardsSpent),
+        'Net Revenue (PHP)': formatExportNumber(record.netProfit),
         Notes: record.notes || '',
       }));
 
     const totals = rows.reduce(
       (acc, row) => {
-        acc.totalCollected += Number(row['Total Amount Collected (PHP)']) || 0;
-        acc.totalExpense += Number(row['Expense (PHP)']) || 0;
-        acc.totalNetRevenue += Number(row['Net Revenue (PHP)']) || 0;
+        acc.totalCollected += Number(row['Total Amount Collected (PHP)'].replace(/,/g, '')) || 0;
+        acc.totalExpense += Number(row['Expense (PHP)'].replace(/,/g, '')) || 0;
+        acc.totalNetRevenue += Number(row['Net Revenue (PHP)'].replace(/,/g, '')) || 0;
         return acc;
       },
       { totalCollected: 0, totalExpense: 0, totalNetRevenue: 0 }
@@ -452,9 +462,9 @@ const ProfitRewards = () => {
         { Date: '' },
         {
           Date: 'Totals',
-          'Total Amount Collected (PHP)': Math.round(totals.totalCollected * 100) / 100,
-          'Expense (PHP)': Math.round(totals.totalExpense * 100) / 100,
-          'Net Revenue (PHP)': Math.round(totals.totalNetRevenue * 100) / 100,
+          'Total Amount Collected (PHP)': formatExportNumber(totals.totalCollected),
+          'Expense (PHP)': formatExportNumber(totals.totalExpense),
+          'Net Revenue (PHP)': formatExportNumber(totals.totalNetRevenue),
           Notes: ''
         }
       ];
@@ -490,9 +500,9 @@ const ProfitRewards = () => {
       doc.setFont(undefined, 'bold');
       doc.text('Totals', 14, summaryY);
       doc.setFont(undefined, 'normal');
-      doc.text(`Total Amount Collected: PHP ${Math.round(totals.totalCollected * 100) / 100}`, 14, summaryY + 6);
-      doc.text(`Expense: PHP ${Math.round(totals.totalExpense * 100) / 100}`, 14, summaryY + 12);
-      doc.text(`Net Revenue: PHP ${Math.round(totals.totalNetRevenue * 100) / 100}`, 14, summaryY + 18);
+      doc.text(`Total Amount Collected: PHP ${formatExportNumber(totals.totalCollected)}`, 14, summaryY + 6);
+      doc.text(`Expense: PHP ${formatExportNumber(totals.totalExpense)}`, 14, summaryY + 12);
+      doc.text(`Net Revenue: PHP ${formatExportNumber(totals.totalNetRevenue)}`, 14, summaryY + 18);
 
       doc.save(`profit_expense_${dateRangeLabel.replace(/\s+/g, '_')}.pdf`);
     }
@@ -550,6 +560,46 @@ const ProfitRewards = () => {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  const exportRangeDefaults = useMemo(() => {
+    const capToToday = (dateString) => {
+      if (!dateString) return null;
+      return dateString > todayDateString ? todayDateString : dateString;
+    };
+
+    if (dateRangeMode === 'custom') {
+      return {
+        dateRange: 'custom',
+        customDateFrom,
+        customDateTo: capToToday(customDateTo),
+      };
+    }
+
+    if (dateRangeMode === 'month') {
+      if (selectedMonth === '') {
+        return {
+          dateRange: 'custom',
+          customDateFrom: `${selectedYear}-01-01`,
+          customDateTo: selectedYear === currentYear ? todayDateString : `${selectedYear}-12-${new Date(selectedYear, 12, 0).getDate().toString().padStart(2, '0')}`,
+        };
+      }
+
+      const monthString = String(selectedMonth).padStart(2, '0');
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate().toString().padStart(2, '0');
+      const monthEnd = `${selectedYear}-${monthString}-${lastDay}`;
+      return {
+        dateRange: 'custom',
+        customDateFrom: `${selectedYear}-${monthString}-01`,
+        customDateTo: selectedYear === currentYear && selectedMonth === currentMonth ? todayDateString : monthEnd,
+      };
+    }
+
+    return {
+      dateRange: 'all',
+      customDateFrom: null,
+      customDateTo: null,
+    };
+  }, [dateRangeMode, selectedYear, selectedMonth, customDateFrom, customDateTo, currentYear, currentMonth, todayDateString]);
 
   const goToPage = useCallback((page) => {
     setCurrentPage(Math.min(Math.max(page, 1), totalPages));
@@ -934,6 +984,9 @@ const ProfitRewards = () => {
           title="Export Profit & Expense"
           showWasteTypes={false}
           showDateRange={true}
+          defaultDateRange={exportRangeDefaults.dateRange}
+          defaultCustomDateFrom={exportRangeDefaults.customDateFrom}
+          defaultCustomDateTo={exportRangeDefaults.customDateTo}
         />
       )}
 

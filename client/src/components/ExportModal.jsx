@@ -12,7 +12,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { formatLocalDateForApi } from '../utils/date';
 
-const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWasteTypes = true, showExportTypes = false, showDateRange = true }) => {
+const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWasteTypes = true, showExportTypes = false, showDateRange = true, defaultDateRange = 'all', defaultCustomDateFrom = null, defaultCustomDateTo = null }) => {
   const [exportFormat, setExportFormat] = useState('excel');
   const [includeTypes, setIncludeTypes] = useState({
     recyclable: true,
@@ -24,9 +24,9 @@ const ExportModal = ({ isOpen, onClose, onExport, title = "Export Data", showWas
     added: true,
     removed: true,
   });
-  const [dateRange, setDateRange] = useState('all');
-  const [customDateFrom, setCustomDateFrom] = useState(null);
-  const [customDateTo, setCustomDateTo] = useState(null);
+  const [dateRange, setDateRange] = useState(defaultDateRange);
+  const [customDateFrom, setCustomDateFrom] = useState(defaultCustomDateFrom ? new Date(defaultCustomDateFrom) : null);
+  const [customDateTo, setCustomDateTo] = useState(defaultCustomDateTo ? new Date(defaultCustomDateTo) : null);
 
   if (!isOpen) return null;
 
