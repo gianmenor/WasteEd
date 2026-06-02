@@ -4,7 +4,7 @@ import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettin
 import { API_ENDPOINTS } from '../config/api';
 
 const VIDEO_CACHE_KEY = 'kioskVideoUrlCache.v1';
-const VIDEO_CACHE_TTL = 1000 * 60 * 60 * 24;
+const VIDEO_CACHE_TTL = 1000 * 60 * 30; // 30 minutes max for signed URLs
 const RETURN_TO_IDLE_DELAY_MS = 4000;
 
 const WASTE_TYPES = ['RECYCLABLE', 'WET', 'DRY'];
@@ -41,6 +41,14 @@ const resolveCachedUrl = async (cacheKey, resolver) => {
   };
   writeVideoCache(cache);
   return url;
+};
+
+const clearCachedUrl = (cacheKey) => {
+  const cache = readVideoCache();
+  if (cache[cacheKey]) {
+    delete cache[cacheKey];
+    writeVideoCache(cache);
+  }
 };
 
 const detectWasteType = (payload) => {
@@ -89,6 +97,36 @@ const KioskMode = () => {
     setIsIdlePlayback(true);
   }, [idleVideoUrl]);
 
+  const reloadIdleVideo = useCallback(async () => {
+    clearCachedUrl('idle');
+
+    try {
+      const idleUrl = await resolveCachedUrl('idle', async () => {
+        const response = await fetch(API_ENDPOINTS.VIDEO_SIGNED_URL('idle'));
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => '');
+          throw new Error(`Failed to load idle video: ${response.status} ${errorBody}`);
+        }
+
+        const data = await response.json();
+        const url = data?.data?.url;
+
+        if (!url) {
+          throw new Error('Idle video URL not found');
+        }
+
+        return url;
+      });
+
+      setIdleVideoUrl(idleUrl);
+      setActiveVideoUrl(idleUrl);
+      setIsIdlePlayback(true);
+    } catch (loadError) {
+      console.error('Failed to reload idle video:', loadError);
+      setError('Unable to refresh idle video. Please reload kiosk.');
+    }
+  }, []);
+
   const queueIdleReset = useCallback(() => {
     if (returnToIdleTimerRef.current) {
       clearTimeout(returnToIdleTimerRef.current);
@@ -134,27 +172,29 @@ const KioskMode = () => {
     }
   }, [activeVideoUrl, idleVideoUrl, isIdlePlayback, restartIdleVideo]);
 
+  const fetchIdleVideoUrl = useCallback(async () => {
+    const response = await fetch(API_ENDPOINTS.VIDEO_SIGNED_URL('idle'));
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new Error(`Failed to load idle video: ${response.status} ${errorBody}`);
+    }
+
+    const data = await response.json();
+    const url = data?.data?.url;
+
+    if (!url) {
+      throw new Error('Idle video URL not found');
+    }
+
+    return url;
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
     const loadKioskMedia = async () => {
       try {
-        const idleUrl = await resolveCachedUrl('idle', async () => {
-          const response = await fetch(API_ENDPOINTS.VIDEO_SIGNED_URL('idle'));
-          if (!response.ok) {
-            const errorBody = await response.text().catch(() => '');
-            throw new Error(`Failed to load idle video: ${response.status} ${errorBody}`);
-          }
-
-          const data = await response.json();
-          const url = data?.data?.url;
-
-          if (!url) {
-            throw new Error('Idle video URL not found');
-          }
-
-          return url;
-        });
+        const idleUrl = await fetchIdleVideoUrl();
 
         if (!isMounted) {
           return;
@@ -181,7 +221,7 @@ const KioskMode = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [fetchIdleVideoUrl]);
 
   useEffect(() => {
     const eventSource = new EventSource(API_ENDPOINTS.BIN_NOTIFICATIONS_STREAM);
@@ -252,7 +292,12 @@ const KioskMode = () => {
             playsInline
             controls={false}
             onEnded={onVideoEnded}
-            onError={() => setError('Video playback failed. Please verify the uploaded file.')}
+            onError={async () => {
+              setError('Video playback failed. Please verify the uploaded file.');
+              if (isIdlePlayback) {
+                await reloadIdleVideo();
+              }
+            }}
           />
         </div>
       ) : (
