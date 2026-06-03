@@ -14,7 +14,6 @@ import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumb
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import FirstPageOutlinedIcon from '@mui/icons-material/FirstPageOutlined';
 import NavigateBeforeOutlinedIcon from '@mui/icons-material/NavigateBeforeOutlined';
@@ -113,6 +112,7 @@ const CouponRecords = () => {
   const [period, setPeriod] = useState('all');
   const [adjustmentAmount, setAdjustmentAmount] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
+  const [adjustActionLoading, setAdjustActionLoading] = useState(null);
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
   const [typeFilter, setTypeFilter] = useState('all');
@@ -195,13 +195,16 @@ const CouponRecords = () => {
 
       const absAmount = Math.abs(toInt(amount));
       if (amount > 0) {
-        showMessage(`Added ${absAmount} coupons successfully.`, 'success');
+        showMessage(`Successfully added ${absAmount} coupons.`, 'success');
       } else {
-        showMessage(`Deducted ${absAmount} coupons successfully.`, 'success');
+        showMessage(`Successfully removed ${absAmount} coupons.`, 'success');
       }
     },
     onError: (error) => {
       showMessage(error.message, 'error');
+    },
+    onSettled: () => {
+      setAdjustActionLoading(null);
     },
   });
 
@@ -660,13 +663,17 @@ const CouponRecords = () => {
     return Number.isNaN(parsed) ? 0 : parsed;
   }, [balanceData, toInt]);
 
-  const loading = balanceLoading || transactionsLoading || adjustMutation.isPending;
+  const isAdjusting = adjustMutation.isPending;
+  const isAddLoading = adjustActionLoading === 'add';
+  const isRemoveLoading = adjustActionLoading === 'remove';
+  const loading = balanceLoading || transactionsLoading;
+  const loadingMessage = 'Loading...';
   const hasActiveFilters = Boolean(dateFrom || dateTo || typeFilter !== 'all' || period !== 'all');
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {loading && <LoadingSpinner fullscreen message="Loading..." />}
+        {loading && <LoadingSpinner fullscreen message={loadingMessage} />}
 
 
         <div className="mb-6">
@@ -735,13 +742,19 @@ const CouponRecords = () => {
                   showMessage('Please enter a valid amount', 'error');
                   return;
                 }
+                setAdjustActionLoading('add');
                 adjustMutation.mutate({ amount: Math.abs(amount), reason: 'Manual credit' });
               }}
               className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={adjustMutation.isPending || !adjustmentAmount}
+              disabled={isAdjusting || !adjustmentAmount}
               title="Add coupons"
             >
-              <AddIcon fontSize="small" />
+              {isAddLoading ? (
+                <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <AddIcon fontSize="small" />
+              )}
+              <span>{isAddLoading ? 'Adding...' : 'Add'}</span>
             </button>
             <button
               type="button"
@@ -751,13 +764,19 @@ const CouponRecords = () => {
                   showMessage('Please enter a valid amount', 'error');
                   return;
                 }
+                setAdjustActionLoading('remove');
                 adjustMutation.mutate({ amount: -Math.abs(amount), reason: 'Manual deduction' });
               }}
               className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={adjustMutation.isPending || !adjustmentAmount}
+              disabled={isAdjusting || !adjustmentAmount}
               title="Subtract coupons"
             >
-              <RemoveIcon fontSize="small" />
+              {isRemoveLoading ? (
+                <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <RemoveIcon fontSize="small" />
+              )}
+              <span>{isRemoveLoading ? 'Removing...' : 'Remove'}</span>
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2">
